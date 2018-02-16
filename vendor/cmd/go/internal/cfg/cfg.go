@@ -121,6 +121,9 @@ func objabi() (GOARM, GO386, GOMIPS string) {
 }
 
 func findGOROOT() string {
+	if env := os.Getenv("VGOROOT"); env != "" {
+		return filepath.Clean(env)
+	}
 	if env := os.Getenv("GOROOT"); env != "" {
 		return filepath.Clean(env)
 	}
