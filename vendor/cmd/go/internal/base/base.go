@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -86,13 +87,20 @@ func Exit() {
 	os.Exit(exitStatus)
 }
 
+var et = flag.Bool("et", false, "print stack traces with errors")
+
 func Fatalf(format string, args ...interface{}) {
 	Errorf(format, args...)
 	Exit()
 }
 
 func Errorf(format string, args ...interface{}) {
-	log.Printf(format, args...)
+	if *et {
+		stack := debug.Stack()
+		log.Printf("%s\n%s", fmt.Sprintf(format, args...), stack)
+	} else {
+		log.Printf(format, args...)
+	}
 	SetExitStatus(1)
 }
 
