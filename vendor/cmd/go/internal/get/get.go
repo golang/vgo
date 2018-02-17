@@ -16,6 +16,7 @@ import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
+	"cmd/go/internal/search"
 	"cmd/go/internal/str"
 	"cmd/go/internal/web"
 	"cmd/go/internal/work"
@@ -170,7 +171,7 @@ func runGet(cmd *base.Command, args []string) {
 // in the hope that we can figure out the repository from the
 // initial ...-free prefix.
 func downloadPaths(args []string) []string {
-	args = load.ImportPathsNoDotExpansion(args)
+	args = load.ImportPathsForGoGet(args)
 	var out []string
 	for _, a := range args {
 		if strings.Contains(a, "...") {
@@ -179,9 +180,9 @@ func downloadPaths(args []string) []string {
 			// warnings. They will be printed by the
 			// eventual call to importPaths instead.
 			if build.IsLocalImport(a) {
-				expand = load.MatchPackagesInFS(a)
+				expand = search.MatchPackagesInFS(a)
 			} else {
-				expand = load.MatchPackages(a)
+				expand = search.MatchPackages(a)
 			}
 			if len(expand) > 0 {
 				out = append(out, expand...)
@@ -271,9 +272,9 @@ func download(arg string, parent *load.Package, stk *load.ImportStack, mode int)
 		// for p has been replaced in the package cache.
 		if wildcardOkay && strings.Contains(arg, "...") {
 			if build.IsLocalImport(arg) {
-				args = load.MatchPackagesInFS(arg)
+				args = search.MatchPackagesInFS(arg)
 			} else {
-				args = load.MatchPackages(arg)
+				args = search.MatchPackages(arg)
 			}
 			isWildcard = true
 		}

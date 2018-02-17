@@ -20,6 +20,7 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
+	"cmd/go/internal/search"
 	"cmd/go/internal/str"
 )
 
@@ -222,7 +223,7 @@ func (p *Package) copyBuild(pp *build.Package) {
 
 	// TODO? Target
 	p.Goroot = pp.Goroot
-	p.Standard = p.Goroot && p.ImportPath != "" && isStandardImportPath(p.ImportPath)
+	p.Standard = p.Goroot && p.ImportPath != "" && search.IsStandardImportPath(p.ImportPath)
 	p.GoFiles = pp.GoFiles
 	p.CgoFiles = pp.CgoFiles
 	p.IgnoredGoFiles = pp.IgnoredGoFiles
@@ -254,19 +255,6 @@ func (p *Package) copyBuild(pp *build.Package) {
 		p.TestImports = nil
 		p.XTestImports = nil
 	}
-}
-
-// isStandardImportPath reports whether $GOROOT/src/path should be considered
-// part of the standard distribution. For historical reasons we allow people to add
-// their own code to $GOROOT instead of using $GOPATH, but we assume that
-// code will start with a domain name (dot in the first element).
-func isStandardImportPath(path string) bool {
-	i := strings.Index(path, "/")
-	if i < 0 {
-		i = len(path)
-	}
-	elem := path[:i]
-	return !strings.Contains(elem, ".")
 }
 
 // A PackageError describes an error loading information about a package.
@@ -1462,6 +1450,20 @@ func PackagesAndErrors(args []string) []*Package {
 	}
 
 	return pkgs
+}
+
+func ImportPaths(args []string) []string {
+	if cmdlineMatchers == nil {
+		SetCmdlinePatterns(search.CleanImportPaths(args))
+	}
+	return search.ImportPaths(args)
+}
+
+func ImportPathsForGoGet(args []string) []string {
+	if cmdlineMatchers == nil {
+		SetCmdlinePatterns(search.CleanImportPaths(args))
+	}
+	return search.ImportPathsNoDotExpansion(args)
 }
 
 // packagesForBuild is like 'packages' but fails if any of
