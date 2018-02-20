@@ -299,7 +299,7 @@ func (b *Builder) buildActionID(a *Action) cache.ActionID {
 		}
 	}
 
-	fmt.Fprintf(h, "moduleinfo %q\n", p.Internal.ModuleInfo)
+	fmt.Fprintf(h, "buildinfo %q\n", p.Internal.BuildInfo)
 
 	return h.Sum()
 }
@@ -579,8 +579,8 @@ func (b *Builder) build(a *Action) (err error) {
 	}
 
 	// TODO(vgo): If have module info, write file to objdir, add to gofiles.
-	if p.Internal.ModuleInfo != "" {
-		if err := b.writeFile(objdir+"_gomod_.go", vgo.ModInfoProg(p.Internal.ModuleInfo)); err != nil {
+	if p.Internal.BuildInfo != "" {
+		if err := b.writeFile(objdir+"_gomod_.go", vgo.ModInfoProg(p.Internal.BuildInfo)); err != nil {
 			return err
 		}
 		gofiles = append(gofiles, objdir+"_gomod_.go")

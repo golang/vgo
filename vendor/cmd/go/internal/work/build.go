@@ -5,9 +5,11 @@
 package work
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/build"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -271,7 +273,24 @@ func oneMainPkg(pkgs []*load.Package) []*load.Package {
 
 var pkgsFilter = func(pkgs []*load.Package) []*load.Package { return pkgs }
 
-var runtimeVersion = runtime.Version()
+var runtimeVersion = getRuntimeVersion()
+
+func getRuntimeVersion() string {
+	data, err := ioutil.ReadFile(filepath.Join(cfg.GOROOT, "src/runtime/internal/sys/zversion.go"))
+	if err != nil {
+		base.Fatalf("vgo: %v", err)
+	}
+	i := bytes.Index(data, []byte("TheVersion = `"))
+	if i < 0 {
+		base.Fatalf("vgo: cannot find TheVersion")
+	}
+	data = data[i+len("TheVersion = `"):]
+	j := bytes.IndexByte(data, '`')
+	if j < 0 {
+		base.Fatalf("vgo: cannot find TheVersion")
+	}
+	return string(data[:j])
+}
 
 func runBuild(cmd *base.Command, args []string) {
 	BuildInit()

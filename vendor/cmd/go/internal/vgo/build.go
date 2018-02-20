@@ -7,6 +7,7 @@ package vgo
 import (
 	"bytes"
 	"cmd/go/internal/base"
+	"cmd/go/internal/modinfo"
 	"cmd/go/internal/module"
 	"cmd/go/internal/search"
 	"encoding/hex"
@@ -18,7 +19,19 @@ var (
 	infoEnd, _   = hex.DecodeString("f932433186182072008242104116d8f2")
 )
 
-func PackageModuleInfo(path string, deps []string) string {
+func PackageModuleInfo(path string) modinfo.ModulePublic {
+	var info modinfo.ModulePublic
+	if search.IsStandardImportPath(path) {
+		return info
+	}
+	target := findModule(path, path)
+	info.Top = target.Path == buildList[0].Path
+	info.Path = target.Path
+	info.Version = target.Version
+	return info
+}
+
+func PackageBuildInfo(path string, deps []string) string {
 	if search.IsStandardImportPath(path) {
 		return ""
 	}
@@ -49,6 +62,7 @@ func PackageModuleInfo(path string, deps []string) string {
 			mv = "(devel)"
 		}
 		fmt.Fprintf(&buf, "dep\t%s\t%s\t%s\n", mod.Path, mod.Version, findModHash(mod))
+		// TODO: replacements
 	}
 	return buf.String()
 }

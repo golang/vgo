@@ -20,6 +20,7 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
+	"cmd/go/internal/modinfo"
 	"cmd/go/internal/search"
 	"cmd/go/internal/str"
 	"cmd/go/internal/vgo"
@@ -96,6 +97,8 @@ type PackagePublic struct {
 	TestImports  []string `json:",omitempty"` // imports from TestGoFiles
 	XTestGoFiles []string `json:",omitempty"` // _test.go files outside package
 	XTestImports []string `json:",omitempty"` // imports from XTestGoFiles
+
+	Module modinfo.ModulePublic
 }
 
 // AllFiles returns the names of all the files considered for the package.
@@ -138,7 +141,7 @@ type PackageInternal struct {
 	OmitDebug    bool                 // tell linker not to write debug information
 	GobinSubdir  bool                 // install target would be subdir of GOBIN
 
-	ModuleInfo string // add this ModuleInfo to package main
+	BuildInfo string // add this info to package main
 
 	Asmflags   []string // -asmflags for this package
 	Gcflags    []string // -gcflags for this package
@@ -1198,8 +1201,9 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 		return
 	}
 
+	p.Module = vgo.PackageModuleInfo(p.ImportPath)
 	if p.Name == "main" {
-		p.Internal.ModuleInfo = vgo.PackageModuleInfo(p.ImportPath, p.Deps)
+		p.Internal.BuildInfo = vgo.PackageBuildInfo(p.ImportPath, p.Deps)
 	}
 }
 
