@@ -41,6 +41,13 @@ var (
 	srcV   string
 )
 
+func BinDir() string {
+	if !Enabled() {
+		panic("vgo.Bin")
+	}
+	return filepath.Join(gopath, "bin")
+}
+
 func init() {
 	flag.BoolVar(&MustBeVgo, "vgo", MustBeVgo, "require use of modules")
 }

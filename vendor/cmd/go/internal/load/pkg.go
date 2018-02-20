@@ -459,6 +459,8 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		bp.ImportPath = importPath
 		if cfg.GOBIN != "" {
 			bp.BinDir = cfg.GOBIN
+		} else if vgo.Enabled() {
+			bp.BinDir = vgo.BinDir()
 		}
 		if vgoDir == "" && err == nil && !isLocal && bp.ImportComment != "" && bp.ImportComment != path &&
 			!strings.Contains(path, "/vendor/") && !strings.HasPrefix(path, "vendor/") {
@@ -955,6 +957,9 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 		if cfg.BuildContext.GOOS != base.ToolGOOS || cfg.BuildContext.GOARCH != base.ToolGOARCH {
 			// Install cross-compiled binaries to subdirectories of bin.
 			elem = full
+		}
+		if p.Internal.Build.BinDir == "" && vgo.Enabled() {
+			p.Internal.Build.BinDir = vgo.BinDir()
 		}
 		if p.Internal.Build.BinDir != "" {
 			// Install to GOBIN or bin of GOPATH entry.
@@ -1601,6 +1606,8 @@ func GoFilesPackage(gofiles []string) *Package {
 		}
 		if cfg.GOBIN != "" {
 			pkg.Target = filepath.Join(cfg.GOBIN, exe)
+		} else if vgo.Enabled() {
+			pkg.Target = filepath.Join(vgo.BinDir(), exe)
 		}
 	}
 
