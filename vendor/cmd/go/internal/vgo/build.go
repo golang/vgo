@@ -32,7 +32,7 @@ func PackageModuleInfo(path string) modinfo.ModulePublic {
 }
 
 func PackageBuildInfo(path string, deps []string) string {
-	if search.IsStandardImportPath(path) {
+	if search.IsStandardImportPath(path) || !Enabled() {
 		return ""
 	}
 	target := findModule(path, path)
@@ -61,8 +61,15 @@ func PackageBuildInfo(path string, deps []string) string {
 		if mv == "" {
 			mv = "(devel)"
 		}
-		fmt.Fprintf(&buf, "dep\t%s\t%s\t%s\n", mod.Path, mod.Version, findModHash(mod))
-		// TODO: replacements
+		r := replaced(mod)
+		h := ""
+		if r == nil {
+			h = "\t" + findModHash(mod)
+		}
+		fmt.Fprintf(&buf, "dep\t%s\t%s%s\n", mod.Path, mod.Version, h)
+		if r := replaced(mod); r != nil {
+			fmt.Fprintf(&buf, "=>\t%s\t%s\t%s\n", r.New.Path, r.New.Version, findModHash(r.New))
+		}
 	}
 	return buf.String()
 }
