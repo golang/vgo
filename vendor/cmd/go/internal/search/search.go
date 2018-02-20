@@ -5,6 +5,7 @@
 package search
 
 import (
+	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
 	"fmt"
 	"go/build"
@@ -129,6 +130,12 @@ func MatchPackages(pattern string) []string {
 	return pkgs
 }
 
+var modRoot string
+
+func SetModRoot(dir string) {
+	modRoot = dir
+}
+
 // MatchPackagesInFS returns a list of package paths matching pattern,
 // which must begin with ./ or ../
 // (see go help packages for pattern syntax).
@@ -149,6 +156,17 @@ func MatchPackagesInFS(pattern string) []string {
 		prefix = "./"
 	}
 	match := MatchPattern(pattern)
+
+	if modRoot != "" {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			base.Fatalf("go: %v", err)
+		}
+		if !hasFilepathPrefix(abs, modRoot) {
+			base.Fatalf("go: pattern %s refers to dir %s, outside module root %s", pattern, abs, modRoot)
+			return nil
+		}
+	}
 
 	var pkgs []string
 	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
@@ -366,6 +384,22 @@ func hasPathPrefix(s, prefix string) bool {
 			return strings.HasPrefix(s, prefix)
 		}
 		return s[len(prefix)] == '/' && s[:len(prefix)] == prefix
+	}
+}
+
+// hasFilepathPrefix reports whether the path s begins with the
+// elements in prefix.
+func hasFilepathPrefix(s, prefix string) bool {
+	switch {
+	default:
+		return false
+	case len(s) == len(prefix):
+		return s == prefix
+	case len(s) > len(prefix):
+		if prefix != "" && prefix[len(prefix)-1] == filepath.Separator {
+			return strings.HasPrefix(s, prefix)
+		}
+		return s[len(prefix)] == filepath.Separator && s[:len(prefix)] == prefix
 	}
 }
 
