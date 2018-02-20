@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"cmd/go/internal/modfetch/bitbucket"
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/modfetch/github"
 	"cmd/go/internal/modfetch/googlesource"
@@ -115,6 +116,11 @@ func lookupCodeHost(path string, customDomain bool) (codehost.Repo, error) {
 	switch {
 	case strings.HasPrefix(path, "github.com/"):
 		return github.Lookup(path)
+	case strings.HasPrefix(path, "bitbucket.org/"):
+		// Special case Bitbucket paths ending in ".git" for backwards compatibility
+		// with go get.
+		path = strings.TrimSuffix(path, ".git")
+		return bitbucket.Lookup(path)
 	case customDomain && strings.HasSuffix(path[:strings.Index(path, "/")+1], ".googlesource.com/") ||
 		isTest && strings.HasPrefix(path, "go.googlesource.com/scratch"):
 		return googlesource.Lookup(path)

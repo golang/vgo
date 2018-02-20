@@ -10783,3 +10783,86 @@ X-Xss-Protection: 1; mode=block
 
 [{"sha":"c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","commit":{"author":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T15:44:20Z"},"committer":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T15:44:20Z"},"message":"buggy: add buggy test","tree":{"sha":"704e33398b7ad1e36f346ac3c9a6858f444ee91d","url":"https://api.github.com/repos/rsc/quote/git/trees/704e33398b7ad1e36f346ac3c9a6858f444ee91d"},"url":"https://api.github.com/repos/rsc/quote/git/commits/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null}},"url":"https://api.github.com/repos/rsc/quote/commits/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","html_url":"https://github.com/rsc/quote/commit/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","comments_url":"https://api.github.com/repos/rsc/quote/commits/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22/comments","author":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"committer":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"parents":[{"sha":"23179ee8a569bb05d896ae05c6503ec69a19f99f","url":"https://api.github.com/repos/rsc/quote/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f","html_url":"https://github.com/rsc/quote/commit/23179ee8a569bb05d896ae05c6503ec69a19f99f"}]},{"sha":"23179ee8a569bb05d896ae05c6503ec69a19f99f","commit":{"author":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T00:58:40Z"},"committer":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T00:58:40Z"},"message":"quote: fix test for new rsc.io/sampler","tree":{"sha":"98dea458b6a7805a98272ad43b4f92b76cdea71a","url":"https://api.github.com/repos/rsc/quote/git/trees/98dea458b6a7805a98272ad43b4f92b76cdea71a"},"url":"https://api.github.com/repos/rsc/quote/git/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null}},"url":"https://api.github.com/repos/rsc/quote/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f","html_url":"https://github.com/rsc/quote/commit/23179ee8a569bb05d896ae05c6503ec69a19f99f","comments_url":"https://api.github.com/repos/rsc/quote/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f/comments","author":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"committer":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"parents":[{"sha":"3ba1e30dc83bd52c990132b9dfb1688a9d22de13","url":"https://api.github.com/repos/rsc/quote/commits/3ba1e30dc83bd52c990132b9dfb1688a9d22de13","html_url":"https://github.com/rsc/quote/commit/3ba1e30dc83bd52c990132b9dfb1688a9d22de13"}]}]
 
+GET https://example.net/vgotest?go-get=1
+200 OK
+Status: 200 OK
+Date: Tue, 20 Feb 2018 05:49:58 GMT
+Content-Type: text/html
+
+<meta name="go-import" content="example.net/vgotest git https://bitbucket.org/example/vgotest.git">
+
+GET https://api.bitbucket.org/2.0/repositories/example/vgotest
+200 OK
+Host: api.bitbucket.org
+User-Agent: curl/7.58.0
+Accept: */*
+Server: nginx
+Vary: Authorization, Accept-Encoding
+Cache-Control: max-age=900
+Content-Type: application/json; charset=utf-8
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Date: Wed, 21 Feb 2018 03:04:41 GMT
+X-Served-By: app-162
+Accept-Ranges: bytes
+X-Static-Version: 05872682aa41
+X-Content-Type-Options: nosniff
+X-Accepted-Oauth-Scopes: repository
+X-Render-Time: 0.0273840427399
+X-Request-Count: 401
+X-Version: 05872682aa41
+X-Frame-Options: SAMEORIGIN
+X-Cache-Info: caching
+Content-Length: 2500
+
+{"scm": "git", "website": "", "has_wiki": false, "name": "example", "links": {"watchers": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/watchers"}, "branches": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/refs/branches"}, "tags": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/refs/tags"}, "commits": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/commits"}, "clone": [{"href": "https://bitbucket.org/example/vgotest.git", "name": "https"}, {"href": "git@bitbucket.org:example/vgotest.git", "name": "ssh"}], "self": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest"}, "source": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/src"}, "html": {"href": "https://bitbucket.org/example/vgotest"}, "avatar": {"href": "https://bitbucket.org/example/vgotest/avatar/32/"}, "hooks": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/hooks"}, "forks": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/forks"}, "downloads": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/downloads"}, "issues": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/issues"}, "pullrequests": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/pullrequests"}}, "fork_policy": "allow_forks", "uuid": "{dd9d9503-488e-4fbb-a7b9-fc785d91ee57}", "project": {"key": "LIBS", "type": "project", "uuid": "{010e1ae5-043c-49cf-8b07-45979ed329a2}", "links": {"self": {"href": "https://api.bitbucket.org/2.0/teams/example/projects/LIBS"}, "html": {"href": "https://bitbucket.org/account/user/example/projects/LIBS"}, "avatar": {"href": "https://bitbucket.org/account/user/example/projects/LIBS/avatar/32"}}, "name": "libs"}, "language": "go", "created_on": "2017-01-31T06:02:53.394176+00:00", "mainbranch": {"type": "branch", "name": "master"}, "full_name": "example/vgotest", "has_issues": true, "owner": {"username": "example", "display_name": "example", "type": "team", "uuid": "{f38ca604-3c2f-4810-af23-373f7cd56baf}", "links": {"self": {"href": "https://api.bitbucket.org/2.0/teams/example"}, "html": {"href": "https://bitbucket.org/example/"}}}, "updated_on": "2018-02-18T03:27:22.775462+00:00", "size": 306056, "type": "repository", "slug": "vgotest", "is_private": false, "description": ""}
+
+GET https://api.bitbucket.org/2.0/repositories/example/vgotest/commit/v1.0.0
+200 OK
+Host: api.bitbucket.org
+Accept: */*
+server: nginx
+vary: Authorization, Accept-Encoding
+cache-control: max-age=900
+content-type: application/json; charset=utf-8
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Wed, 21 Feb 2018 03:14:29 GMT
+x-served-by: app-142
+accept-ranges: bytes
+x-static-version: 05872682aa41
+x-content-type-options: nosniff
+x-accepted-oauth-scopes: repository
+x-render-time: 0.102250099182
+x-request-count: 483
+last-modified: Sun, 18 Feb 2018 03:27:22 GMT
+x-version: 05872682aa41
+x-frame-options: SAMEORIGIN
+x-cache-info: caching
+
+{"hash": "9152736a7559a4b73ca45d36fe457cb617c3b207", "repository": {"links": {"self": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest"}, "html": {"href": "https://bitbucket.org/example/vgotest"}, "avatar": {"href": "https://bitbucket.org/example/vgotest/avatar/32/"}}, "type": "repository", "name": "vgotest", "full_name": "example/vgotest", "uuid": "{dd9d9503-488e-4fbb-a7b9-fc785d91ee57}"}, "links": {"self": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/commit/9152736a7559a4b73ca45d36fe457cb617c3b207"}, "comments": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/commit/9152736a7559a4b73ca45d36fe457cb617c3b207/comments"}, "patch": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/patch/9152736a7559a4b73ca45d36fe457cb617c3b207"}, "html": {"href": "https://bitbucket.org/example/vgotest/commits/9152736a7559a4b73ca45d36fe457cb617c3b207"}, "diff": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/diff/9152736a7559a4b73ca45d36fe457cb617c3b207"}, "approve": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/commit/9152736a7559a4b73ca45d36fe457cb617c3b207/approve"}, "statuses": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/commit/9152736a7559a4b73ca45d36fe457cb617c3b207/statuses"}}, "author": {"raw": "Sam Whited <sam@samwhited.com>", "user": {"username": "SamWhited", "display_name": "Sam Whited", "type": "user", "uuid": "{25c99b75-8e97-4435-a08d-3872a68837db}", "links": {"self": {"href": "https://api.bitbucket.org/2.0/users/SamWhited"}, "html": {"href": "https://bitbucket.org/SamWhited/"}, "avatar": {"href": "https://bitbucket.org/account/SamWhited/avatar/32/"}}}}, "participants": [], "parents": [{"hash": "c3dd0acbda7d6074cbfe940798977ed5cc7f872d", "type": "commit", "links": {"self": {"href": "https://api.bitbucket.org/2.0/repositories/example/vgotest/commit/c3dd0acbda7d6074cbfe940798977ed5cc7f872d"}, "html": {"href": "https://bitbucket.org/example/vgotest/commits/c3dd0acbda7d6074cbfe940798977ed5cc7f872d"}}}], "date": "2017-08-22T03:10:13+00:00", "message": "Gitignore dep lock files\n\n[ci skip]\n", "type": "commit"}
+
+GET https://bitbucket.org/example/vgotest/raw/v1.0.0/go.mod
+200 OK
+Accept: */*
+server: nginx
+vary: Accept-Language, Cookie, Accept-Encoding
+cache-control: max-age=900
+content-type: text/plain
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Wed, 21 Feb 2018 03:34:12 GMT
+x-served-by: app-172
+expires: Wed, 21 Feb 2018 03:34:12 GMT
+content-language: en
+accept-ranges: bytes
+x-static-version: 05872682aa41
+x-content-type-options: nosniff
+x-render-time: 0.0379159450531
+x-request-count: 483
+x-frame-options: SAMEORIGIN
+last-modified: Wed, 21 Feb 2018 03:34:12 GMT
+x-version: 05872682aa41
+x-cache-info: caching
+content-length: 1287
+
+module "example.net/vgotest"
+
+

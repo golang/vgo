@@ -227,6 +227,16 @@ var codeRepoTests = []struct {
 		gomod:   "module \"rsc.io/quote\"\n",
 	},
 	{
+		// redirect to bitbucket
+		path:    "example.net/vgotest",
+		rev:     "v1.0.0",
+		version: "v1.0.0",
+		name:    "9152736a7559a4b73ca45d36fe457cb617c3b207",
+		short:   "9152736a7559",
+		time:    time.Date(2017, 8, 22, 3, 10, 13, 0, time.UTC),
+		gomod:   "module \"example.net/vgotest\"\n",
+	},
+	{
 		// redirect to static hosting proxy
 		path:    "swtch.com/testmod",
 		rev:     "v1.0.0",
@@ -338,7 +348,7 @@ func TestCodeRepo(t *testing.T) {
 			if info.Short != tt.short {
 				t.Errorf("info.Short = %q, want %q", info.Short, tt.short)
 			}
-			if info.Time != tt.time {
+			if !info.Time.Equal(tt.time) {
 				t.Errorf("info.Time = %v, want %v", info.Time, tt.time)
 			}
 			if tt.gomod != "" || tt.gomoderr != "" {
