@@ -120,7 +120,7 @@ func InitMod() {
 		return
 	}
 
-	f, err := modfile.Parse(gomod, data)
+	f, err := modfile.Parse(gomod, data, fixVersion)
 	if err != nil {
 		// Errors returned by modfile.Parse begin with file:line.
 		base.Fatalf("vgo: errors parsing go.mod:\n%s\n", err)
@@ -335,4 +335,12 @@ func writeGoMod() {
 	if err := ioutil.WriteFile(file, new, 0666); err != nil {
 		base.Fatalf("vgo: %v", err)
 	}
+}
+
+func fixVersion(path, vers string) (string, error) {
+	info, err := modfetch.Query(path, vers, nil)
+	if err != nil {
+		return "", err
+	}
+	return info.Version, nil
 }

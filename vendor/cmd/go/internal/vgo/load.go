@@ -73,6 +73,11 @@ func ImportPaths(args []string) []string {
 }
 
 func importPaths(args []string) []string {
+	level := levelBuild
+	switch cfg.CmdName {
+	case "test", "vet":
+		level = levelTest
+	}
 	cleaned := search.CleanImportPaths(args)
 	iterate(func(ld *loader) {
 		args = expandImportPaths(cleaned)
@@ -89,7 +94,7 @@ func importPaths(args []string) []string {
 				}
 				args[i] = pkg
 			}
-			ld.importPkg(pkg, levelBuild)
+			ld.importPkg(pkg, level)
 		}
 	})
 	return args
@@ -190,7 +195,7 @@ func (ld *loader) importPkg(path string, level importLevel) {
 	defer func() {
 		ld.stack = ld.stack[:len(ld.stack)-1]
 	}()
-	
+
 	// Any rewritings go here.
 	realPath := path
 
@@ -298,7 +303,7 @@ func findMissing(m missing) {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "vgo: resolving import %q\n", m.path)
-	repo, err := modfetch.Lookup(m.path)
+	repo, info, err := modfetch.Import(m.path, allowed)
 	if err != nil {
 		base.Errorf("vgo: %s: %v", m.stack, err)
 		return
@@ -309,11 +314,6 @@ func findMissing(m missing) {
 		base.Fatalf("internal error: findmissing loop on %s", root)
 	}
 	found[root] = true
-	info, err := modfetch.Query(root, "latest", allowed)
-	if err != nil {
-		base.Errorf("vgo: %s: %v", m.stack, err)
-		return
-	}
 	fmt.Fprintf(os.Stderr, "vgo: adding %s %s\n", root, info.Version)
 	buildList = append(buildList, module.Version{root, info.Version})
 	modFile.AddRequire(root, info.Version)
@@ -386,7 +386,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 			if err != nil {
 				return nil, err
 			}
-			f, err := modfile.Parse(gomod, data)
+			f, err := modfile.Parse(gomod, data, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -420,7 +420,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		// We ignore cached go.mod files if they do not match
 		// our own vgoVersion.
 		if !bytes.HasPrefix(data, vgoVersion[:len("//vgo")]) || bytes.HasPrefix(data, vgoVersion) {
-			f, err := modfile.Parse(gomod, data)
+			f, err := modfile.Parse(gomod, data, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -430,7 +430,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 			}
 			return list, nil
 		}
-		f, err = modfile.Parse("go.mod", data)
+		f, err = modfile.Parse("go.mod", data, nil)
 		if err != nil {
 			return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
 		}
@@ -454,12 +454,9 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 			return nil, err
 		}
 
-		f, err = modfile.Parse("go.mod", data)
+		f, err = modfile.Parse("go.mod", data, nil)
 		if err != nil {
 			return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
-		}
-		if mpath := f.Module.Mod.Path; mpath != origPath && mpath != mod.Path {
-			return nil, fmt.Errorf("downloaded %q and got module %q", mod.Path, mpath)
 		}
 
 		dir := filepath.Dir(gomod)
@@ -476,6 +473,9 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		if err := ioutil.WriteFile(gomod, data, 0666); err != nil {
 			return nil, fmt.Errorf("caching go.mod: %v", err)
 		}
+	}
+	if mpath := f.Module.Mod.Path; mpath != origPath && mpath != mod.Path {
+		return nil, fmt.Errorf("downloaded %q and got module %q", mod.Path, mpath)
 	}
 
 	var list []module.Version

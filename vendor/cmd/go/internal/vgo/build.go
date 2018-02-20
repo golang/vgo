@@ -21,7 +21,7 @@ var (
 
 func PackageModuleInfo(path string) modinfo.ModulePublic {
 	var info modinfo.ModulePublic
-	if search.IsStandardImportPath(path) {
+	if search.IsStandardImportPath(path) || !Enabled() {
 		return info
 	}
 	target := findModule(path, path)
