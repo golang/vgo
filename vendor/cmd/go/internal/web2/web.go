@@ -6,6 +6,7 @@ package web2
 
 import (
 	"bytes"
+	"cmd/go/internal/base"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -57,6 +58,16 @@ func parseNetrc(data string) []netrcLine {
 		}
 	}
 	return nrc
+}
+
+func havePassword(machine string) bool {
+	netrcOnce.Do(readNetrc)
+	for _, line := range netrc {
+		if line.machine == machine {
+			return true
+		}
+	}
+	return false
 }
 
 func readNetrc() {
@@ -242,6 +253,9 @@ func Get(url string, options ...Option) error {
 		}
 	}()
 
+	if g.resp.StatusCode == 403 && req.URL.Host == "api.github.com" && !havePassword("api.github.com") {
+		base.Errorf("%s", githubMessage)
+	}
 	if !g.non200ok && g.resp.StatusCode != 200 {
 		return fmt.Errorf("unexpected status (%s): %v", url, g.resp.Status)
 	}
@@ -253,3 +267,19 @@ func Get(url string, options ...Option) error {
 	}
 	return err
 }
+
+var githubMessage = `vgo: 403 response from api.github.com
+
+GitHub applies fairly small rate limits to unauthenticated users, and
+you appear to be hitting them. To authenticate, please visit
+https://github.com/settings/tokens and click "Generate New Token" to
+create a Personal Access Token. The token only needs "public_repo"
+scope, but you can add "repo" if you want to access private
+repositories too.
+
+Add the token to your $HOME/.netrc:
+
+    machine api.github.com login YOU password TOKEN
+
+Sorry for the interruption.
+`
