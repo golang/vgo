@@ -274,6 +274,7 @@ func oneMainPkg(pkgs []*load.Package) []*load.Package {
 var pkgsFilter = func(pkgs []*load.Package) []*load.Package { return pkgs }
 
 var runtimeVersion = getRuntimeVersion()
+var RuntimeVersion = runtimeVersion
 
 func getRuntimeVersion() string {
 	data, err := ioutil.ReadFile(filepath.Join(cfg.GOROOT, "src/runtime/internal/sys/zversion.go"))

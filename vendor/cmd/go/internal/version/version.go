@@ -10,7 +10,10 @@ import (
 	"runtime"
 
 	"cmd/go/internal/base"
+	"cmd/go/internal/work"
 )
+
+const vgoVersion = "2018-02-20.1"
 
 var CmdVersion = &base.Command{
 	Run:       runVersion,
@@ -24,5 +27,5 @@ func runVersion(cmd *base.Command, args []string) {
 		cmd.Usage()
 	}
 
-	fmt.Printf("go version %s %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	fmt.Printf("go version %s %s/%s vgo:%s\n", work.RuntimeVersion, runtime.GOOS, runtime.GOARCH, vgoVersion)
 }
