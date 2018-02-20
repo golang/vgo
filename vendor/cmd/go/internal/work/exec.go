@@ -29,7 +29,14 @@ import (
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
 	"cmd/go/internal/str"
+	"cmd/go/internal/vgo"
 )
+
+func init() {
+	vgo.InstallHook = func(args []string) {
+		CmdInstall.Run(CmdInstall, args)
+	}
+}
 
 // actionList returns the list of actions in the dag rooted at root
 // as visited in a depth-first post-order traversal.
@@ -291,6 +298,8 @@ func (b *Builder) buildActionID(a *Action) cache.ActionID {
 			fmt.Fprintf(h, "import %s %s\n", p1.ImportPath, contentID(a1.buildID))
 		}
 	}
+
+	fmt.Fprintf(h, "moduleinfo %q\n", p.Internal.ModuleInfo)
 
 	return h.Sum()
 }
@@ -567,6 +576,14 @@ func (b *Builder) build(a *Action) (err error) {
 		// We've only going through the motions to prepare the vet configuration,
 		// which is now complete.
 		return nil
+	}
+
+	// TODO(vgo): If have module info, write file to objdir, add to gofiles.
+	if p.Internal.ModuleInfo != "" {
+		if err := b.writeFile(objdir+"_gomod_.go", vgo.ModInfoProg(p.Internal.ModuleInfo)); err != nil {
+			return err
+		}
+		gofiles = append(gofiles, objdir+"_gomod_.go")
 	}
 
 	// Compile Go.

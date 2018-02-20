@@ -16,6 +16,7 @@ import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
+	"cmd/go/internal/vgo"
 	"cmd/go/internal/work"
 )
 
@@ -149,12 +150,29 @@ func init() {
 var listE = CmdList.Flag.Bool("e", false, "")
 var listFmt = CmdList.Flag.String("f", "{{.ImportPath}}", "")
 var listJson = CmdList.Flag.Bool("json", false, "")
+var listM = CmdList.Flag.Bool("m", false, "")
+var listU = CmdList.Flag.Bool("u", false, "")
+var listT = CmdList.Flag.Bool("t", false, "")
+
 var nl = []byte{'\n'}
 
 func runList(cmd *base.Command, args []string) {
 	work.BuildInit()
 	out := newTrackingWriter(os.Stdout)
 	defer out.w.Flush()
+
+	if *listM {
+		if *listU {
+			vgo.ListMU()
+			return
+		}
+		vgo.ListM()
+		return
+	}
+	if *listT {
+		vgo.ListT(args)
+		return
+	}
 
 	var do func(*load.PackagePublic)
 	if *listJson {

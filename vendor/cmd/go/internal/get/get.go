@@ -18,6 +18,7 @@ import (
 	"cmd/go/internal/load"
 	"cmd/go/internal/search"
 	"cmd/go/internal/str"
+	"cmd/go/internal/vgo"
 	"cmd/go/internal/web"
 	"cmd/go/internal/work"
 )
@@ -91,6 +92,10 @@ func init() {
 }
 
 func runGet(cmd *base.Command, args []string) {
+	if vgo.Enabled() {
+		base.Fatalf("go get: vgo not implemented")
+	}
+
 	work.BuildInit()
 
 	if *getF && !*getU {

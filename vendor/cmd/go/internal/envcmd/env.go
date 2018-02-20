@@ -16,6 +16,7 @@ import (
 	"cmd/go/internal/cache"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
+	"cmd/go/internal/vgo"
 	"cmd/go/internal/work"
 )
 
@@ -129,6 +130,7 @@ func ExtraEnvVars() []cfg.EnvVar {
 		{Name: "CGO_LDFLAGS", Value: strings.Join(ldflags, " ")},
 		{Name: "PKG_CONFIG", Value: b.PkgconfigCmd()},
 		{Name: "GOGCCFLAGS", Value: strings.Join(cmd[3:], " ")},
+		{Name: "VGOMODROOT", Value: vgo.ModRoot},
 	}
 }
 

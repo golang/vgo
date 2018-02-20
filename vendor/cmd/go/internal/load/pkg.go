@@ -22,6 +22,7 @@ import (
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/search"
 	"cmd/go/internal/str"
+	"cmd/go/internal/vgo"
 )
 
 var IgnoreImports bool // control whether we ignore imports in packages
@@ -136,6 +137,8 @@ type PackageInternal struct {
 	CoverVars    map[string]*CoverVar // variables created by coverage analysis
 	OmitDebug    bool                 // tell linker not to write debug information
 	GobinSubdir  bool                 // install target would be subdir of GOBIN
+
+	ModuleInfo string // add this ModuleInfo to package main
 
 	Asmflags   []string // -asmflags for this package
 	Gcflags    []string // -gcflags for this package
@@ -400,13 +403,19 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 	importPath := path
 	origPath := path
 	isLocal := build.IsLocalImport(path)
-	var debugDeprecatedImportcfgDir string
+	var vgoDir string
+	var vgoErr error
 	if isLocal {
 		importPath = dirToImportPath(filepath.Join(srcDir, path))
-	} else if DebugDeprecatedImportcfg.enabled {
-		if d, i := DebugDeprecatedImportcfg.lookup(parent, path); d != "" {
-			debugDeprecatedImportcfgDir = d
-			importPath = i
+	} else if vgo.Enabled() {
+		parentPath := ""
+		if parent != nil {
+			parentPath = parent.ImportPath
+		}
+		var p string
+		vgoDir, p, vgoErr = vgo.Lookup(parentPath, path)
+		if vgoErr == nil {
+			importPath = p
 		}
 	} else if mode&UseVendor != 0 {
 		// We do our own vendor resolution, because we want to
@@ -431,11 +440,11 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		// in order to return partial information.
 		var bp *build.Package
 		var err error
-		if debugDeprecatedImportcfgDir != "" {
-			bp, err = cfg.BuildContext.ImportDir(debugDeprecatedImportcfgDir, 0)
-		} else if DebugDeprecatedImportcfg.enabled {
+		if vgoDir != "" {
+			bp, err = cfg.BuildContext.ImportDir(vgoDir, 0)
+		} else if vgoErr != nil {
 			bp = new(build.Package)
-			err = fmt.Errorf("unknown import path %q: not in import cfg", importPath)
+			err = fmt.Errorf("unknown import path %q: %v", importPath, vgoErr)
 		} else {
 			buildMode := build.ImportComment
 			if mode&UseVendor == 0 || path != origPath {
@@ -448,7 +457,7 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		if cfg.GOBIN != "" {
 			bp.BinDir = cfg.GOBIN
 		}
-		if debugDeprecatedImportcfgDir == "" && err == nil && !isLocal && bp.ImportComment != "" && bp.ImportComment != path &&
+		if vgoDir == "" && err == nil && !isLocal && bp.ImportComment != "" && bp.ImportComment != path &&
 			!strings.Contains(path, "/vendor/") && !strings.HasPrefix(path, "vendor/") {
 			err = fmt.Errorf("code in directory %s expects import %q", bp.Dir, bp.ImportComment)
 		}
@@ -457,7 +466,7 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 			p = setErrorPos(p, importPos)
 		}
 
-		if debugDeprecatedImportcfgDir == "" && origPath != cleanImport(origPath) {
+		if vgoDir == "" && origPath != cleanImport(origPath) {
 			p.Error = &PackageError{
 				ImportStack: stk.Copy(),
 				Err:         fmt.Sprintf("non-canonical import path: %q should be %q", origPath, pathpkg.Clean(origPath)),
@@ -534,9 +543,13 @@ func isDir(path string) bool {
 // x/vendor/path, vendor/path, or else stay path if none of those exist.
 // VendoredImportPath returns the expanded path or, if no expansion is found, the original.
 func VendoredImportPath(parent *Package, path string) (found string) {
-	if DebugDeprecatedImportcfg.enabled {
-		if d, i := DebugDeprecatedImportcfg.lookup(parent, path); d != "" {
-			return i
+	if vgo.Enabled() {
+		parentPath := ""
+		if parent != nil {
+			parentPath = parent.ImportPath
+		}
+		if _, p, e := vgo.Lookup(parentPath, path); e == nil {
+			return p
 		}
 		return path
 	}
@@ -1184,6 +1197,10 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 		setError(fmt.Sprintf("case-insensitive import collision: %q and %q", p.ImportPath, other))
 		return
 	}
+
+	if p.Name == "main" {
+		p.Internal.ModuleInfo = vgo.PackageModuleInfo(p.ImportPath, p.Deps)
+	}
 }
 
 // SafeArg reports whether arg is a "safe" command-line argument,
@@ -1456,7 +1473,7 @@ func ImportPaths(args []string) []string {
 	if cmdlineMatchers == nil {
 		SetCmdlinePatterns(search.CleanImportPaths(args))
 	}
-	return search.ImportPaths(args)
+	return vgo.ImportPaths(args)
 }
 
 func ImportPathsForGoGet(args []string) []string {
@@ -1549,6 +1566,8 @@ func GoFilesPackage(gofiles []string) *Package {
 		dirent = append(dirent, fi)
 	}
 	ctxt.ReadDir = func(string) ([]os.FileInfo, error) { return dirent, nil }
+
+	vgo.AddImports(gofiles)
 
 	var err error
 	if dir == "" {

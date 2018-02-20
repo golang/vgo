@@ -32,6 +32,7 @@ import (
 	"cmd/go/internal/tool"
 	"cmd/go/internal/version"
 	"cmd/go/internal/vet"
+	"cmd/go/internal/vgo"
 	"cmd/go/internal/work"
 )
 
@@ -51,6 +52,8 @@ func init() {
 		run.CmdRun,
 		test.CmdTest,
 		tool.CmdTool,
+		vgo.CmdVendor,
+		vgo.CmdVerify,
 		version.CmdVersion,
 		vet.CmdVet,
 
@@ -76,6 +79,11 @@ func Main() {
 	args := flag.Args()
 	if len(args) < 1 {
 		base.Usage()
+	}
+
+	if vgo.MustBeVgo {
+		// If running as vgo or with -vgo, change get now to change help message.
+		*get.CmdGet = *vgo.CmdGet
 	}
 
 	cfg.CmdName = args[0] // for error messages
@@ -113,6 +121,13 @@ func Main() {
 	if fi, err := os.Stat(cfg.GOROOT); err != nil || !fi.IsDir() {
 		fmt.Fprintf(os.Stderr, "go: cannot find GOROOT directory: %v\n", cfg.GOROOT)
 		os.Exit(2)
+	}
+
+	if !vgo.MustBeVgo {
+		if vgo.Init(); vgo.Enabled() {
+			// Didn't do this above, so do it now.
+			*get.CmdGet = *vgo.CmdGet
+		}
 	}
 
 	// Set environment (GOOS, GOARCH, etc) explicitly.
