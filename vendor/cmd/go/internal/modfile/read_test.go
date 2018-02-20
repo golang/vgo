@@ -100,9 +100,9 @@ func TestPrintParse(t *testing.T) {
 			t.Errorf("not equal: %v", err)
 		}
 
-		pf1, err := Parse(base, data)
+		pf1, err := Parse(base, data, nil)
 		if err == nil {
-			pf2, err := Parse(base, ndata)
+			pf2, err := Parse(base, ndata, nil)
 			if err != nil {
 				t.Errorf("Parsing reformatted: %v", err)
 				continue

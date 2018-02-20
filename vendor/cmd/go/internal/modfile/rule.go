@@ -60,7 +60,9 @@ func (f *File) AddModuleStmt(path string) {
 	})
 }
 
-func Parse(file string, data []byte) (*File, error) {
+type VersionFixer func(path, version string) (string, error)
+
+func Parse(file string, data []byte, fix VersionFixer) (*File, error) {
 	fs, err := parse(file, data)
 	if err != nil {
 		return nil, err
@@ -73,7 +75,7 @@ func Parse(file string, data []byte) (*File, error) {
 	for _, x := range fs.Stmt {
 		switch x := x.(type) {
 		case *Line:
-			f.add(&errs, x, x.Token[0], x.Token[1:])
+			f.add(&errs, x, x.Token[0], x.Token[1:], fix)
 
 		case *LineBlock:
 			if len(x.Token) > 1 {
@@ -86,7 +88,7 @@ func Parse(file string, data []byte) (*File, error) {
 				continue
 			case "module", "require", "exclude", "replace":
 				for _, l := range x.Line {
-					f.add(&errs, l, x.Token[0], l.Token)
+					f.add(&errs, l, x.Token[0], l.Token, fix)
 				}
 			}
 		}
@@ -98,7 +100,7 @@ func Parse(file string, data []byte) (*File, error) {
 	return f, nil
 }
 
-func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string) {
+func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, fix VersionFixer) {
 	// TODO: We should pass in a flag saying whether this module is a dependency.
 	// If so, we should ignore all unknown directives and not attempt to parse
 	// replace and exclude either. They don't matter, and it will work better for
@@ -139,9 +141,10 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string) {
 			fmt.Fprintf(errs, "%s:%d: invalid quoted string: %v\n", f.Syntax.Name, line.Start.Line, err)
 			return
 		}
-		v, err := parseVersion(&args[1])
+		old := args[1]
+		v, err := parseVersion(s, &args[1], fix)
 		if err != nil {
-			fmt.Fprintf(errs, "%s:%d: invalid module version: %v\n", f.Syntax.Name, line.Start.Line, err)
+			fmt.Fprintf(errs, "%s:%d: invalid module version %q: %v\n", f.Syntax.Name, line.Start.Line, old, err)
 			return
 		}
 		v1, err := moduleMajorVersion(s)
@@ -174,9 +177,10 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string) {
 			fmt.Fprintf(errs, "%s:%d: invalid quoted string: %v\n", f.Syntax.Name, line.Start.Line, err)
 			return
 		}
-		v, err := parseVersion(&args[1])
+		old := args[1]
+		v, err := parseVersion(s, &args[1], fix)
 		if err != nil {
-			fmt.Fprintf(errs, "%s:%d: invalid module version: %v\n", f.Syntax.Name, line.Start.Line, err)
+			fmt.Fprintf(errs, "%s:%d: invalid module version %v: %v\n", f.Syntax.Name, line.Start.Line, old, err)
 			return
 		}
 		v1, err := moduleMajorVersion(s)
@@ -205,9 +209,10 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string) {
 			}
 		}
 		if len(args) == 5 {
-			nv, err = parseVersion(&args[4])
+			old := args[4]
+			nv, err = parseVersion(ns, &args[4], fix)
 			if err != nil {
-				fmt.Fprintf(errs, "%s:%d: invalid module version: %v\n", f.Syntax.Name, line.Start.Line, err)
+				fmt.Fprintf(errs, "%s:%d: invalid module version %v: %v\n", f.Syntax.Name, line.Start.Line, old, err)
 				return
 			}
 			if isDirectoryPath(ns) {
@@ -245,13 +250,21 @@ func parseString(s *string) (string, error) {
 	return t, nil
 }
 
-func parseVersion(s *string) (string, error) {
+func parseVersion(path string, s *string, fix VersionFixer) (string, error) {
 	t := *s
-	// TODO: Actual version syntax check.
-	if t[0] != 'v' {
-		return "", fmt.Errorf("version must be of the form v1.2.3")
+	if semver.IsValid(t) {
+		*s = semver.Canonical(t)
+		return *s, nil
 	}
-	return *s, nil
+	if fix != nil {
+		t, err := fix(path, t)
+		if err != nil {
+			return "", err
+		}
+		*s = t
+		return *s, nil
+	}
+	return "", fmt.Errorf("version must be of the form v1.2.3")
 }
 
 func moduleMajorVersion(p string) (string, error) {
