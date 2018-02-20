@@ -21,6 +21,8 @@ func init() {
 
 var codeRepoTests = []struct {
 	path     string
+	lookerr  string
+	mpath    string
 	rev      string
 	err      string
 	version  string
@@ -251,6 +253,39 @@ var codeRepoTests = []struct {
 		short:   "645ef00459ed",
 		time:    time.Date(2016, 9, 29, 1, 48, 1, 0, time.UTC),
 	},
+	{
+		// package in subdirectory - custom domain
+		path:    "golang.org/x/net/context",
+		lookerr: "module root is \"golang.org/x/net\"",
+	},
+	{
+		// package in subdirectory - github
+		path:     "github.com/rsc/quote/buggy",
+		rev:      "c4d4236f",
+		version:  "v0.0.0-20180214154420-c4d4236f9242",
+		name:     "c4d4236f92427c64bfbcf1cc3f8142ab18f30b22",
+		short:    "c4d4236f9242",
+		time:     time.Date(2018, 2, 14, 15, 44, 20, 0, time.UTC),
+		gomoderr: "missing go.mod",
+	},
+	{
+		path:    "gopkg.in/yaml.v2",
+		rev:     "d670f940",
+		version: "v0.0.0-20180109114331-d670f9405373",
+		name:    "d670f9405373e636a5a2765eea47fac0c9bc91a4",
+		short:   "d670f9405373",
+		time:    time.Date(2018, 1, 9, 11, 43, 31, 0, time.UTC),
+		gomod:   "//vgo 0.0.3\n\nmodule \"gopkg.in/yaml.v2\"\n",
+	},
+	{
+		path:    "gopkg.in/check.v1",
+		rev:     "20d25e280405",
+		version: "v0.0.0-20161208181325-20d25e280405",
+		name:    "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
+		short:   "20d25e280405",
+		time:    time.Date(2016, 12, 8, 18, 13, 25, 0, time.UTC),
+		gomod:   "//vgo 0.0.3\n\nmodule \"gopkg.in/check.v1\"\n",
+	},
 }
 
 func TestCodeRepo(t *testing.T) {
@@ -267,10 +302,19 @@ func TestCodeRepo(t *testing.T) {
 		t.Run(strings.Replace(tt.path, "/", "_", -1)+"/"+tt.rev, func(t *testing.T) {
 			repo, err := Lookup(tt.path)
 			if err != nil {
+				if tt.lookerr != "" {
+					if err.Error() == tt.lookerr {
+						return
+					}
+					t.Errorf("Lookup(%q): %v, want error %q", tt.path, err, tt.lookerr)
+				}
 				t.Fatalf("Lookup(%q): %v", tt.path, err)
 			}
-			if mpath := repo.ModulePath(); mpath != tt.path {
-				t.Errorf("repo.ModulePath() = %q, want %q", mpath, tt.path)
+			if tt.mpath == "" {
+				tt.mpath = tt.path
+			}
+			if mpath := repo.ModulePath(); mpath != tt.mpath {
+				t.Errorf("repo.ModulePath() = %q, want %q", mpath, tt.mpath)
 			}
 			info, err := repo.Stat(tt.rev)
 			if err != nil {
@@ -347,6 +391,57 @@ func TestCodeRepo(t *testing.T) {
 	}
 }
 
+var importTests = []struct {
+	path  string
+	mpath string
+	err   string
+}{
+	{
+		path:  "golang.org/x/net/context",
+		mpath: "golang.org/x/net",
+	},
+	{
+		path:  "github.com/rsc/quote/buggy",
+		mpath: "github.com/rsc/quote",
+	},
+	{
+		path:  "golang.org/x/net",
+		mpath: "golang.org/x/net",
+	},
+	{
+		path:  "github.com/rsc/quote",
+		mpath: "github.com/rsc/quote",
+	},
+	{
+		path: "golang.org/x/foo/bar",
+		err:  "unknown module golang.org/x/foo/bar: no go-import tags",
+	},
+}
+
+func TestImport(t *testing.T) {
+	webtest.LoadOnce("testdata/webtest.txt")
+	webtest.Hook()
+	defer webtest.Unhook()
+
+	for _, tt := range importTests {
+		t.Run(strings.Replace(tt.path, "/", "_", -1), func(t *testing.T) {
+			repo, info, err := Import(tt.path, nil)
+			if err != nil {
+				if tt.err != "" {
+					if err.Error() == tt.err {
+						return
+					}
+					t.Errorf("Import(%q): %v, want error %q", tt.path, err, tt.err)
+				}
+				t.Fatalf("Lookup(%q): %v", tt.path, err)
+			}
+			if mpath := repo.ModulePath(); mpath != tt.mpath {
+				t.Errorf("repo.ModulePath() = %q (%v), want %q", mpath, info.Version, tt.mpath)
+			}
+		})
+	}
+}
+
 var codeRepoVersionsTests = []struct {
 	path     string
 	prefix   string
@@ -369,6 +464,10 @@ var codeRepoVersionsTests = []struct {
 	{
 		path:     "swtch.com/testmod",
 		versions: []string{"v1.0.0", "v1.1.1"},
+	},
+	{
+		path:     "gopkg.in/russross/blackfriday.v2",
+		versions: []string{"v1.0.0-gopkgin-v2.0.0"},
 	},
 }
 
@@ -437,6 +536,21 @@ var latestAtTests = []struct {
 		time:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
 		branch: "branch",
 		err:    "latest on branch not supported",
+	},
+	{
+		path:    "gopkg.in/check.v1",
+		time:    time.Date(2018, 2, 20, 15, 53, 33, 0, time.UTC),
+		version: "v0.0.0-20161208181325-20d25e280405",
+	},
+	{
+		path:    "gopkg.in/yaml.v2",
+		time:    time.Date(2018, 2, 20, 15, 53, 33, 0, time.UTC),
+		version: "v0.0.0-20180109114331-d670f9405373",
+	},
+	{
+		path:    "gopkg.in/russross/blackfriday.v2",
+		time:    time.Date(2018, 2, 20, 15, 53, 33, 0, time.UTC),
+		version: "v0.0.0-20180212083338-119f356b88f8",
 	},
 }
 
