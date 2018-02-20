@@ -16,9 +16,22 @@ import (
 
 var CmdGet = &base.Command{
 	UsageLine: "get [build flags] [packages]",
-	Short:     "TODO",
+	Short:     "download and install versioned modules and dependencies",
 	Long: `
-TODO
+Get downloads the latest versions of modules containing the named packages,
+along with the versions of the dependencies required by those modules
+(not necessarily the latest ones).
+
+It then installs the named packages, like 'go install'.
+
+The -u flag causes get to download the latest version of dependencies as well.
+
+Each package being updated can be suffixed with @version to specifiy 
+the desired version. Specifying a version older than the one currently
+in use causes a downgrade, which may in turn downgrade other
+modules using that one, to keep everything consistent.
+
+TODO: Make this documentation better once the semantic dust settles.
 	`,
 }
 
