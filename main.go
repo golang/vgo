@@ -25,8 +25,24 @@
 //
 package main
 
-import Main "cmd/go"
+import (
+	Main "cmd/go"
+	"go/build"
+	"log"
+)
 
 func main() {
+	checkGoVersion()
+
 	Main.Main()
+}
+
+func checkGoVersion() {
+	for _, tag := range build.Default.ReleaseTags {
+		if tag == "go1.10" {
+			return
+		}
+	}
+	log.SetFlags(0)
+	log.Fatalf("vgo requires Go 1.10")
 }
