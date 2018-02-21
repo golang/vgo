@@ -56,7 +56,7 @@ func runVerify(cmd *base.Command, args []string) {
 
 func verifyMod(mod module.Version) bool {
 	ok := true
-	zip := filepath.Join(srcV, "cache", mod.Path+"@"+mod.Version, "zip")
+	zip := filepath.Join(srcV, "cache", mod.Path, "/@v/", mod.Version+".zip")
 	_, zipErr := os.Stat(zip)
 	dir := filepath.Join(srcV, mod.Path+"@"+mod.Version)
 	_, dirErr := os.Stat(dir)
