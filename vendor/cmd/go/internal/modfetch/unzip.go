@@ -71,7 +71,7 @@ func Unzip(dir, zipfile, prefix string, maxSize int64) error {
 		if err := os.MkdirAll(filepath.Dir(dst), 0777); err != nil {
 			return err
 		}
-		w, err := os.Create(dst)
+		w, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0444)
 		if err != nil {
 			return fmt.Errorf("unzip %v: %v", zipfile, err)
 		}
