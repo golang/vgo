@@ -21,7 +21,7 @@ var CmdVerify = &base.Command{
 	Run:       runVerify,
 	Short:     "verify downloaded modules against expected hashes",
 	Long: `
-Verify checks that the depdendencies of the current module,
+Verify checks that the dependencies of the current module,
 which are stored in a local downloaded source cache,
 have not been modified since being downloaded.
 
