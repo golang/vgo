@@ -288,7 +288,7 @@ func FindModulePath(dir string) (string, error) {
 		return "github.com/" + string(m[1]), nil
 	}
 
-	return "", fmt.Errorf("cannot determine module path for legacy source directory %s (outside GOROOT, no import comments)", dir)
+	return "", fmt.Errorf("cannot determine module path for source directory %s (outside GOPATH, no import comments)", dir)
 }
 
 var (
