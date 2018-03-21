@@ -115,6 +115,9 @@ var isTest bool
 func lookupCodeHost(path string, customDomain bool) (codehost.Repo, error) {
 	switch {
 	case strings.HasPrefix(path, "github.com/"):
+		// Special case GitHub paths ending in ".git" for backwards compatibility
+		// with go get.
+		path = strings.TrimSuffix(path, ".git")
 		return github.Lookup(path)
 	case strings.HasPrefix(path, "bitbucket.org/"):
 		// Special case Bitbucket paths ending in ".git" for backwards compatibility
