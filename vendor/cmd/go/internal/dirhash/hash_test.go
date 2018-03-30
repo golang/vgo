@@ -39,6 +39,11 @@ func TestHash1(t *testing.T) {
 	if out != want {
 		t.Errorf("Hash1(...) = %s, want %s", out, want)
 	}
+
+	_, err = Hash1([]string{"xyz", "a\nbc"}, open)
+	if err == nil {
+		t.Error("Hash1: expected error on newline in filenames")
+	}
 }
 
 func TestHashDir(t *testing.T) {

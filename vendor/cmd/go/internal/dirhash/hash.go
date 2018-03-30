@@ -9,6 +9,7 @@ import (
 	"archive/zip"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,9 @@ func Hash1(files []string, open func(string) (io.ReadCloser, error)) (string, er
 	files = append([]string(nil), files...)
 	sort.Strings(files)
 	for _, file := range files {
+		if strings.Contains(file, "\n") {
+			return "", errors.New("filenames with newlines are not supported")
+		}
 		r, err := open(file)
 		if err != nil {
 			return "", err
