@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -70,8 +71,18 @@ func havePassword(machine string) bool {
 	return false
 }
 
+func netrcPath() string {
+	switch runtime.GOOS {
+	case "windows":
+		return filepath.Join(os.Getenv("USERPROFILE"), "_netrc")
+	case "plan9":
+		filepath.Join(os.Getenv("home"), ".netrc")
+	}
+	return filepath.Join(os.Getenv("HOME"), ".netrc")
+}
+
 func readNetrc() {
-	data, err := ioutil.ReadFile(filepath.Join(os.Getenv("HOME"), ".netrc"))
+	data, err := ioutil.ReadFile(netrcPath())
 	if err != nil {
 		return
 	}
@@ -277,7 +288,7 @@ create a Personal Access Token. The token only needs "public_repo"
 scope, but you can add "repo" if you want to access private
 repositories too.
 
-Add the token to your $HOME/.netrc:
+Add the token to your $HOME/.netrc (%USERPROFILE%\_netrc on Windows):
 
     machine api.github.com login YOU password TOKEN
 
