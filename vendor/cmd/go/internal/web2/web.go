@@ -41,7 +41,7 @@ var netrc []netrcLine
 func parseNetrc(data string) []netrcLine {
 	var nrc []netrcLine
 	var l netrcLine
-	for _, line := range strings.Split(string(data), "\n") {
+	for _, line := range strings.Split(data, "\n") {
 		f := strings.Fields(line)
 		for i := 0; i < len(f)-1; i += 2 {
 			switch f[i] {
@@ -76,9 +76,10 @@ func netrcPath() string {
 	case "windows":
 		return filepath.Join(os.Getenv("USERPROFILE"), "_netrc")
 	case "plan9":
-		filepath.Join(os.Getenv("home"), ".netrc")
+		return filepath.Join(os.Getenv("home"), ".netrc")
+	default:
+		return filepath.Join(os.Getenv("HOME"), ".netrc")
 	}
-	return filepath.Join(os.Getenv("HOME"), ".netrc")
 }
 
 func readNetrc() {
