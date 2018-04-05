@@ -88,6 +88,10 @@ func (r *codeRepo) Versions(prefix string) ([]string, error) {
 		if r.codeDir != "" {
 			v = v[len(r.codeDir)+1:]
 		}
+		// Only accept canonical semver tags from the repo. (See #24476.)
+		if v != semver.Canonical(v) {
+			continue
+		}
 		if !module.MatchPathMajor(v, r.pathMajor) {
 			continue
 		}

@@ -6,7 +6,9 @@ package modfetch
 
 import (
 	"archive/zip"
+	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/webtest"
+	"io"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -598,5 +600,48 @@ func TestLatestAt(t *testing.T) {
 				t.Fatalf("LatestAt(%v, %q) = %v, want %v", tt.time, tt.branch, info.Version, tt.version)
 			}
 		})
+	}
+}
+
+// fixedTagsRepo is a fake codehost.Repo that returns a fixed list of tags
+type fixedTagsRepo struct {
+	root string
+	tags []string
+}
+
+func (ch *fixedTagsRepo) Tags(string) ([]string, error)                         { return ch.tags, nil }
+func (ch *fixedTagsRepo) Root() string                                          { return ch.root }
+func (ch *fixedTagsRepo) LatestAt(time.Time, string) (*codehost.RevInfo, error) { panic("not impl") }
+func (ch *fixedTagsRepo) ReadFile(string, string, int64) ([]byte, error)        { panic("not impl") }
+func (ch *fixedTagsRepo) ReadZip(string, string, int64) (io.ReadCloser, string, error) {
+	panic("not impl")
+}
+func (ch *fixedTagsRepo) Stat(string) (*codehost.RevInfo, error) { panic("not impl") }
+
+func TestNonCanonicalSemver(t *testing.T) {
+	root := "golang.org/x/issue24476"
+	ch := &fixedTagsRepo{
+		root: root,
+		tags: []string{
+			"", "huh?", "1.0.1",
+			// what about "version 1 dot dogcow"?
+			"v1.🐕.🐄",
+			"v1", "v0.1",
+			// and one normal one that should pass through
+			"v1.0.1",
+		},
+	}
+
+	cr, err := newCodeRepo(ch, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := cr.Versions("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v) != 1 || v[0] != "v1.0.1" {
+		t.Fatal("unexpected versions returned:", v)
 	}
 }
