@@ -144,8 +144,12 @@ func initModHash() {
 			line, data = data[:i], data[i+1:]
 		}
 		f := strings.Fields(string(line))
+		if len(f) == 0 {
+			// blank line; skip it
+			continue
+		}
 		if len(f) != 3 {
-			base.Fatalf("vgo: malformed go.modverify:\n%s:%d: wrong number of fields", file, lineno)
+			base.Fatalf("vgo: malformed go.modverify:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
 		}
 		mod := module.Version{Path: f[0], Version: f[1]}
 		modHash[mod] = append(modHash[mod], f[2])
