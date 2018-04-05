@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"go/build"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -121,6 +122,16 @@ func objabi() (GOARM, GO386, GOMIPS string) {
 }
 
 func findGOROOT() string {
+	goroot := findGOROOT1()
+	_, err := os.Stat(filepath.Join(goroot, "api/go1.10.txt"))
+	if err != nil {
+		log.SetFlags(0)
+		log.Fatalf("vgo requires Go 1.10 but VGOROOT=%s is not a Go 1.10 source tree", goroot)
+	}
+	return goroot
+}
+
+func findGOROOT1() string {
 	if env := os.Getenv("VGOROOT"); env != "" {
 		return filepath.Clean(env)
 	}
