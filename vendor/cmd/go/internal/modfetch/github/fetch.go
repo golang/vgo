@@ -117,6 +117,8 @@ func (r *repo) LatestAt(t time.Time, branch string) (*codehost.RevInfo, error) {
 	return info, nil
 }
 
+var refKinds = []string{"tags", "heads"}
+
 func (r *repo) Stat(rev string) (*codehost.RevInfo, error) {
 	var tag string
 	if !codehost.AllHex(rev) {
@@ -130,41 +132,52 @@ func (r *repo) Stat(rev string) (*codehost.RevInfo, error) {
 				URL  string
 			}
 		}
-		err := web.Get(
-			"https://api.github.com/repos/"+url.PathEscape(r.owner)+"/"+url.PathEscape(r.repo)+"/git/refs/tags/"+tag,
-			web.DecodeJSON(&ref),
-		)
-		if err != nil {
-			return nil, err
-		}
-		switch ref.Object.Type {
-		default:
-			return nil, fmt.Errorf("invalid tag %q: not a commit or tag (%q)", tag, ref.Object.Type)
 
-		case "commit":
-			rev = ref.Object.SHA
-
-		case "tag":
-			var info struct {
-				Object struct {
-					SHA  string
-					Type string
-				}
-			}
-			err = web.Get(
-				ref.Object.URL,
-				web.DecodeJSON(&info),
+		var firstErr error
+		for _, kind := range refKinds {
+			err := web.Get(
+				"https://api.github.com/repos/"+url.PathEscape(r.owner)+"/"+url.PathEscape(r.repo)+"/git/refs/"+kind+"/"+tag,
+				web.DecodeJSON(&ref),
 			)
 			if err != nil {
-				return nil, err
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
 			}
-			if info.Object.Type != "commit" {
-				return nil, fmt.Errorf("invalid annotated tag %q: not a commit (%q)", tag, info.Object.Type)
+			switch ref.Object.Type {
+			default:
+				return nil, fmt.Errorf("invalid ref %q: not a commit or tag (%q)", tag, ref.Object.Type)
+
+			case "commit":
+				rev = ref.Object.SHA
+
+			case "tag":
+				var info struct {
+					Object struct {
+						SHA  string
+						Type string
+					}
+				}
+				err = web.Get(
+					ref.Object.URL,
+					web.DecodeJSON(&info),
+				)
+				if err != nil {
+					return nil, err
+				}
+				if info.Object.Type != "commit" {
+					return nil, fmt.Errorf("invalid annotated tag %q: not a commit (%q)", tag, info.Object.Type)
+				}
+				rev = info.Object.SHA
 			}
-			rev = info.Object.SHA
+			if rev == "" {
+				return nil, fmt.Errorf("invalid ref %q: missing SHA in GitHub response", tag)
+			}
+			break
 		}
 		if rev == "" {
-			return nil, fmt.Errorf("invalid tag %q: missing SHA in GitHub response", tag)
+			return nil, fmt.Errorf("unknown ref %q (%v)", tag, firstErr)
 		}
 	}
 

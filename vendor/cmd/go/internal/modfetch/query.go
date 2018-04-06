@@ -35,6 +35,8 @@ func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, erro
 	}
 
 	if strings.HasPrefix(vers, "v") && semver.IsValid(vers) {
+		// TODO: This turns query for "v2" into Stat "v2.0.0",
+		// but probably it should allow checking for a branch named "v2".
 		return repo.Stat(semver.Canonical(vers))
 	}
 	if strings.HasPrefix(vers, ">") || strings.HasPrefix(vers, "<") || vers == "latest" {

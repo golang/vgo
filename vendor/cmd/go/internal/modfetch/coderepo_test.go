@@ -298,6 +298,24 @@ var codeRepoTests = []struct {
 		time:    time.Date(2016, 12, 8, 18, 13, 25, 0, time.UTC),
 		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/check.v1\n",
 	},
+	{
+		path:    "gopkg.in/yaml.v2",
+		rev:     "v2",
+		version: "v0.0.0-20180328195020-5420a8b6744d",
+		name:    "5420a8b6744d3b0345ab293f6fcba19c978f1183",
+		short:   "5420a8b6744d",
+		time:    time.Date(2018, 3, 28, 19, 50, 20, 0, time.UTC),
+		gomod:   "module \"gopkg.in/yaml.v2\"\n\nrequire (\n\t\"gopkg.in/check.v1\" v0.0.0-20161208181325-20d25e280405\n)\n",
+	},
+	{
+		path:    "github.com/gobuffalo/buffalo",
+		rev:     "development",
+		version: "v0.0.0-20180406185414-59b4005674b6",
+		name:    "59b4005674b633728e2bfc3bb09cc204f7c2d6f5",
+		short:   "59b4005674b6",
+		time:    time.Date(2018, 4, 6, 18, 54, 14, 0, time.UTC),
+		gomod:   "//vgo 0.0.4\n\nmodule github.com/gobuffalo/buffalo\n",
+	},
 }
 
 func TestCodeRepo(t *testing.T) {
