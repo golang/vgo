@@ -26,7 +26,7 @@ It then installs the named packages, like 'go install'.
 
 The -u flag causes get to download the latest version of dependencies as well.
 
-Each package being updated can be suffixed with @version to specifiy 
+Each package being updated can be suffixed with @version to specify
 the desired version. Specifying a version older than the one currently
 in use causes a downgrade, which may in turn downgrade other
 modules using that one, to keep everything consistent.
