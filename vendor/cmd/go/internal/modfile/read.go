@@ -238,6 +238,18 @@ func (in *input) peekRune() int {
 	return int(r)
 }
 
+// peekPrefix reports whether the remaining input begins with the given prefix.
+func (in *input) peekPrefix(prefix string) bool {
+	// This is like bytes.HasPrefix(in.remaining, []byte(prefix))
+	// but without the allocation of the []byte copy of prefix.
+	for i := 0; i < len(prefix); i++ {
+		if i >= len(in.remaining) || in.remaining[i] != prefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // readRune consumes and returns the next rune in the input.
 func (in *input) readRune() int {
 	if len(in.remaining) == 0 {
@@ -302,7 +314,7 @@ func (in *input) lex(sym *symType) int {
 		}
 
 		// Comment runs to end of line.
-		if c == '/' {
+		if in.peekPrefix("//") {
 			in.startToken(sym)
 
 			// Is this comment the only thing on its line?
@@ -311,13 +323,7 @@ func (in *input) lex(sym *symType) int {
 			i := bytes.LastIndex(in.complete[:in.pos.Byte], []byte("\n"))
 			suffix := len(bytes.TrimSpace(in.complete[i+1:in.pos.Byte])) > 0
 			in.readRune()
-			c = in.peekRune()
-			if c == '*' {
-				in.Error(fmt.Sprintf("mod files must use // comments (not /* */ comments)"))
-			}
-			if c != '/' {
-				in.Error(fmt.Sprintf("unexpected input character %#q", c))
-			}
+			in.readRune()
 
 			// Consume comment.
 			for len(in.remaining) > 0 && in.readRune() != '\n' {
@@ -342,6 +348,10 @@ func (in *input) lex(sym *symType) int {
 			in.comments = append(in.comments, Comment{sym.pos, sym.text, suffix})
 			countNL = 1
 			return _EOL
+		}
+
+		if in.peekPrefix("/*") {
+			in.Error(fmt.Sprintf("mod files must use // comments (not /* */ comments)"))
 		}
 
 		// Found non-space non-comment.
@@ -406,6 +416,12 @@ func (in *input) lex(sym *symType) int {
 
 	// Scan over identifier.
 	for isIdent(in.peekRune()) {
+		if in.peekPrefix("//") {
+			break
+		}
+		if in.peekPrefix("/*") {
+			in.Error(fmt.Sprintf("mod files must use // comments (not /* */ comments)"))
+		}
 		in.readRune()
 	}
 	return _IDENT
@@ -414,7 +430,7 @@ func (in *input) lex(sym *symType) int {
 // isIdent reports whether c is an identifier rune.
 // We treat nearly all runes as identifier runes.
 func isIdent(c int) bool {
-	return c != 0 && !unicode.IsSpace(rune(c)) && c != '/' && c != '(' && c != ')' && c != '"' && c != '`'
+	return c != 0 && !unicode.IsSpace(rune(c))
 }
 
 // Comment assignment.

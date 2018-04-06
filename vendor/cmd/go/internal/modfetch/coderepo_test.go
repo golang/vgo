@@ -198,7 +198,7 @@ var codeRepoTests = []struct {
 		name:    "0f30252985809011f026b5a2d5cf456e021623da",
 		short:   "0f3025298580",
 		time:    time.Date(2018, 2, 20, 2, 47, 20, 0, time.UTC),
-		gomod:   "//vgo 0.0.3\n\nmodule \"go.googlesource.com/scratch\"\n",
+		gomod:   "//vgo 0.0.4\n\nmodule go.googlesource.com/scratch\n",
 	},
 	{
 		path:    "go.googlesource.com/scratch/rsc",
@@ -287,7 +287,7 @@ var codeRepoTests = []struct {
 		name:    "d670f9405373e636a5a2765eea47fac0c9bc91a4",
 		short:   "d670f9405373",
 		time:    time.Date(2018, 1, 9, 11, 43, 31, 0, time.UTC),
-		gomod:   "//vgo 0.0.3\n\nmodule \"gopkg.in/yaml.v2\"\n",
+		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/yaml.v2\n",
 	},
 	{
 		path:    "gopkg.in/check.v1",
@@ -296,7 +296,7 @@ var codeRepoTests = []struct {
 		name:    "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
 		short:   "20d25e280405",
 		time:    time.Date(2016, 12, 8, 18, 13, 25, 0, time.UTC),
-		gomod:   "//vgo 0.0.3\n\nmodule \"gopkg.in/check.v1\"\n",
+		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/check.v1\n",
 	},
 }
 

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"cmd/go/internal/module"
 	"cmd/go/internal/semver"
@@ -56,7 +57,7 @@ func (f *File) AddModuleStmt(path string) {
 		f.Syntax = new(FileSyntax)
 	}
 	f.Syntax.Stmt = append(f.Syntax.Stmt, &Line{
-		Token: []string{"module", strconv.Quote(path)},
+		Token: []string{"module", AutoQuote(path)},
 	})
 }
 
@@ -120,9 +121,9 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			return
 		}
 		f.Module = new(Module)
-		if len(args) != 1 || !isString(args[0]) {
+		if len(args) != 1 {
 
-			fmt.Fprintf(errs, "%s:%d: usage: module \"module/path\" [version]\n", f.Syntax.Name, line.Start.Line)
+			fmt.Fprintf(errs, "%s:%d: usage: module module/path [version]\n", f.Syntax.Name, line.Start.Line)
 			return
 		}
 		s, err := parseString(&args[0])
@@ -132,8 +133,8 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 		}
 		f.Module.Mod = module.Version{Path: s}
 	case "require", "exclude":
-		if len(args) != 2 || !isString(args[0]) || isString(args[1]) {
-			fmt.Fprintf(errs, "%s:%d: usage: %s \"module/path\" v1.2.3\n", f.Syntax.Name, line.Start.Line, verb)
+		if len(args) != 2 {
+			fmt.Fprintf(errs, "%s:%d: usage: %s module/path v1.2.3\n", f.Syntax.Name, line.Start.Line, verb)
 			return
 		}
 		s, err := parseString(&args[0])
@@ -168,8 +169,8 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			})
 		}
 	case "replace":
-		if len(args) < 4 || len(args) > 5 || !isString(args[0]) || isString(args[1]) || args[2] != "=>" || !isString(args[3]) || len(args) == 5 && isString(args[4]) {
-			fmt.Fprintf(errs, "%s:%d: usage: %s \"module/path\" v1.2.3 -> \"other/module\" v1.4\n\t or %s \"module/path\" v1.2.3 -> \"../local/directory\"", f.Syntax.Name, line.Start.Line, verb, verb)
+		if len(args) < 4 || len(args) > 5 || args[2] != "=>" {
+			fmt.Fprintf(errs, "%s:%d: usage: %s module/path v1.2.3 => other/module v1.4\n\t or %s module/path v1.2.3 => ../local/directory", f.Syntax.Name, line.Start.Line, verb, verb)
 			return
 		}
 		s, err := parseString(&args[0])
@@ -237,21 +238,46 @@ func isDirectoryPath(ns string) bool {
 		len(ns) >= 2 && ('A' <= ns[0] && ns[0] <= 'Z' || 'a' <= ns[0] && ns[0] <= 'z') && ns[1] == ':'
 }
 
-func isString(s string) bool {
-	return s != "" && s[0] == '"'
+func mustQuote(t string) bool {
+	for _, r := range t {
+		if !unicode.IsPrint(r) || r == ' ' || r == '"' || r == '\'' || r == '`' {
+			return true
+		}
+	}
+	return t == "" || strings.Contains(t, "//") || strings.Contains(t, "/*")
+}
+
+// AutoQuote returns s or, if quoting is required for s to appear in a go.mod,
+// the quotation of s.
+func AutoQuote(s string) string {
+	if mustQuote(s) {
+		return strconv.Quote(s)
+	}
+	return s
 }
 
 func parseString(s *string) (string, error) {
-	t, err := strconv.Unquote(*s)
-	if err != nil {
-		return "", err
+	t := *s
+	if strings.HasPrefix(t, `"`) {
+		var err error
+		if t, err = strconv.Unquote(t); err != nil {
+			return "", err
+		}
+	} else if strings.ContainsAny(t, "\"'`") {
+		// Other quotes are reserved both for possible future expansion
+		// and to avoid confusion. For example if someone types 'x'
+		// we want that to be a syntax error and not a literal x in literal quotation marks.
+		return "", fmt.Errorf("unquoted string cannot contain quote")
 	}
-	*s = strconv.Quote(t)
+	*s = AutoQuote(t)
 	return t, nil
 }
 
 func parseVersion(path string, s *string, fix VersionFixer) (string, error) {
-	t := *s
+	t, err := parseString(s)
+	if err != nil {
+		return "", err
+	}
 	if fix != nil {
 		var err error
 		t, err = fix(path, t)
@@ -309,14 +335,14 @@ func (x *File) AddRequire(path, vers string) {
 		switch stmt := stmt.(type) {
 		case *LineBlock:
 			if len(stmt.Token) > 0 && stmt.Token[0] == "require" {
-				syntax = &Line{Token: []string{strconv.Quote(path), vers}}
+				syntax = &Line{Token: []string{AutoQuote(path), vers}}
 				stmt.Line = append(stmt.Line, syntax)
 				goto End
 			}
 		case *Line:
 			if len(stmt.Token) > 0 && stmt.Token[0] == "require" {
 				stmt.Token = stmt.Token[1:]
-				syntax = &Line{Token: []string{strconv.Quote(path), vers}}
+				syntax = &Line{Token: []string{AutoQuote(path), vers}}
 				x.Syntax.Stmt[i] = &LineBlock{
 					Comments: stmt.Comments,
 					Token:    []string{"require"},
@@ -330,7 +356,7 @@ func (x *File) AddRequire(path, vers string) {
 		}
 	}
 
-	syntax = &Line{Token: []string{"require", strconv.Quote(path), vers}}
+	syntax = &Line{Token: []string{"require", AutoQuote(path), vers}}
 	x.Syntax.Stmt = append(x.Syntax.Stmt, syntax)
 
 End:

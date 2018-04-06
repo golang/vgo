@@ -97,10 +97,13 @@ func TestPrintParse(t *testing.T) {
 
 		eq := eqchecker{file: base}
 		if err := eq.check(f, f2); err != nil {
-			t.Errorf("not equal: %v", err)
+			t.Errorf("not equal (parse/Format/parse): %v", err)
 		}
 
 		pf1, err := Parse(base, data, nil)
+		if err != nil && base == "testdata/replace2.in" {
+			t.Errorf("should parse %v: %v", base, err)
+		}
 		if err == nil {
 			pf2, err := Parse(base, ndata, nil)
 			if err != nil {
@@ -109,8 +112,23 @@ func TestPrintParse(t *testing.T) {
 			}
 			eq := eqchecker{file: base}
 			if err := eq.check(pf1, pf2); err != nil {
-				t.Errorf("not equal: %v", err)
+				t.Errorf("not equal (parse/Format/Parse): %v", err)
 			}
+
+			ndata2, err := pf1.Format()
+			if err != nil {
+				t.Errorf("reformat: %v", err)
+			}
+			pf3, err := Parse(base, ndata2, nil)
+			if err != nil {
+				t.Errorf("Parsing reformatted2: %v", err)
+				continue
+			}
+			eq = eqchecker{file: base}
+			if err := eq.check(pf1, pf3); err != nil {
+				t.Errorf("not equal (Parse/Format/Parse): %v", err)
+			}
+			ndata = ndata2
 		}
 
 		if strings.HasSuffix(out, ".in") {
