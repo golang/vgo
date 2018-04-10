@@ -110,10 +110,7 @@ func downloadZip(mod module.Version, target string) error {
 	if err := w.Close(); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(target+"hash", []byte(hash), 0666); err != nil {
-		return err
-	}
-	return nil
+	return ioutil.WriteFile(target+"hash", []byte(hash), 0666)
 }
 
 var useModHash = false
