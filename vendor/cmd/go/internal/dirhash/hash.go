@@ -70,8 +70,8 @@ func DirFiles(dir, prefix string) ([]string, error) {
 		if dir != "." {
 			rel = file[len(dir)+1:]
 		}
-		rel = filepath.ToSlash(rel)
-		files = append(files, filepath.Join(prefix, rel))
+		f := filepath.Join(prefix, rel)
+		files = append(files, filepath.ToSlash(f))
 		return nil
 	})
 	if err != nil {

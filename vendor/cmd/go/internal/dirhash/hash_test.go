@@ -103,3 +103,33 @@ func TestHashZip(t *testing.T) {
 		t.Errorf("HashDir(...) = %s, want %s", out, want)
 	}
 }
+
+func TestDirFiles(t *testing.T) {
+	dir, err := ioutil.TempDir("", "dirfiles-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	if err := ioutil.WriteFile(filepath.Join(dir, "xyz"), []byte("data for xyz"), 0666); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(dir, "abc"), []byte("data for abc"), 0666); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "subdir"), 0777); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(dir, "subdir", "xyz"), []byte("data for subdir xyz"), 0666); err != nil {
+		t.Fatal(err)
+	}
+	prefix := "foo/bar@v2.3.4"
+	out, err := DirFiles(dir, prefix)
+	if err != nil {
+		t.Fatalf("DirFiles: %v", err)
+	}
+	for _, file := range out {
+		if !strings.HasPrefix(file, prefix) {
+			t.Errorf("Dir file = %s, want prefix %s", file, prefix)
+		}
+	}
+}
