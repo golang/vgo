@@ -252,16 +252,15 @@ func parseString(s *string) (string, error) {
 
 func parseVersion(path string, s *string, fix VersionFixer) (string, error) {
 	t := *s
-	if semver.IsValid(t) {
-		*s = semver.Canonical(t)
-		return *s, nil
-	}
 	if fix != nil {
-		t, err := fix(path, t)
+		var err error
+		t, err = fix(path, t)
 		if err != nil {
 			return "", err
 		}
-		*s = t
+	}
+	if semver.IsValid(t) {
+		*s = semver.Canonical(t)
 		return *s, nil
 	}
 	return "", fmt.Errorf("version must be of the form v1.2.3")
