@@ -127,7 +127,7 @@ func InitMod() {
 	}
 	modFile = f
 
-	if len(f.Syntax.Stmt) == 0 {
+	if len(f.Syntax.Stmt) == 0 || f.Module == nil {
 		// Empty mod file. Must add module path.
 		path, err := FindModulePath(ModRoot)
 		if err != nil {
