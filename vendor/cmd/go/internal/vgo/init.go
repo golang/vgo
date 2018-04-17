@@ -10,6 +10,7 @@ import (
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfetch"
+	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
 	"cmd/go/internal/mvs"
@@ -113,6 +114,7 @@ func InitMod() {
 	}
 	gopath = list[0]
 	srcV = filepath.Join(list[0], "src/v")
+	codehost.WorkRoot = filepath.Join(srcV, "cache/vcswork")
 
 	gomod := filepath.Join(ModRoot, "go.mod")
 	data, err := ioutil.ReadFile(gomod)

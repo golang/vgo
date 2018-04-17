@@ -2,21 +2,34 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Package codehost defines the interface implemented by a code hosting source,
+// along with support code for use by implementations.
 package codehost
 
 import (
+	"bytes"
+	"cmd/go/internal/str"
+	"crypto/sha256"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
 // Downloaded size limits.
 const (
-	MaxGoMod   = 16 << 20
-	MaxLICENSE = 16 << 20
-	MaxZipFile = 100 << 20
+	MaxGoMod   = 16 << 20  // maximum size of go.mod file
+	MaxLICENSE = 16 << 20  // maximum size of LICENSE file
+	MaxZipFile = 100 << 20 // maximum size of downloaded zip file
 )
 
-// A Repo represents a source code repository on a code-hosting service.
+// A Repo represents a code hosting source.
+// Typical implementations include local version control repositories,
+// remote version control servers, and code hosting sites.
 type Repo interface {
 	// Root returns the import path of the root directory of the repository.
 	Root() string
@@ -55,6 +68,7 @@ type RevInfo struct {
 	Time    time.Time // commit time
 }
 
+// AllHex reports whether the revision rev is entirely lower-case hexadecimal digits.
 func AllHex(rev string) bool {
 	for i := 0; i < len(rev); i++ {
 		c := rev[i]
@@ -66,9 +80,98 @@ func AllHex(rev string) bool {
 	return true
 }
 
+// ShortenSHA1 shortens a SHA1 hash (40 hex digits) to the canonical length
+// used in pseudo-versions (12 hex digits).
 func ShortenSHA1(rev string) string {
 	if AllHex(rev) && len(rev) == 40 {
 		return rev[:12]
 	}
 	return rev
+}
+
+// WorkRoot is the root of the cached work directory.
+// It is set by cmd/go/internal/vgo.InitMod.
+var WorkRoot string
+
+// WorkDir returns the name of the cached work directory to use for the
+// given repository type and name.
+func WorkDir(typ, name string) (string, error) {
+	if WorkRoot == "" {
+		return "", fmt.Errorf("codehost.WorkRoot not set")
+	}
+
+	// We name the work directory for the SHA256 hash of the type and name.
+	// We intentionally avoid the actual name both because of possible
+	// conflicts with valid file system paths and because we want to ensure
+	// that one checkout is never nested inside another. That nesting has
+	// led to security problems in the past.
+	if strings.Contains(typ, ":") {
+		return "", fmt.Errorf("codehost.WorkDir: type cannot contain colon")
+	}
+	key := typ + ":" + name
+	dir := filepath.Join(WorkRoot, fmt.Sprintf("%x", sha256.Sum256([]byte(key))))
+	data, err := ioutil.ReadFile(dir + ".info")
+	if err == nil {
+		have := strings.TrimSuffix(string(data), "\n")
+		if have != key {
+			return "", fmt.Errorf("%s exists with wrong content (have %q want %q)", dir+".info", have, key)
+		}
+		_, err := os.Stat(dir)
+		if err != nil {
+			return "", fmt.Errorf("%s exists but %s does not", dir+".info", dir)
+		}
+		return dir, nil
+	}
+
+	os.RemoveAll(dir)
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		return "", err
+	}
+	if err := ioutil.WriteFile(dir+".info", []byte(key), 0666); err != nil {
+		os.RemoveAll(dir)
+		return "", err
+	}
+	return dir, nil
+}
+
+type RunError struct {
+	Cmd    string
+	Err    error
+	Stderr []byte
+}
+
+func (e *RunError) Error() string {
+	text := e.Cmd + ": " + e.Err.Error()
+	stderr := bytes.TrimRight(e.Stderr, "\n")
+	if len(stderr) > 0 {
+		text += ":\n\t" + strings.Replace(string(stderr), "\n", "\n\t", -1)
+	}
+	return text
+}
+
+var DebugRun bool
+
+// Run runs the command line in the given directory
+// (an empty dir means the current directory).
+// It returns the standard output and, for a non-zero exit,
+// a *RunError indicating the command, exit status, and standard error.
+// Standard error is unavailable for commands that exit successfully.
+func Run(dir string, cmdline ...interface{}) ([]byte, error) {
+	cmd := str.StringList(cmdline...)
+	if DebugRun {
+		fmt.Fprintf(os.Stderr, "codehost.Run[%s]: %s\n", dir, strings.Join(cmd, " "))
+	}
+	// TODO: Impose limits on command output size.
+	// TODO: Set environment to get English error messages.
+	var stderr bytes.Buffer
+	var stdout bytes.Buffer
+	c := exec.Command(cmd[0], cmd[1:]...)
+	c.Dir = dir
+	c.Stderr = &stderr
+	c.Stdout = &stdout
+	err := c.Run()
+	if err != nil {
+		err = &RunError{Cmd: strings.Join(cmd, " ") + " in " + dir, Stderr: stderr.Bytes(), Err: err}
+	}
+	return stdout.Bytes(), err
 }
