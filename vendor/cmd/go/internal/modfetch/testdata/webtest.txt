@@ -11885,3 +11885,159 @@ X-Xss-Protection: 1; mode=block
 
 [{"sha":"c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","commit":{"author":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T15:44:20Z"},"committer":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T15:44:20Z"},"message":"buggy: add buggy test","tree":{"sha":"704e33398b7ad1e36f346ac3c9a6858f444ee91d","url":"https://api.github.com/repos/rsc/quote/git/trees/704e33398b7ad1e36f346ac3c9a6858f444ee91d"},"url":"https://api.github.com/repos/rsc/quote/git/commits/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null}},"url":"https://api.github.com/repos/rsc/quote/commits/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","html_url":"https://github.com/rsc/quote/commit/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22","comments_url":"https://api.github.com/repos/rsc/quote/commits/c4d4236f92427c64bfbcf1cc3f8142ab18f30b22/comments","author":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"committer":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"parents":[{"sha":"23179ee8a569bb05d896ae05c6503ec69a19f99f","url":"https://api.github.com/repos/rsc/quote/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f","html_url":"https://github.com/rsc/quote/commit/23179ee8a569bb05d896ae05c6503ec69a19f99f"}]},{"sha":"23179ee8a569bb05d896ae05c6503ec69a19f99f","commit":{"author":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T00:58:40Z"},"committer":{"name":"Russ Cox","email":"rsc@golang.org","date":"2018-02-14T00:58:40Z"},"message":"quote: fix test for new rsc.io/sampler","tree":{"sha":"98dea458b6a7805a98272ad43b4f92b76cdea71a","url":"https://api.github.com/repos/rsc/quote/git/trees/98dea458b6a7805a98272ad43b4f92b76cdea71a"},"url":"https://api.github.com/repos/rsc/quote/git/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f","comment_count":0,"verification":{"verified":false,"reason":"unsigned","signature":null,"payload":null}},"url":"https://api.github.com/repos/rsc/quote/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f","html_url":"https://github.com/rsc/quote/commit/23179ee8a569bb05d896ae05c6503ec69a19f99f","comments_url":"https://api.github.com/repos/rsc/quote/commits/23179ee8a569bb05d896ae05c6503ec69a19f99f/comments","author":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"committer":{"login":"rsc","id":104030,"avatar_url":"https://avatars1.githubusercontent.com/u/104030?v=4","gravatar_id":"","url":"https://api.github.com/users/rsc","html_url":"https://github.com/rsc","followers_url":"https://api.github.com/users/rsc/followers","following_url":"https://api.github.com/users/rsc/following{/other_user}","gists_url":"https://api.github.com/users/rsc/gists{/gist_id}","starred_url":"https://api.github.com/users/rsc/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/rsc/subscriptions","organizations_url":"https://api.github.com/users/rsc/orgs","repos_url":"https://api.github.com/users/rsc/repos","events_url":"https://api.github.com/users/rsc/events{/privacy}","received_events_url":"https://api.github.com/users/rsc/received_events","type":"User","site_admin":false},"parents":[{"sha":"3ba1e30dc83bd52c990132b9dfb1688a9d22de13","url":"https://api.github.com/repos/rsc/quote/commits/3ba1e30dc83bd52c990132b9dfb1688a9d22de13","html_url":"https://github.com/rsc/quote/commit/3ba1e30dc83bd52c990132b9dfb1688a9d22de13"}]}]
 
+GET https://cloud.google.com/go?go-get=1
+200 OK
+Alt-Svc: hq=":443"; ma=2592000; quic=51303433; quic=51303432; quic=51303431; quic=51303339; quic=51303335,quic=":443"; ma=2592000; v="43,42,41,39,35"
+Cache-Control: must_revalidate, public, max-age=3600
+Content-Language: en
+Content-Type: text/html; charset=utf-8
+Date: Wed, 18 Apr 2018 05:07:38 GMT
+Etag: 528a8b11588abe6bae8b251357168d2d
+Expires: Wed, 18 Apr 2018 06:07:38 GMT
+Last-Modified: Tue, 05 Dec 2017 00:31:55 GMT
+Server: Google Frontend
+Strict-Transport-Security: max-age=31536000; includeSubdomains
+Vary: Accept-Language
+Vary: Accept-Encoding
+X-Cloud-Trace-Context: dbe9a6946ea98afa1ac8819261423928
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Xss-Protection: 1; mode=block
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="go-import" content="cloud.google.com/go git https://code.googlesource.com/gocloud">
+    <meta name="go-source" content="cloud.google.com/go https://github.com/GoogleCloudPlatform/gcloud-golang https://github.com/GoogleCloudPlatform/gcloud-golang/tree/master{/dir} https://github.com/GoogleCloudPlatform/gcloud-golang/tree/master{/dir}/{file}#L{line}">
+    <meta http-equiv="refresh" content="0; url=/go/home">
+  </head>
+  <body>
+    Nothing to see here. Please <a href="/go/home">move along</a>.
+  </body>
+</html>
+
+
+GET https://golang.org/x/oauth2?go-get=1
+200 OK
+Alt-Svc: hq=":443"; ma=2592000; quic=51303432; quic=51303431; quic=51303339; quic=51303335,quic=":443"; ma=2592000; v="42,41,39,35"
+Cache-Control: private
+Content-Type: text/html; charset=utf-8
+Date: Wed, 18 Apr 2018 05:07:42 GMT
+Server: Google Frontend
+Vary: Accept-Encoding
+X-Cloud-Trace-Context: ebec1e646ce2eb5445befb0685c56026
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta name="go-import" content="golang.org/x/oauth2 git https://go.googlesource.com/oauth2">
+<meta name="go-source" content="golang.org/x/oauth2 https://github.com/golang/oauth2/ https://github.com/golang/oauth2/tree/master{/dir} https://github.com/golang/oauth2/blob/master{/dir}/{file}#L{line}">
+<meta http-equiv="refresh" content="0; url=https://godoc.org/golang.org/x/oauth2">
+</head>
+<body>
+Nothing to see here; <a href="https://godoc.org/golang.org/x/oauth2">move along</a>.
+</body>
+</html>
+
+
+GET https://google.golang.org/api?go-get=1
+200 OK
+Alt-Svc: hq=":443"; ma=2592000; quic=51303432; quic=51303431; quic=51303339; quic=51303335,quic=":443"; ma=2592000; v="42,41,39,35"
+Cache-Control: private
+Content-Type: text/html; charset=utf-8
+Date: Wed, 18 Apr 2018 05:07:45 GMT
+Server: Google Frontend
+Vary: Accept-Encoding
+X-Cloud-Trace-Context: 94f300e3d779c4a7279740a20695444e
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="go-import" content="google.golang.org/api git https://code.googlesource.com/google-api-go-client">
+
+<meta name="go-source" content="google.golang.org/api https://github.com/google/google-api-go-client https://github.com/google/google-api-go-client/tree/master{/dir} https://github.com/google/google-api-go-client/tree/master{/dir}/{file}#L{line}">
+
+<meta http-equiv="refresh" content="0; url=https://godoc.org/google.golang.org/api">
+</head>
+<body>
+Nothing to see here. Please <a href="https://godoc.org/google.golang.org/api">move along</a>.
+</body>
+</html>
+
+
+GET https://google.golang.org/appengine?go-get=1
+200 OK
+Alt-Svc: hq=":443"; ma=2592000; quic=51303432; quic=51303431; quic=51303339; quic=51303335,quic=":443"; ma=2592000; v="42,41,39,35"
+Cache-Control: private
+Content-Type: text/html; charset=utf-8
+Date: Wed, 18 Apr 2018 05:07:48 GMT
+Server: Google Frontend
+Vary: Accept-Encoding
+X-Cloud-Trace-Context: 87b445f8e8f4c945c7c45da3d658677b
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="go-import" content="google.golang.org/appengine git https://github.com/golang/appengine">
+
+<meta name="go-source" content="google.golang.org/appengine https://github.com/golang/appengine https://github.com/golang/appengine/tree/master{/dir} https://github.com/golang/appengine/tree/master{/dir}/{file}#L{line}">
+
+<meta http-equiv="refresh" content="0; url=https://godoc.org/google.golang.org/appengine">
+</head>
+<body>
+Nothing to see here. Please <a href="https://godoc.org/google.golang.org/appengine">move along</a>.
+</body>
+</html>
+
+
+GET https://google.golang.org/genproto?go-get=1
+200 OK
+Alt-Svc: hq=":443"; ma=2592000; quic=51303432; quic=51303431; quic=51303339; quic=51303335,quic=":443"; ma=2592000; v="42,41,39,35"
+Cache-Control: private
+Content-Type: text/html; charset=utf-8
+Date: Wed, 18 Apr 2018 05:07:49 GMT
+Server: Google Frontend
+Vary: Accept-Encoding
+X-Cloud-Trace-Context: 06acf25d8499e19eef19d7ea32a3032f
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="go-import" content="google.golang.org/genproto git https://github.com/google/go-genproto">
+
+<meta name="go-source" content="google.golang.org/genproto https://github.com/google/go-genproto https://github.com/google/go-genproto/tree/master{/dir} https://github.com/google/go-genproto/tree/master{/dir}/{file}#L{line}">
+
+<meta http-equiv="refresh" content="0; url=https://godoc.org/google.golang.org/genproto">
+</head>
+<body>
+Nothing to see here. Please <a href="https://godoc.org/google.golang.org/genproto">move along</a>.
+</body>
+</html>
+
+
+GET https://google.golang.org/grpc?go-get=1
+200 OK
+Alt-Svc: hq=":443"; ma=2592000; quic=51303432; quic=51303431; quic=51303339; quic=51303335,quic=":443"; ma=2592000; v="42,41,39,35"
+Cache-Control: private
+Content-Type: text/html; charset=utf-8
+Date: Wed, 18 Apr 2018 05:07:50 GMT
+Server: Google Frontend
+Vary: Accept-Encoding
+X-Cloud-Trace-Context: e56994b2c8c2295223f321ddde66db7f
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="go-import" content="google.golang.org/grpc git https://github.com/grpc/grpc-go">
+
+<meta name="go-source" content="google.golang.org/grpc https://github.com/grpc/grpc-go https://github.com/grpc/grpc-go/tree/master{/dir} https://github.com/grpc/grpc-go/tree/master{/dir}/{file}#L{line}">
+
+<meta http-equiv="refresh" content="0; url=https://godoc.org/google.golang.org/grpc">
+</head>
+<body>
+Nothing to see here. Please <a href="https://godoc.org/google.golang.org/grpc">move along</a>.
+</body>
+</html>
+
+

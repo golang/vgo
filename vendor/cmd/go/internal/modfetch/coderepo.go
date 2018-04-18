@@ -144,7 +144,7 @@ func (r *codeRepo) Latest() (*RevInfo, error) {
 
 func (r *codeRepo) convert(info *codehost.RevInfo) (*RevInfo, error) {
 	versionOK := func(v string) bool {
-		return semver.IsValid(v) && v == semver.Canonical(v) && !isPseudoVersion(v)
+		return semver.IsValid(v) && v == semver.Canonical(v) && !isPseudoVersion(v) && module.MatchPathMajor(v, r.pathMajor)
 	}
 	v := info.Version
 	if r.codeDir == "" {

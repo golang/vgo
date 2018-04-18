@@ -78,6 +78,26 @@ func TestConvertLegacyConfig(t *testing.T) {
 				gopkg.in/yaml.v2 v0.0.0-20150116202057-bef53efd0c76
 			)`,
 		},
+
+		{
+			// golang.org/issue/24585 - confusion about v2.0.0 tag in legacy non-v2 module
+			"github.com/fishy/gcsbucket", "v0.0.0-20150410205453-618d60fe84e0",
+			`module github.com/fishy/gcsbucket
+
+			require (
+				cloud.google.com/go v0.18.0
+				github.com/fishy/fsdb v0.0.0-20180217030800-5527ded01371
+				github.com/golang/protobuf v1.0.0
+				github.com/googleapis/gax-go v0.0.0-20170915024731-317e0006254c
+				golang.org/x/net v0.0.0-20180216171745-136a25c244d3
+				golang.org/x/oauth2 v0.0.0-20180207181906-543e37812f10
+				golang.org/x/text v0.0.0-20180208041248-4e4a3210bb54
+				google.golang.org/api v0.0.0-20180217000815-c7a403bb5fe1
+				google.golang.org/appengine v1.0.0
+				google.golang.org/genproto v0.0.0-20180206005123-2b5a72b8730b
+				google.golang.org/grpc v1.10.0
+			)`,
+		},
 	}
 
 	for _, tt := range tests {
