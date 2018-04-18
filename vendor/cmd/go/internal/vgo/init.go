@@ -14,6 +14,7 @@ import (
 	"cmd/go/internal/module"
 	"cmd/go/internal/mvs"
 	"cmd/go/internal/search"
+	"cmd/go/internal/semver"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -338,6 +339,17 @@ func writeGoMod() {
 }
 
 func fixVersion(path, vers string) (string, error) {
+	// fixVersion is called speculatively on every
+	// module, version pair from every go.mod file.
+	// Avoid the query if it looks OK.
+	_, pathMajor, ok := module.SplitPathVersion(path)
+	if !ok {
+		return "", fmt.Errorf("malformed module path: %s", path)
+	}
+	if semver.IsValid(vers) && vers == semver.Canonical(vers) && module.MatchPathMajor(vers, pathMajor) {
+		return vers, nil
+	}
+
 	info, err := modfetch.Query(path, vers, nil)
 	if err != nil {
 		return "", err
