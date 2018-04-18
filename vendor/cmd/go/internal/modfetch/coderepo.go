@@ -79,7 +79,7 @@ func (r *codeRepo) Versions(prefix string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var list []string
+	list := []string{}
 	for _, tag := range tags {
 		if !strings.HasPrefix(tag, p) {
 			continue
@@ -88,11 +88,7 @@ func (r *codeRepo) Versions(prefix string) ([]string, error) {
 		if r.codeDir != "" {
 			v = v[len(r.codeDir)+1:]
 		}
-		// Only accept canonical semver tags from the repo. (See #24476.)
-		if v != semver.Canonical(v) {
-			continue
-		}
-		if !module.MatchPathMajor(v, r.pathMajor) {
+		if !semver.IsValid(v) || v != semver.Canonical(v) || isPseudoVersion(v) || !module.MatchPathMajor(v, r.pathMajor) {
 			continue
 		}
 		list = append(list, v)

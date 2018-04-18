@@ -505,6 +505,10 @@ var codeRepoVersionsTests = []struct {
 		path:     "gopkg.in/russross/blackfriday.v2",
 		versions: []string{"v1.0.0-gopkgin-v2.0.0"},
 	},
+	{
+		path:     "gopkg.in/natefinch/lumberjack.v2",
+		versions: []string{},
+	},
 }
 
 func TestCodeRepoVersions(t *testing.T) {
