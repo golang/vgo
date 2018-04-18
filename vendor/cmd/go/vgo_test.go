@@ -25,7 +25,7 @@ func TestVGOROOT(t *testing.T) {
 	tg.run("env")
 }
 
-func TestFindModRoot(t *testing.T) {
+func TestFindModuleRoot(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.makeTempdir()
@@ -49,6 +49,32 @@ func TestFindModRoot(t *testing.T) {
 			t.Errorf("%s: findModuleRoot = %q, %q, want %q, %q", file, root, file1, tg.path("x"), file)
 		}
 		tg.must(os.Remove(tg.path("x/" + file)))
+	}
+}
+
+func TestFindModulePath(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\n"), 0666))
+	path, err := vgo.FindModulePath(tg.path("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "x" {
+		t.Fatalf("FindModulePath = %q, want %q", path, "x")
+	}
+
+	// Windows line-ending.
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\r\n"), 0666))
+	path, err = vgo.FindModulePath(tg.path("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "x" {
+		t.Fatalf("FindModulePath = %q, want %q", path, "x")
 	}
 }
 

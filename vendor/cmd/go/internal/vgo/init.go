@@ -292,8 +292,8 @@ func FindModulePath(dir string) (string, error) {
 }
 
 var (
-	gitOriginRE     = regexp.MustCompile(`(?m)^\[remote "origin"\]\n\turl = (?:https://github.com/|git@github.com:|gh:)([^/]+/[^/]+?)(\.git)?\n`)
-	importCommentRE = regexp.MustCompile(`(?m)^package[ \t]+[^ \t\n/]+[ \t]+//[ \t]+import[ \t]+(\"[^"]+\")[ \t]*\n`)
+	gitOriginRE     = regexp.MustCompile(`(?m)^\[remote "origin"\]\r?\n\turl = (?:https://github.com/|git@github.com:|gh:)([^/]+/[^/]+?)(\.git)?\r?\n`)
+	importCommentRE = regexp.MustCompile(`(?m)^package[ \t]+[^ \t\r\n/]+[ \t]+//[ \t]+import[ \t]+(\"[^"]+\")[ \t]*\r?\n`)
 )
 
 func findImportComment(file string) string {
