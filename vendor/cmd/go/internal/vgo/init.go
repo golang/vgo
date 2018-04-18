@@ -341,6 +341,11 @@ func writeGoMod() {
 }
 
 func fixVersion(path, vers string) (string, error) {
+	// Special case: remove the old -gopkgin- hack.
+	if strings.HasPrefix(path, "gopkg.in/") && strings.Contains(vers, "-gopkgin-") {
+		vers = vers[strings.Index(vers, "-gopkgin-")+len("-gopkgin-"):]
+	}
+
 	// fixVersion is called speculatively on every
 	// module, version pair from every go.mod file.
 	// Avoid the query if it looks OK.

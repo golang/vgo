@@ -34,19 +34,31 @@ func Check(path, version string) error {
 	if !semver.IsValid(version) {
 		return fmt.Errorf("malformed semantic version %v", version)
 	}
-	_, pathVersion, _ := SplitPathVersion(path)
-	pathVersion = strings.TrimPrefix(pathVersion, "/")
 	vm := semver.Major(version)
-	if vm == "v0" || vm == "v1" {
-		vm = ""
-	}
-	if vm != pathVersion {
+	_, pathVersion, _ := SplitPathVersion(path)
+
+	if strings.HasPrefix(pathVersion, ".") {
+		// Special-case gopkg.in path requirements.
+		pathVersion = pathVersion[1:] // cut .
+		if vm == pathVersion {
+			return nil
+		}
+	} else {
+		// Standard path requirements.
+		if pathVersion != "" {
+			pathVersion = pathVersion[1:] // cut /
+		}
+		if vm == "v0" || vm == "v1" {
+			vm = ""
+		}
+		if vm == pathVersion {
+			return nil
+		}
 		if pathVersion == "" {
 			pathVersion = "v0 or v1"
 		}
-		return fmt.Errorf("mismatched module path %v and version %v (want %v)", path, version, pathVersion)
 	}
-	return nil
+	return fmt.Errorf("mismatched module path %v and version %v (want %v)", path, version, pathVersion)
 }
 
 // firstPathOK reports whether r can appear in the first element of a module path.
@@ -125,9 +137,15 @@ func CheckPath(path string) error {
 	return nil
 }
 
-// SplitPathVersion returns pathPrefix and version such that pathPrefix+pathMajor == path
+// SplitPathVersion returns prefix and major version such that prefix+pathMajor == path
 // and version is either empty or "/vN" for N >= 2.
-func SplitPathVersion(path string) (pathPrefix, pathMajor string, ok bool) {
+// As a special case, gopkg.in paths are recognized directly;
+// they require ".vN" instead of "/vN", and for all N, not just N >= 2.
+func SplitPathVersion(path string) (prefix, pathMajor string, ok bool) {
+	if strings.HasPrefix(path, "gopkg.in/") {
+		return splitGopkgIn(path)
+	}
+
 	i := len(path)
 	dot := false
 	for i > 0 && ('0' <= path[i-1] && path[i-1] <= '9' || path[i-1] == '.') {
@@ -139,17 +157,39 @@ func SplitPathVersion(path string) (pathPrefix, pathMajor string, ok bool) {
 	if i <= 1 || path[i-1] != 'v' || path[i-2] != '/' {
 		return path, "", true
 	}
-	pathPrefix, pathMajor = path[:i-2], path[i-2:]
+	prefix, pathMajor = path[:i-2], path[i-2:]
 	if dot || len(pathMajor) <= 2 || pathMajor[2] == '0' || pathMajor == "/v1" {
 		return path, "", false
 	}
-	return pathPrefix, pathMajor, true
+	return prefix, pathMajor, true
 }
 
+// splitGopkgIn is like SplitPathVersion but only for gopkg.in paths.
+func splitGopkgIn(path string) (prefix, pathMajor string, ok bool) {
+	if !strings.HasPrefix(path, "gopkg.in/") {
+		return path, "", false
+	}
+	i := len(path)
+	for i > 0 && ('0' <= path[i-1] && path[i-1] <= '9') {
+		i--
+	}
+	if i <= 1 || path[i-1] != 'v' || path[i-2] != '.' {
+		// All gopkg.in paths must end in vN for some N.
+		return path, "", false
+	}
+	prefix, pathMajor = path[:i-2], path[i-2:]
+	if len(pathMajor) <= 2 || pathMajor[2] == '0' && pathMajor != ".v0" {
+		return path, "", false
+	}
+	return prefix, pathMajor, true
+}
+
+// MatchPathMajor reports whether the semantic version v
+// matches the path major version pathMajor.
 func MatchPathMajor(v, pathMajor string) bool {
 	m := semver.Major(v)
 	if pathMajor == "" {
 		return m == "v0" || m == "v1"
 	}
-	return pathMajor[0] == '/' && m == pathMajor[1:]
+	return (pathMajor[0] == '/' || pathMajor[0] == '.') && m == pathMajor[1:]
 }

@@ -24,6 +24,23 @@ var checkTests = []struct {
 	{"github.com/go-yaml/yaml/v2", "v2.0.0", true},
 	{"github.com/go-yaml/yaml/v2", "v2.1.5", true},
 	{"github.com/go-yaml/yaml/v2", "v3.0.0", false},
+
+	{"gopkg.in/yaml.v0", "v0.8.0", true},
+	{"gopkg.in/yaml.v0", "v1.0.0", false},
+	{"gopkg.in/yaml.v0", "v2.0.0", false},
+	{"gopkg.in/yaml.v0", "v2.1.5", false},
+	{"gopkg.in/yaml.v0", "v3.0.0", false},
+
+	{"gopkg.in/yaml.v1", "v0.8.0", false},
+	{"gopkg.in/yaml.v1", "v1.0.0", true},
+	{"gopkg.in/yaml.v1", "v2.0.0", false},
+	{"gopkg.in/yaml.v1", "v2.1.5", false},
+	{"gopkg.in/yaml.v1", "v3.0.0", false},
+
+	{"gopkg.in/yaml.v2", "v1.0.0", false},
+	{"gopkg.in/yaml.v2", "v2.0.0", true},
+	{"gopkg.in/yaml.v2", "v2.1.5", true},
+	{"gopkg.in/yaml.v2", "v3.0.0", false},
 }
 
 func TestCheck(t *testing.T) {
@@ -144,6 +161,10 @@ var splitPathVersionTests = []struct {
 	{"x.y/z", ""},
 	{"x.y/z", "/v2"},
 	{"x.y/z", "/v3"},
+	{"gopkg.in/yaml", ".v0"},
+	{"gopkg.in/yaml", ".v1"},
+	{"gopkg.in/yaml", ".v2"},
+	{"gopkg.in/yaml", ".v3"},
 }
 
 func TestSplitPathVersion(t *testing.T) {

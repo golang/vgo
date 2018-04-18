@@ -53,11 +53,33 @@ func newCodeRepo(code codehost.Repo, path string) (Repo, error) {
 		pseudoMajor = pathMajor[1:]
 	}
 
+	// At this point we might have:
+	//	codeRoot = github.com/rsc/foo
+	//	path = github.com/rsc/foo/bar/v2
+	//	pathPrefix = github.com/rsc/foo/bar
+	//	pathMajor = /v2
+	//	pseudoMajor = v2
+	//
+	// Compute codeDir = bar, the subdirectory within the repo
+	// corresponding to the module root.
+	codeDir := strings.Trim(strings.TrimPrefix(pathPrefix, codeRoot), "/")
+	if strings.HasPrefix(path, "gopkg.in/") {
+		// But gopkg.in is a special legacy case, in which pathPrefix does not start with codeRoot.
+		// For example we might have:
+		//	codeRoot = gopkg.in/yaml.v2
+		//	pathPrefix = gopkg.in/yaml
+		//	pathMajor = .v2
+		//	pseudoMajor = v2
+		//	codeDir = pathPrefix (because codeRoot is not a prefix of pathPrefix)
+		// Clear codeDir - the module root is the repo root for gopkg.in repos.
+		codeDir = ""
+	}
+
 	r := &codeRepo{
 		modPath:     path,
 		code:        code,
 		codeRoot:    codeRoot,
-		codeDir:     strings.Trim(strings.TrimPrefix(pathPrefix, codeRoot), "/"),
+		codeDir:     codeDir,
 		pathPrefix:  pathPrefix,
 		pathMajor:   pathMajor,
 		pseudoMajor: pseudoMajor,
@@ -98,6 +120,9 @@ func (r *codeRepo) Versions(prefix string) ([]string, error) {
 }
 
 func (r *codeRepo) Stat(rev string) (*RevInfo, error) {
+	if rev == "latest" {
+		return r.Latest()
+	}
 	codeRev := r.revToRev(rev)
 	if semver.IsValid(codeRev) && r.codeDir != "" {
 		codeRev = r.codeDir + "/" + codeRev
@@ -118,14 +143,17 @@ func (r *codeRepo) Latest() (*RevInfo, error) {
 }
 
 func (r *codeRepo) convert(info *codehost.RevInfo) (*RevInfo, error) {
+	versionOK := func(v string) bool {
+		return semver.IsValid(v) && v == semver.Canonical(v) && !isPseudoVersion(v)
+	}
 	v := info.Version
 	if r.codeDir == "" {
-		if !semver.IsValid(v) || isPseudoVersion(v) {
+		if !versionOK(v) {
 			v = PseudoVersion(r.pseudoMajor, info.Time, info.Short)
 		}
 	} else {
 		p := r.codeDir + "/"
-		if strings.HasPrefix(v, p) && semver.IsValid(v[len(p):]) && !isPseudoVersion(v[len(p):]) {
+		if strings.HasPrefix(v, p) && versionOK(v[len(p):]) {
 			v = v[len(p):]
 		} else {
 			v = PseudoVersion(r.pseudoMajor, info.Time, info.Short)
@@ -168,7 +196,7 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 	if err != nil {
 		return "", "", nil, err
 	}
-	if r.pathMajor == "" {
+	if r.pathMajor == "" || strings.HasPrefix(r.pathMajor, ".") {
 		if r.codeDir == "" {
 			return rev, "", nil, nil
 		}

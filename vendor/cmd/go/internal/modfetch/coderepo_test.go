@@ -289,7 +289,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "gopkg.in/yaml.v2",
 		rev:     "d670f940",
-		version: "v0.0.0-20180109114331-d670f9405373",
+		version: "v2.0.0-20180109114331-d670f9405373",
 		name:    "d670f9405373e636a5a2765eea47fac0c9bc91a4",
 		short:   "d670f9405373",
 		time:    time.Date(2018, 1, 9, 11, 43, 31, 0, time.UTC),
@@ -298,7 +298,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "gopkg.in/check.v1",
 		rev:     "20d25e280405",
-		version: "v0.0.0-20161208181325-20d25e280405",
+		version: "v1.0.0-20161208181325-20d25e280405",
 		name:    "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
 		short:   "20d25e280405",
 		time:    time.Date(2016, 12, 8, 18, 13, 25, 0, time.UTC),
@@ -307,7 +307,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "gopkg.in/yaml.v2",
 		rev:     "v2",
-		version: "v0.0.0-20180328195020-5420a8b6744d",
+		version: "v2.0.0-20180328195020-5420a8b6744d",
 		name:    "5420a8b6744d3b0345ab293f6fcba19c978f1183",
 		short:   "5420a8b6744d",
 		time:    time.Date(2018, 3, 28, 19, 50, 20, 0, time.UTC),
@@ -321,6 +321,30 @@ var codeRepoTests = []struct {
 		short:   "ede458df7cd0",
 		time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
 		gomod:   "//vgo 0.0.4\n\nmodule vcs-test.golang.org/go/mod/gitrepo1\n",
+	},
+	{
+		path:    "gopkg.in/natefinch/lumberjack.v2",
+		rev:     "latest",
+		version: "v2.0.0-20170531160350-a96e63847dc3",
+		name:    "a96e63847dc3c67d17befa69c303767e2f84e54f",
+		short:   "a96e63847dc3",
+		time:    time.Date(2017, 5, 31, 16, 3, 50, 0, time.UTC),
+		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/natefinch/lumberjack.v2\n",
+	},
+	{
+		path: "gopkg.in/natefinch/lumberjack.v2",
+		// This repo has a v2.1 tag.
+		// We only allow semver references to tags that are fully qualified, as in v2.1.0.
+		// Because we can't record v2.1.0 (the actual tag is v2.1), we record a pseudo-version
+		// instead, same as if the tag were any other non-version-looking string.
+		// We use a v2 pseudo-version here because of the .v2 in the path, not because
+		// of the v2 in the rev.
+		rev:     "v2.1", // non-canonical semantic version turns into pseudo-version
+		version: "v2.0.0-20170531160350-a96e63847dc3",
+		name:    "a96e63847dc3c67d17befa69c303767e2f84e54f",
+		short:   "a96e63847dc3",
+		time:    time.Date(2017, 5, 31, 16, 3, 50, 0, time.UTC),
+		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/natefinch/lumberjack.v2\n",
 	},
 }
 
@@ -503,7 +527,7 @@ var codeRepoVersionsTests = []struct {
 	},
 	{
 		path:     "gopkg.in/russross/blackfriday.v2",
-		versions: []string{"v1.0.0-gopkgin-v2.0.0"},
+		versions: []string{"v2.0.0"},
 	},
 	{
 		path:     "gopkg.in/natefinch/lumberjack.v2",
