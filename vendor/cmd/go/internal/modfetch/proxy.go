@@ -59,7 +59,7 @@ func (p *proxyRepo) Versions(prefix string) ([]string, error) {
 	return list, nil
 }
 
-func (p *proxyRepo) latestVersion(limit time.Time) (*RevInfo, error) {
+func (p *proxyRepo) latest() (*RevInfo, error) {
 	var data []byte
 	err := web.Get(p.url+"/@v/list", web.ReadAllBody(&data))
 	if err != nil {
@@ -71,7 +71,7 @@ func (p *proxyRepo) latestVersion(limit time.Time) (*RevInfo, error) {
 		f := strings.Fields(line)
 		if len(f) >= 2 && semver.IsValid(f[0]) {
 			ft, err := time.Parse(time.RFC3339, f[1])
-			if err == nil && !ft.After(limit) && best.Before(ft) {
+			if err == nil && best.Before(ft) {
 				best = ft
 				bestVersion = f[0]
 			}
@@ -102,19 +102,13 @@ func (p *proxyRepo) Stat(rev string) (*RevInfo, error) {
 	return info, nil
 }
 
-func (p *proxyRepo) LatestAt(t time.Time, branch string) (*RevInfo, error) {
+func (p *proxyRepo) Latest() (*RevInfo, error) {
 	var data []byte
-	u := p.url + "/@t/" + t.UTC().Format("20060102150405")
-	if branch != "" {
-		u += "/" + pathEscape(branch)
-	}
+	u := p.url + "/@latest"
 	err := web.Get(u, web.ReadAllBody(&data))
 	if err != nil {
 		// TODO return err if not 404
-		if branch != "" {
-			return nil, fmt.Errorf("latest on branch not supported")
-		}
-		return p.latestVersion(t)
+		return p.latest()
 	}
 	info := new(RevInfo)
 	if err := json.Unmarshal(data, info); err != nil {

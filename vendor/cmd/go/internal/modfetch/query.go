@@ -9,7 +9,6 @@ import (
 	"cmd/go/internal/semver"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Query looks up a revision of a given module given a version query string.
@@ -52,7 +51,7 @@ func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, erro
 			return nil, err
 		}
 		if len(versions) == 0 && vers == "latest" {
-			return repo.LatestAt(time.Now(), "")
+			return repo.Latest()
 		}
 		if vers == "latest" {
 			for i := len(versions) - 1; i >= 0; i-- {

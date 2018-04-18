@@ -35,11 +35,10 @@ type Repo interface {
 	// commit hash, branch, tag, and so on.
 	Stat(rev string) (*RevInfo, error)
 
-	// LatestAt returns the latest revision at the given time.
-	// If branch is non-empty, it restricts the query to revisions
-	// on the named branch. The meaning of "branch" depends
-	// on the underlying implementation.
-	LatestAt(t time.Time, branch string) (*RevInfo, error)
+	// Latest returns the latest revision on the default branch,
+	// whatever that means in the underlying source code repository.
+	// It is only used when there are no tagged versions.
+	Latest() (*RevInfo, error)
 
 	// GoMod returns the go.mod file for the given version.
 	GoMod(version string) (data []byte, err error)
@@ -115,14 +114,8 @@ var isTest bool
 func lookupCodeHost(path string, customDomain bool) (codehost.Repo, error) {
 	switch {
 	case strings.HasPrefix(path, "github.com/"):
-		// Special case GitHub paths ending in ".git" for backwards compatibility
-		// with go get.
-		path = strings.TrimSuffix(path, ".git")
 		return github.Lookup(path)
 	case strings.HasPrefix(path, "bitbucket.org/"):
-		// Special case Bitbucket paths ending in ".git" for backwards compatibility
-		// with go get.
-		path = strings.TrimSuffix(path, ".git")
 		return bitbucket.Lookup(path)
 	case customDomain && strings.HasSuffix(path[:strings.Index(path, "/")+1], ".googlesource.com/") ||
 		isTest && strings.HasPrefix(path, "go.googlesource.com/scratch"):

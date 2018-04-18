@@ -113,8 +113,8 @@ func (r *codeRepo) Stat(rev string) (*RevInfo, error) {
 	return r.convert(info)
 }
 
-func (r *codeRepo) LatestAt(t time.Time, branch string) (*RevInfo, error) {
-	info, err := r.code.LatestAt(t, branch)
+func (r *codeRepo) Latest() (*RevInfo, error) {
+	info, err := r.code.Latest()
 	if err != nil {
 		return nil, err
 	}

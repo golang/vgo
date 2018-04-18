@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"cmd/go/internal/modfetch/codehost"
+	"cmd/go/internal/modfetch/gitrepo"
 	web "cmd/go/internal/web2"
 )
 
@@ -65,26 +66,31 @@ func lookupCustomDomain(path string) (Repo, error) {
 		}
 	}
 
-	// Fall back to redirections to known hosting services.
+	// Fall back to redirections to known version control systems.
 	for _, imp := range imports {
 		if path == imp.Prefix {
 			if !strings.HasPrefix(imp.RepoRoot, "https://") {
 				// TODO: Allow -insecure flag as a build flag?
 				return nil, fmt.Errorf("invalid server URL %q: must be HTTPS", imp.RepoRoot)
 			}
-			codePath := strings.TrimPrefix(imp.RepoRoot, "https://")
-			if code, err := lookupCodeHost(codePath, true); err != errNotHosted {
+			if imp.VCS == "git" {
+				code, err := gitrepo.Repo(imp.RepoRoot, imp.Prefix)
 				if err != nil {
 					return nil, err
 				}
-				return newCodeRepo(&customPrefix{code, imp.Prefix}, imp.Prefix)
+				return newCodeRepo(code, path)
 			}
 			return nil, fmt.Errorf("unknown VCS, Repo: %s, %s", imp.VCS, imp.RepoRoot)
 		}
+	}
+
+	// Check for redirect to repo root.
+	for _, imp := range imports {
 		if strings.HasPrefix(path, imp.Prefix+"/") {
 			return nil, &ModuleSubdirError{imp.Prefix}
 		}
 	}
+
 	return nil, fmt.Errorf("unknown module %s: no matching go-import tags", path)
 }
 

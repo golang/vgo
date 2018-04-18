@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// TODO: Figure out what gopkg.in should do.
+
 package modfetch
 
 import (
@@ -11,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 )
 
 func ParseGopkgIn(path string) (root, repo, major, subdir string, ok bool) {
@@ -99,11 +100,11 @@ func (r *gopkgin) Stat(rev string) (*codehost.RevInfo, error) {
 	return r.convert(r.gh.Stat(ghRev))
 }
 
-func (r *gopkgin) LatestAt(t time.Time, branch string) (*codehost.RevInfo, error) {
+func (r *gopkgin) Latest() (*codehost.RevInfo, error) {
 	if r.major == "v0" {
-		return r.convert(r.gh.LatestAt(t, "master"))
+		return r.convert(r.gh.Stat("master"))
 	}
-	return r.convert(r.gh.LatestAt(t, r.major))
+	return r.convert(r.gh.Stat(r.major))
 }
 
 func (r *gopkgin) ReadFile(rev, file string, maxSize int64) ([]byte, error) {

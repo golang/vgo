@@ -502,9 +502,9 @@ func (*mvsReqs) Max(v1, v2 string) string {
 
 func (*mvsReqs) Latest(path string) (module.Version, error) {
 	// Note that query "latest" is not the same as
-	// using repo.LatestAt.
+	// using repo.Latest.
 	// The query only falls back to untagged versions
-	// if nothing is tagged. The LatestAt method
+	// if nothing is tagged. The Latest method
 	// only ever returns untagged versions,
 	// which is not what we want.
 	fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", path)

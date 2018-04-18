@@ -10,6 +10,7 @@ import (
 	"cmd/go/internal/webtest"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -19,6 +20,21 @@ import (
 
 func init() {
 	isTest = true
+}
+
+func TestMain(m *testing.M) {
+	os.Exit(testMain(m))
+}
+
+func testMain(m *testing.M) int {
+	dir, err := ioutil.TempDir("", "gitrepo-test-")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	codehost.WorkRoot = dir
+	return m.Run()
 }
 
 var codeRepoTests = []struct {
@@ -119,12 +135,12 @@ var codeRepoTests = []struct {
 	{
 		path: "github.com/rsc/vgotest1/submod",
 		rev:  "v1.0.0",
-		err:  "404 Not Found", // TODO
+		err:  "unknown revision \"submod/v1.0.0\"",
 	},
 	{
 		path: "github.com/rsc/vgotest1/submod",
 		rev:  "v1.0.3",
-		err:  "404 Not Found", // TODO
+		err:  "unknown revision \"submod/v1.0.3\"",
 	},
 	{
 		path:    "github.com/rsc/vgotest1/submod",
@@ -229,16 +245,6 @@ var codeRepoTests = []struct {
 		gomod:   "module \"rsc.io/quote\"\n",
 	},
 	{
-		// redirect to bitbucket
-		path:    "example.net/vgotest",
-		rev:     "v1.0.0",
-		version: "v1.0.0",
-		name:    "9152736a7559a4b73ca45d36fe457cb617c3b207",
-		short:   "9152736a7559",
-		time:    time.Date(2017, 8, 22, 3, 10, 13, 0, time.UTC),
-		gomod:   "module \"example.net/vgotest\"\n",
-	},
-	{
 		// redirect to static hosting proxy
 		path:    "swtch.com/testmod",
 		rev:     "v1.0.0",
@@ -308,13 +314,13 @@ var codeRepoTests = []struct {
 		gomod:   "module \"gopkg.in/yaml.v2\"\n\nrequire (\n\t\"gopkg.in/check.v1\" v0.0.0-20161208181325-20d25e280405\n)\n",
 	},
 	{
-		path:    "github.com/gobuffalo/buffalo",
-		rev:     "development",
-		version: "v0.0.0-20180406185414-59b4005674b6",
-		name:    "59b4005674b633728e2bfc3bb09cc204f7c2d6f5",
-		short:   "59b4005674b6",
-		time:    time.Date(2018, 4, 6, 18, 54, 14, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule github.com/gobuffalo/buffalo\n",
+		path:    "vcs-test.golang.org/go/mod/gitrepo1",
+		rev:     "master",
+		version: "v0.0.0-20180417194322-ede458df7cd0",
+		name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
+		short:   "ede458df7cd0",
+		time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
+		gomod:   "//vgo 0.0.4\n\nmodule vcs-test.golang.org/go/mod/gitrepo1\n",
 	},
 }
 
@@ -528,63 +534,26 @@ func TestCodeRepoVersions(t *testing.T) {
 	}
 }
 
-var latestAtTests = []struct {
+var latestTests = []struct {
 	path    string
-	time    time.Time
-	branch  string
 	version string
 	err     string
 }{
 	{
-		path: "github.com/rsc/vgotest1",
-		time: time.Date(2018, 1, 20, 0, 0, 0, 0, time.UTC),
+		path: "github.com/rsc/empty",
 		err:  "no commits",
 	},
 	{
 		path:    "github.com/rsc/vgotest1",
-		time:    time.Date(2018, 2, 20, 0, 0, 0, 0, time.UTC),
 		version: "v0.0.0-20180219223237-a08abb797a67",
 	},
 	{
-		path:    "github.com/rsc/vgotest1",
-		time:    time.Date(2018, 2, 20, 0, 0, 0, 0, time.UTC),
-		branch:  "mybranch",
-		version: "v0.0.0-20180219231006-80d85c5d4d17",
-	},
-	{
 		path:    "swtch.com/testmod",
-		time:    time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
-		version: "v1.0.0",
-	},
-	{
-		path:    "swtch.com/testmod",
-		time:    time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
 		version: "v1.1.1",
-	},
-	{
-		path:   "swtch.com/testmod",
-		time:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
-		branch: "branch",
-		err:    "latest on branch not supported",
-	},
-	{
-		path:    "gopkg.in/check.v1",
-		time:    time.Date(2018, 2, 20, 15, 53, 33, 0, time.UTC),
-		version: "v0.0.0-20161208181325-20d25e280405",
-	},
-	{
-		path:    "gopkg.in/yaml.v2",
-		time:    time.Date(2018, 2, 20, 15, 53, 33, 0, time.UTC),
-		version: "v0.0.0-20180109114331-d670f9405373",
-	},
-	{
-		path:    "gopkg.in/russross/blackfriday.v2",
-		time:    time.Date(2018, 2, 20, 15, 53, 33, 0, time.UTC),
-		version: "v0.0.0-20180212083338-119f356b88f8",
 	},
 }
 
-func TestLatestAt(t *testing.T) {
+func TestLatest(t *testing.T) {
 	webtest.LoadOnce("testdata/webtest.txt")
 	webtest.Hook()
 	defer webtest.Unhook()
@@ -594,28 +563,25 @@ func TestLatestAt(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
-	for _, tt := range latestAtTests {
-		name := strings.Replace(tt.path, "/", "_", -1) + "/" + tt.time.Format("2006-01-02_15:04:05")
-		if tt.branch != "" {
-			name += "/" + tt.branch
-		}
+	for _, tt := range latestTests {
+		name := strings.Replace(tt.path, "/", "_", -1)
 		t.Run(name, func(t *testing.T) {
 			repo, err := Lookup(tt.path)
 			if err != nil {
 				t.Fatalf("Lookup(%q): %v", tt.path, err)
 			}
-			info, err := repo.LatestAt(tt.time, tt.branch)
+			info, err := repo.Latest()
 			if err != nil {
 				if tt.err != "" {
 					if err.Error() == tt.err {
 						return
 					}
-					t.Fatalf("LatestAt(%v, %q): %v, want %q", tt.time, tt.branch, err, tt.err)
+					t.Fatalf("Latest(): %v, want %q", err, tt.err)
 				}
-				t.Fatalf("LatestAt(%v, %q): %v", tt.time, tt.branch, err)
+				t.Fatalf("Latest(): %v", err)
 			}
 			if info.Version != tt.version {
-				t.Fatalf("LatestAt(%v, %q) = %v, want %v", tt.time, tt.branch, info.Version, tt.version)
+				t.Fatalf("Latest() = %v, want %v", info.Version, tt.version)
 			}
 		})
 	}

@@ -29,11 +29,9 @@ type Repo interface {
 	// commit hash, branch, tag, and so on.
 	Stat(rev string) (*RevInfo, error)
 
-	// LatestAt returns the latest revision at the given time.
-	// If branch is non-empty, it restricts the query to revisions
-	// on the named branch. The meaning of "branch" depends
-	// on the underlying implementation.
-	LatestAt(t time.Time, branch string) (*RevInfo, error)
+	// Latest returns the latest revision on the default branch,
+	// whatever that means in the underlying implementation.
+	Latest() (*RevInfo, error)
 
 	// ReadFile reads the given file in the file tree corresponding to revision rev.
 	// It should refuse to read more than maxSize bytes.
