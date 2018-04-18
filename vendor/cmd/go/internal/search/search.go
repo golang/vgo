@@ -407,6 +407,12 @@ func hasFilepathPrefix(s, prefix string) bool {
 // part of the standard distribution. For historical reasons we allow people to add
 // their own code to $GOROOT instead of using $GOPATH, but we assume that
 // code will start with a domain name (dot in the first element).
+//
+// Note that this function is meant to evaluate whether a directory found in GOROOT
+// should be treated as part of the standard library. It should not be used to decide
+// that a directory found in GOPATH should be rejected: directories in GOPATH
+// need not have dots in the first element, and they just take their chances
+// with future collisions in the standard library.
 func IsStandardImportPath(path string) bool {
 	i := strings.Index(path, "/")
 	if i < 0 {

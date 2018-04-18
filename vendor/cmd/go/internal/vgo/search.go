@@ -165,7 +165,7 @@ func MatchAll() []string {
 	ld.importList(local, levelTestRecursive)
 	var all []string
 	for _, pkg := range ld.importmap {
-		if !search.IsStandardImportPath(pkg) {
+		if !isStandardImportPath(pkg) {
 			all = append(all, pkg)
 		}
 	}

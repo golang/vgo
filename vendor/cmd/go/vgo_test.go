@@ -51,3 +51,28 @@ func TestFindModRoot(t *testing.T) {
 		tg.must(os.Remove(tg.path("x/" + file)))
 	}
 }
+
+func TestLocalModule(t *testing.T) {
+	// Test that local replacements work
+	// and that they can use a dummy name
+	// that isn't resolvable and need not even
+	// include a dot. See golang.org/issue/24100.
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x/y"), 0777))
+	tg.must(os.MkdirAll(tg.path("x/z"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/y/go.mod"), []byte(`
+		module x/y
+		require zz v1.0.0
+		replace zz v1.0.0 => ../z
+	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/y/y.go"), []byte(`package y; import _ "zz"`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/z/go.mod"), []byte(`
+		module x/z
+	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/z/z.go"), []byte(`package z`), 0666))
+	tg.cd(tg.path("x/y"))
+	tg.run("-vgo", "build")
+}

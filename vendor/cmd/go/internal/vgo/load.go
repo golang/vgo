@@ -103,7 +103,7 @@ func importPaths(args []string) []string {
 func Lookup(parentPath, path string) (dir, realPath string, err error) {
 	realPath = importmap[path]
 	if realPath == "" {
-		if search.IsStandardImportPath(path) {
+		if isStandardImportPath(path) {
 			dir := filepath.Join(cfg.GOROOT, "src", path)
 			if _, err := os.Stat(dir); err == nil {
 				return dir, path, nil
@@ -246,7 +246,10 @@ func (ld *loader) importDir(path string) string {
 		if strings.HasPrefix(path, "golang_org/") {
 			return filepath.Join(cfg.GOROOT, "src/vendor", path)
 		}
-		return filepath.Join(cfg.GOROOT, "src", path)
+		dir := filepath.Join(cfg.GOROOT, "src", path)
+		if _, err := os.Stat(dir); err == nil {
+			return dir
+		}
 	}
 
 	var mod1 module.Version

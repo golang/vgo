@@ -7,11 +7,14 @@ package vgo
 import (
 	"bytes"
 	"cmd/go/internal/base"
+	"cmd/go/internal/cfg"
 	"cmd/go/internal/modinfo"
 	"cmd/go/internal/module"
 	"cmd/go/internal/search"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 var (
@@ -19,9 +22,19 @@ var (
 	infoEnd, _   = hex.DecodeString("f932433186182072008242104116d8f2")
 )
 
+func isStandardImportPath(path string) bool {
+	if search.IsStandardImportPath(path) {
+		dir := filepath.Join(cfg.GOROOT, "src", path)
+		if _, err := os.Stat(dir); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func PackageModuleInfo(path string) modinfo.ModulePublic {
 	var info modinfo.ModulePublic
-	if search.IsStandardImportPath(path) || !Enabled() {
+	if isStandardImportPath(path) || !Enabled() {
 		return info
 	}
 	target := findModule(path, path)
@@ -32,13 +45,13 @@ func PackageModuleInfo(path string) modinfo.ModulePublic {
 }
 
 func PackageBuildInfo(path string, deps []string) string {
-	if search.IsStandardImportPath(path) || !Enabled() {
+	if isStandardImportPath(path) || !Enabled() {
 		return ""
 	}
 	target := findModule(path, path)
 	mdeps := make(map[module.Version]bool)
 	for _, dep := range deps {
-		if !search.IsStandardImportPath(dep) {
+		if !isStandardImportPath(dep) {
 			mdeps[findModule(path, dep)] = true
 		}
 	}
