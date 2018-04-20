@@ -113,6 +113,9 @@ func InitMod() {
 		base.Fatalf("missing $GOPATH")
 	}
 	gopath = list[0]
+	if _, err := os.Stat(filepath.Join(gopath, "go.mod")); err == nil {
+		base.Fatalf("$GOPATH/go.mod exists but should not")
+	}
 	srcV = filepath.Join(list[0], "src/v")
 	codehost.WorkRoot = filepath.Join(srcV, "cache/vcswork")
 
