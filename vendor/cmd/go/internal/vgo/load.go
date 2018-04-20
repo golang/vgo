@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/build"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -304,6 +305,10 @@ func findMissing(m missing) {
 			// Leave for ordinary build to complain about the missing import.
 			return
 		}
+	}
+	if build.IsLocalImport(m.path) {
+		base.Errorf("vgo: relative import is not supported: %s", m.path)
+		return
 	}
 	fmt.Fprintf(os.Stderr, "vgo: resolving import %q\n", m.path)
 	repo, info, err := modfetch.Import(m.path, allowed)
