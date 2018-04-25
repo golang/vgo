@@ -24,8 +24,10 @@ var (
 
 func isStandardImportPath(path string) bool {
 	if search.IsStandardImportPath(path) {
-		dir := filepath.Join(cfg.GOROOT, "src", path)
-		if _, err := os.Stat(dir); err == nil {
+		if _, err := os.Stat(filepath.Join(cfg.GOROOT, "src", path)); err == nil {
+			return true
+		}
+		if _, err := os.Stat(filepath.Join(cfg.GOROOT, "src/vendor", path)); err == nil {
 			return true
 		}
 	}
