@@ -251,10 +251,14 @@ func (r *repo) statOrArchive(rev string, archiveArgs ...string) (info *codehost.
 
 	// Fetch it.
 	if len(hash) == 40 {
-		if _, err = codehost.Run(r.dir, "git", "fetch", "--depth=1", r.remote, hash); err == nil {
+		name := hash
+		if ref, ok := r.findRef(hash); ok {
+			name = ref
+		}
+		if _, err = codehost.Run(r.dir, "git", "fetch", "--depth=1", r.remote, name); err == nil {
 			goto Found
 		}
-		if !strings.Contains(err.Error(), "unadvertised object") {
+		if !strings.Contains(err.Error(), "unadvertised object") && !strings.Contains(err.Error(), "no such remote ref") {
 			return nil, nil, err
 		}
 	}
