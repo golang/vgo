@@ -86,6 +86,9 @@ var (
 
 	// Used in envcmd.MkEnv and build ID computations.
 	GOARM, GO386, GOMIPS = objabi()
+
+	// C and C++ compilers
+	CC, CXX = compilers()
 )
 
 // Update build context to use our computed GOROOT.
@@ -119,6 +122,34 @@ func objabi() (GOARM, GO386, GOMIPS string) {
 	}
 
 	return find("GOARM"), find("GO386"), find("GOMIPS")
+}
+
+func compilers() (CC, CXX string) {
+	data, err := ioutil.ReadFile(filepath.Join(GOROOT, "src/cmd/go/internal/cfg/zdefaultcc.go"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "vgo compilers: %v\n", err)
+	}
+
+	find := func(key string) string {
+		if env := os.Getenv(key); env != "" {
+			return env
+		}
+		fi := bytes.Index(data, []byte("Default"+key+"(goos, goarch string)"))
+		if fi < 0 {
+			fmt.Fprintf(os.Stderr, "vgo compilers: cannot find %s\n", key)
+			os.Exit(2)
+		}
+		i := bytes.Index(data[fi:], []byte("\treturn "))
+		if i < 0 {
+			fmt.Fprintf(os.Stderr, "vgo compilers: cannot find %s\n", key)
+			os.Exit(2)
+		}
+		line := data[fi+i:]
+		line = line[bytes.IndexByte(line, '"')+1:]
+		return string(line[:bytes.IndexByte(line, '"')])
+	}
+
+	return find("CC"), find("CXX")
 }
 
 func findGOROOT() string {
