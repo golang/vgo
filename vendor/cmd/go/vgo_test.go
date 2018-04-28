@@ -177,3 +177,20 @@ func TestFillGoMod(t *testing.T) {
 	tg.grepStderrNot("copying requirements from .*Gopkg.lock", "should not copy Gopkg.lock again")
 
 }
+
+func TestConvertLegacyConfig(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/Gopkg.lock"), []byte(`
+	  [[projects]]
+		name = "github.com/pkg/errors"
+		packages = ["."]
+		revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+		version = "v0.8.0"`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte("package x // import \"x\"\n import _ \"github.com/pkg/errors\""), 0666))
+	tg.cd(tg.path("x"))
+	tg.run("-vgo", "build")
+}

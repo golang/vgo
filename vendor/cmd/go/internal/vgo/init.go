@@ -181,6 +181,7 @@ func legacyModInit() {
 				return
 			}
 			fmt.Fprintf(os.Stderr, "vgo: copying requirements from %s\n", cfg)
+			cfg = filepath.ToSlash(cfg)
 			if err := modfetch.ConvertLegacyConfig(modFile, cfg, data); err != nil {
 				base.Fatalf("vgo: %v", err)
 			}

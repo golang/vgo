@@ -15,6 +15,8 @@ import (
 	"cmd/go/internal/semver"
 )
 
+// ConvertLegacyConfig converts legacy config to modfile.
+// The file argument is slash-delimited.
 func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	i := strings.LastIndex(file, "/")
 	j := -2
