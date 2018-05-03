@@ -242,8 +242,8 @@ func FindModuleRoot(dir, limit string, legacyConfigOK bool) (root, file string) 
 
 // Exported only for testing.
 func FindModulePath(dir string) (string, error) {
-	for _, dir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
-		src := filepath.Join(dir, "src") + string(filepath.Separator)
+	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
+		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
 		if strings.HasPrefix(dir, src) {
 			return filepath.ToSlash(dir[len(src):]), nil
 		}
