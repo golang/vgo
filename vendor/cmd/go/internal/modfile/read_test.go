@@ -101,8 +101,11 @@ func TestPrintParse(t *testing.T) {
 		}
 
 		pf1, err := Parse(base, data, nil)
-		if err != nil && base == "testdata/replace2.in" {
-			t.Errorf("should parse %v: %v", base, err)
+		if err != nil {
+			switch base {
+			case "testdata/replace2.in", "testdata/gopkg.in.golden":
+				t.Errorf("should parse %v: %v", base, err)
+			}
 		}
 		if err == nil {
 			pf2, err := Parse(base, ndata, nil)

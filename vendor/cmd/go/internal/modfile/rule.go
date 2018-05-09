@@ -293,6 +293,10 @@ func parseVersion(path string, s *string, fix VersionFixer) (string, error) {
 }
 
 func moduleMajorVersion(p string) (string, error) {
+	if _, _, major, _, ok := ParseGopkgIn(p); ok {
+		return major, nil
+	}
+
 	start := 0
 	for i := 0; i < len(p); i++ {
 		if p[i] == '/' {
