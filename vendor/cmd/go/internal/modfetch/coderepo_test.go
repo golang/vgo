@@ -621,10 +621,10 @@ type fixedTagsRepo struct {
 	tags []string
 }
 
-func (ch *fixedTagsRepo) Tags(string) ([]string, error)                         { return ch.tags, nil }
-func (ch *fixedTagsRepo) Root() string                                          { return ch.root }
-func (ch *fixedTagsRepo) LatestAt(time.Time, string) (*codehost.RevInfo, error) { panic("not impl") }
-func (ch *fixedTagsRepo) ReadFile(string, string, int64) ([]byte, error)        { panic("not impl") }
+func (ch *fixedTagsRepo) Tags(string) ([]string, error)                  { return ch.tags, nil }
+func (ch *fixedTagsRepo) Root() string                                   { return ch.root }
+func (ch *fixedTagsRepo) Latest() (*codehost.RevInfo, error)             { panic("not impl") }
+func (ch *fixedTagsRepo) ReadFile(string, string, int64) ([]byte, error) { panic("not impl") }
 func (ch *fixedTagsRepo) ReadZip(string, string, int64) (io.ReadCloser, string, error) {
 	panic("not impl")
 }
