@@ -220,7 +220,35 @@ func TestFillGoMod(t *testing.T) {
 	tg.grepStderr("copying requirements from .*Gopkg.lock", "did not copy Gopkg.lock")
 	tg.run("-vgo", "list")
 	tg.grepStderrNot("copying requirements from .*Gopkg.lock", "should not copy Gopkg.lock again")
+}
 
+func TestQueryExcluded(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "github.com/gorilla/mux"`), 0666))
+	gomod := []byte(`
+		module x
+
+		exclude github.com/gorilla/mux v1.6.0
+	`)
+
+	tg.setenv(homeEnvName(), tg.path("home"))
+	tg.cd(tg.path("x"))
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), gomod, 0666))
+	tg.runFail("-vgo", "get", "github.com/gorilla/mux@v1.6.0")
+	tg.grepStderr("github.com/gorilla/mux@v1.6.0 excluded", "print version excluded")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), gomod, 0666))
+	tg.run("-vgo", "get", "github.com/gorilla/mux@v1.6.1")
+	tg.grepStderr("finding github.com/gorilla/mux v1.6.1", "find version 1.6.1")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), gomod, 0666))
+	tg.runFail("-vgo", "get", "github.com/gorilla/mux@v1.6")
+	tg.grepStderr("github.com/gorilla/mux@v1.6.0 excluded", "print version excluded")
 }
 
 func TestConvertLegacyConfig(t *testing.T) {
