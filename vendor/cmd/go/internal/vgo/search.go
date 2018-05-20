@@ -138,7 +138,7 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 			if !match(name) {
 				return nil
 			}
-			if _, _, err := imports.ScanDir(path, imports.Tags); err == imports.ErrNoGo {
+			if _, _, err := imports.ScanDir(path, imports.Tags()); err == imports.ErrNoGo {
 				return nil
 			}
 

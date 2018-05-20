@@ -102,3 +102,36 @@ func TestLocalModule(t *testing.T) {
 	tg.cd(tg.path("x/y"))
 	tg.run("-vgo", "build")
 }
+
+func TestTags(t *testing.T) {
+	// Test that build tags are used. See golang.org/issue/24053.
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`// +build tag1
+
+		package y
+	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/y.go"), []byte(`// +build tag2
+
+		package y
+	`), 0666))
+	tg.cd(tg.path("x"))
+
+	tg.runFail("-vgo", "list", "-f={{.GoFiles}}")
+	tg.grepStderr("no Go source files", "no Go source files without tags")
+
+	tg.run("-vgo", "list", "-f={{.GoFiles}}", "-tags=tag1")
+	tg.grepStdout(`\[x.go\]`, "Go source files for tag1")
+
+	tg.run("-vgo", "list", "-f={{.GoFiles}}", "-tags", "tag2")
+	tg.grepStdout(`\[y.go\]`, "Go source files for tag2")
+
+	tg.run("-vgo", "list", "-f={{.GoFiles}}", "-tags", "tag1 tag2")
+	tg.grepStdout(`\[x.go y.go\]`, "Go source files for tag1 and tag2")
+}

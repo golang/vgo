@@ -214,7 +214,7 @@ func (ld *loader) importPkg(path string, level importLevel) {
 
 	ld.pkgdir[realPath] = dir
 
-	imports, testImports, err := imports.ScanDir(dir, imports.Tags)
+	imports, testImports, err := imports.ScanDir(dir, imports.Tags())
 	if err != nil {
 		base.Errorf("vgo: %s [%s]: %v", ld.stackText(), dir, err)
 		return

@@ -6,7 +6,14 @@ package imports
 
 import "cmd/go/internal/cfg"
 
-var Tags = loadTags()
+var tags map[string]bool
+
+func Tags() map[string]bool {
+	if tags == nil {
+		tags = loadTags()
+	}
+	return tags
+}
 
 func loadTags() map[string]bool {
 	tags := map[string]bool{

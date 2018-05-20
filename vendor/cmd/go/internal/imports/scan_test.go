@@ -11,7 +11,7 @@ import (
 )
 
 func TestScan(t *testing.T) {
-	imports, testImports, err := ScanDir(filepath.Join(runtime.GOROOT(), "src/encoding/json"), Tags)
+	imports, testImports, err := ScanDir(filepath.Join(runtime.GOROOT(), "src/encoding/json"), Tags())
 	if err != nil {
 		t.Fatal(err)
 	}
