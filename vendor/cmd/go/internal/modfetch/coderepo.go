@@ -234,7 +234,7 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 	if found1 {
 		return rev, r.codeDir, gomod1, nil
 	}
-	return "", "", nil, fmt.Errorf("missing go.mod")
+	return "", "", nil, fmt.Errorf("missing or invalid go.mod")
 }
 
 func isMajor(gomod []byte, pathMajor string) bool {
@@ -257,25 +257,19 @@ func modPath(mod []byte) string {
 		line = line[len(moduleStr):]
 		n := len(line)
 		line = bytes.TrimSpace(line)
-		if len(line) == n || len(line) == 0 || line[0] != '"' && line[0] != '`' {
+		if len(line) == n || len(line) == 0 {
 			continue
 		}
-		q := line[0]
-		i := 1
-		for i < len(line) && line[i] != q {
-			if q == '"' && line[i] == '\\' {
-				i++
+
+		if line[0] == '"' || line[0] == '`' {
+			p, err := strconv.Unquote(string(line))
+			if err != nil {
+				return "" // malformed quoted string or multiline module path
 			}
-			i++
+			return p
 		}
-		if i >= len(line) {
-			return "" // malformed quoted string or multiline module path
-		}
-		p, err := strconv.Unquote(string(line[:i+1]))
-		if err != nil {
-			return ""
-		}
-		return p
+
+		return string(line)
 	}
 	return "" // missing module path
 }
