@@ -159,6 +159,7 @@ func legacyModInit() {
 	if err != nil {
 		base.Fatalf("vgo: %v", err)
 	}
+	fmt.Fprintf(os.Stderr, "vgo: module %s\n", path)
 	modFile = new(modfile.File)
 	modFile.AddModuleStmt(path)
 	Target = module.Version{Path: path}
