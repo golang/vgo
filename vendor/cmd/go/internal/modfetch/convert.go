@@ -6,6 +6,7 @@ package modfetch
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -50,10 +51,12 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 
 		repo, err := Lookup(r.Path)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "vgo: lookup %s: %v", r.Path, err)
 			continue
 		}
 		info, err := repo.Stat(r.Version)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "vgo: stat %s@%s: %v", r.Path, r.Version, err)
 			continue
 		}
 		path := repo.ModulePath()

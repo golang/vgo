@@ -142,6 +142,12 @@ func InitMod() {
 		f.AddModuleStmt(path)
 	}
 
+	if len(f.Syntax.Stmt) == 1 && f.Module != nil {
+		// Entire file is just a module statement.
+		// Populate require if possible.
+		legacyModInit()
+	}
+
 	excluded = make(map[module.Version]bool)
 	for _, x := range f.Exclude {
 		excluded[x.Mod] = true
@@ -155,15 +161,17 @@ func allowed(m module.Version) bool {
 }
 
 func legacyModInit() {
-	path, err := FindModulePath(ModRoot)
-	if err != nil {
-		base.Fatalf("vgo: %v", err)
+	if modFile == nil {
+		path, err := FindModulePath(ModRoot)
+		if err != nil {
+			base.Fatalf("vgo: %v", err)
+		}
+		fmt.Fprintf(os.Stderr, "vgo: creating new go.mod: module %s\n", path)
+		modFile = new(modfile.File)
+		modFile.AddModuleStmt(path)
 	}
-	fmt.Fprintf(os.Stderr, "vgo: module %s\n", path)
-	modFile = new(modfile.File)
-	modFile.AddModuleStmt(path)
-	Target = module.Version{Path: path}
 
+	Target = modFile.Module.Mod
 	for _, name := range altConfigs {
 		cfg := filepath.Join(ModRoot, name)
 		data, err := ioutil.ReadFile(cfg)
@@ -172,14 +180,17 @@ func legacyModInit() {
 			if convert == nil {
 				return
 			}
+			fmt.Fprintf(os.Stderr, "vgo: copying requirements from %s\n", cfg)
 			if err := modfetch.ConvertLegacyConfig(modFile, cfg, data); err != nil {
 				base.Fatalf("vgo: %v", err)
+			}
+			if len(modFile.Syntax.Stmt) == 1 {
+				// Add comment to prevent vgo from re-converting every time it runs.
+				modFile.AddComment("// vgo: no requirements found in " + name)
 			}
 			return
 		}
 	}
-
-	base.Fatalf("vgo: internal error: cannot find legacy config file (it was here a minute ago!)")
 }
 
 var altConfigs = []string{

@@ -61,6 +61,21 @@ func (f *File) AddModuleStmt(path string) {
 	})
 }
 
+func (f *File) AddComment(text string) {
+	if f.Syntax == nil {
+		f.Syntax = new(FileSyntax)
+	}
+	f.Syntax.Stmt = append(f.Syntax.Stmt, &CommentBlock{
+		Comments: Comments{
+			Before: []Comment{
+				{
+					Token: text,
+				},
+			},
+		},
+	})
+}
+
 type VersionFixer func(path, version string) (string, error)
 
 func Parse(file string, data []byte, fix VersionFixer) (*File, error) {
