@@ -297,15 +297,7 @@ func moduleMajorVersion(p string) (string, error) {
 		return major, nil
 	}
 
-	start := 0
-	for i := 0; i < len(p); i++ {
-		if p[i] == '/' {
-			if isMajorVersion(p[start:i]) {
-				return "", fmt.Errorf("module path contains non-final version element %s", p[start:i])
-			}
-			start = i + 1
-		}
-	}
+	start := strings.LastIndex(p, "/") + 1
 	v := p[start:]
 	if !isMajorVersion(v) {
 		return "v1", nil
