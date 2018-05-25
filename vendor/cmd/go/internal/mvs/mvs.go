@@ -275,6 +275,13 @@ List:
 			if err != nil {
 				return nil, err // TODO
 			}
+			// If the target version is a pseudo-version, it may not be
+			// included when iterating over prior versions using reqs.Previous.
+			// Insert it into the right place in the iteration.
+			// If v is excluded, p should be returned again by reqs.Previous on the next iteration.
+			if v := max[r.Path]; reqs.Max(v, r.Version) != v && reqs.Max(p.Version, v) != p.Version {
+				p.Version = v
+			}
 			if p.Version == "none" {
 				continue List
 			}

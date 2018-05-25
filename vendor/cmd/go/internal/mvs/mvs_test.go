@@ -178,6 +178,27 @@ downgrade A F1: A B1 E1
 
 name: down3
 A: 
+
+# golang.org/issue/25542.
+name: noprev1
+A: B4 C2
+B2.hidden: 
+C2: 
+downgrade A B2.hidden: A B2.hidden C2
+
+name: noprev2
+A: B4 C2
+B2.hidden: 
+B1: 
+C2: 
+downgrade A B2.hidden: A B2.hidden C2
+
+name: noprev3
+A: B4 C2
+B3: 
+B2.hidden: 
+C2: 
+downgrade A B2.hidden: A B2.hidden C2
 `
 
 func Test(t *testing.T) {
@@ -309,6 +330,12 @@ func Test(t *testing.T) {
 type reqsMap map[module.Version][]module.Version
 
 func (r reqsMap) Max(v1, v2 string) string {
+	if v1 == "none" {
+		return v2
+	}
+	if v2 == "none" {
+		return v1
+	}
 	if v1 < v2 {
 		return v2
 	}
@@ -331,7 +358,7 @@ func (r reqsMap) Latest(path string) (module.Version, error) {
 func (r reqsMap) Previous(m module.Version) (module.Version, error) {
 	var p module.Version
 	for k := range r {
-		if k.Path == m.Path && p.Version < k.Version && k.Version < m.Version {
+		if k.Path == m.Path && p.Version < k.Version && k.Version < m.Version && !strings.HasSuffix(k.Version, ".hidden") {
 			p = k
 		}
 	}

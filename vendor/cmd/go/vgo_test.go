@@ -166,6 +166,45 @@ func TestFSPatterns(t *testing.T) {
 	tg.grepStdoutNot(`^m/y/z`, "should ignore submodule m/y/z...")
 }
 
+func TestGetModuleVersion(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.setenv(homeEnvName(), tg.path("home"))
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.cd(tg.path("x"))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x`), 0666))
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require github.com/gobuffalo/uuid v1.1.0
+	`), 0666))
+	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v2.0.0")
+	tg.run("-vgo", "list", "-m")
+	tg.grepStdout("github.com/gobuffalo/uuid.*v0.0.0-20180207211247-3a9fb6c5c481", "did downgrade to v0.0.0-*")
+
+	tooSlow(t)
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require github.com/gobuffalo/uuid v1.2.0
+	`), 0666))
+	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v1.1.0")
+	tg.run("-vgo", "list", "-m")
+	tg.grepStdout("github.com/gobuffalo/uuid.*v1.1.0", "did downgrade to v1.1.0")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require github.com/gobuffalo/uuid v1.1.0
+	`), 0666))
+	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v1.2.0")
+	tg.run("-vgo", "list", "-m")
+	tg.grepStdout("github.com/gobuffalo/uuid.*v1.2.0", "did upgrade to v1.2.0")
+}
+
 func TestVgoBadDomain(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()
