@@ -258,7 +258,7 @@ func (r *repo) statOrArchive(rev string, archiveArgs ...string) (info *codehost.
 		if _, err = codehost.Run(r.dir, "git", "fetch", "--depth=1", r.remote, name); err == nil {
 			goto Found
 		}
-		if !strings.Contains(err.Error(), "unadvertised object") && !strings.Contains(err.Error(), "no such remote ref") {
+		if !strings.Contains(err.Error(), "unadvertised object") && !strings.Contains(err.Error(), "no such remote ref") && !strings.Contains(err.Error(), "does not support shallow") {
 			return nil, nil, err
 		}
 	}
