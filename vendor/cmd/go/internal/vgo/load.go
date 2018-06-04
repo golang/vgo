@@ -397,6 +397,8 @@ func findMissing(m missing) {
 	modFile.AddRequire(root, info.Version)
 }
 
+// mvsReqs implements mvs.Reqs for vgo's semantic versions, with any exclusions
+// or replacements applied internally.
 type mvsReqs struct {
 	extra []module.Version
 	cache par.Cache
@@ -532,6 +534,8 @@ func (*mvsReqs) Max(v1, v2 string) string {
 	return v1
 }
 
+// Latest returns the latest tagged version of the module at path,
+// or the latest untagged version if no version is tagged.
 func (*mvsReqs) Latest(path string) (module.Version, error) {
 	// Note that query "latest" is not the same as
 	// using repo.Latest.
@@ -557,6 +561,8 @@ func versions(path string) ([]string, error) {
 	return repo.Versions("")
 }
 
+// Previous returns the tagged version of m.Path immediately prior to
+// m.Version, or version "none" if no prior version is tagged.
 func (*mvsReqs) Previous(m module.Version) (module.Version, error) {
 	list, err := versions(m.Path)
 	if err != nil {

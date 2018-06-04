@@ -281,6 +281,10 @@ func Upgrade(target module.Version, reqs Reqs, upgrade ...module.Version) ([]mod
 
 // Downgrade returns a build list for the target module
 // in which the given additional modules are downgraded.
+//
+// The versions to be downgraded may be unreachable from reqs.Latest and
+// reqs.Previous, but the methods of reqs must otherwise handle such versions
+// correctly.
 func Downgrade(target module.Version, reqs Reqs, downgrade ...module.Version) ([]module.Version, error) {
 	list, err := reqs.Required(target)
 	if err != nil {

@@ -17,7 +17,14 @@ import (
 
 // A Version is defined by a module path and version pair.
 type Version struct {
-	Path    string
+	Path string
+
+	// Version is usually a semantic version in canonical form.
+	// There are two exceptions to this general rule.
+	// First, the top-level target of a build has no specific version
+	// and uses Version = "".
+	// Second, during MVS calculations the version "none" is used
+	// to represent the decision to take no version of a given module.
 	Version string
 }
 
