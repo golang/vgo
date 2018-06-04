@@ -50,7 +50,6 @@ func runGet(cmd *base.Command, args []string) {
 	}
 
 	if *getU {
-		isGetU = true
 		ImportPaths([]string{"."})
 		return
 	}

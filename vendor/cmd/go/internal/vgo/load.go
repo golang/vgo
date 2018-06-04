@@ -42,7 +42,6 @@ var (
 	importmap map[string]string
 	pkgdir    map[string]string
 	pkgmod    map[string]module.Version
-	isGetU    bool
 )
 
 func AddImports(gofiles []string) {
@@ -170,7 +169,7 @@ func Lookup(parentPath, path string) (dir, realPath string, err error) {
 func iterate(doImports func(*loader)) {
 	var err error
 	mvsOp := mvs.BuildList
-	if isGetU {
+	if *getU {
 		mvsOp = mvs.UpgradeAll
 	}
 	buildList, err = mvsOp(Target, newReqs())
