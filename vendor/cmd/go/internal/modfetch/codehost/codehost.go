@@ -24,7 +24,7 @@ import (
 const (
 	MaxGoMod   = 16 << 20  // maximum size of go.mod file
 	MaxLICENSE = 16 << 20  // maximum size of LICENSE file
-	MaxZipFile = 100 << 20 // maximum size of downloaded zip file
+	MaxZipFile = 500 << 20 // maximum size of downloaded zip file
 )
 
 // A Repo represents a code hosting source.
