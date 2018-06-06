@@ -34,7 +34,7 @@ func LocalRepo(remote, root string) (codehost.Repo, error) {
 	return newRepo(remote, root, true)
 }
 
-const workDirType = "git1"
+const workDirType = "git2"
 
 func newRepo(remote, root string, localOK bool) (codehost.Repo, error) {
 	r := &repo{remote: remote, root: root, canArchive: true}
@@ -47,8 +47,18 @@ func newRepo(remote, root string, localOK bool) (codehost.Repo, error) {
 		r.dir = dir
 		if _, err := os.Stat(filepath.Join(dir, "objects")); err != nil {
 			if _, err := codehost.Run(dir, "git", "init", "--bare"); err != nil {
+				os.RemoveAll(dir)
 				return nil, err
 			}
+			// We could just say git fetch https://whatever later,
+			// but this lets us say git fetch origin instead, which
+			// is a little nicer. More importantly, using a named remote
+			// avoids a problem with Git LFS. See golang.org/issue/25605.
+			if _, err := codehost.Run(dir, "git", "remote", "add", "origin", r.remote); err != nil {
+				os.RemoveAll(dir)
+				return nil, err
+			}
+			r.remote = "origin"
 		}
 	} else {
 		// Local path.
