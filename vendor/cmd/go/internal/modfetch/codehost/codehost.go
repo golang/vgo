@@ -8,7 +8,6 @@ package codehost
 
 import (
 	"bytes"
-	"cmd/go/internal/str"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -18,6 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"cmd/go/internal/cfg"
+	"cmd/go/internal/str"
 )
 
 // Downloaded size limits.
@@ -120,9 +122,15 @@ func WorkDir(typ, name string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("%s exists but %s does not", dir+".info", dir)
 		}
+		if cfg.BuildX {
+			fmt.Fprintf(os.Stderr, "# %s for %s %s\n", dir, typ, name)
+		}
 		return dir, nil
 	}
 
+	if cfg.BuildX {
+		fmt.Fprintf(os.Stderr, "mkdir -p %s # %s %s\n", dir, typ, name)
+	}
 	os.RemoveAll(dir)
 	if err := os.MkdirAll(dir, 0777); err != nil {
 		return "", err
@@ -149,8 +157,6 @@ func (e *RunError) Error() string {
 	return text
 }
 
-var DebugRun bool
-
 // Run runs the command line in the given directory
 // (an empty dir means the current directory).
 // It returns the standard output and, for a non-zero exit,
@@ -158,8 +164,12 @@ var DebugRun bool
 // Standard error is unavailable for commands that exit successfully.
 func Run(dir string, cmdline ...interface{}) ([]byte, error) {
 	cmd := str.StringList(cmdline...)
-	if DebugRun {
-		fmt.Fprintf(os.Stderr, "codehost.Run[%s]: %s\n", dir, strings.Join(cmd, " "))
+	if cfg.BuildX {
+		var cd string
+		if dir != "" {
+			cd = "cd " + dir + "; "
+		}
+		fmt.Fprintf(os.Stderr, "%s%s\n", cd, strings.Join(cmd, " "))
 	}
 	// TODO: Impose limits on command output size.
 	// TODO: Set environment to get English error messages.
