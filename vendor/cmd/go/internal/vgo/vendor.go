@@ -32,6 +32,7 @@ of the packages copied.
 }
 
 var vendorV = CmdVendor.Flag.Bool("v", false, "")
+var copiedDir map[string]bool
 
 func init() {
 	CmdVendor.Run = runVendor // break init cycle
@@ -62,6 +63,7 @@ func runVendor(cmd *base.Command, args []string) {
 	}
 
 	var buf bytes.Buffer
+	copiedDir = make(map[string]bool)
 	for _, m := range buildList[1:] {
 		if pkgs := modpkgs[m]; len(pkgs) > 0 {
 			repl := ""
@@ -104,7 +106,36 @@ func vendorPkg(vdir, pkg string) {
 	if src == "" {
 		fmt.Fprintf(os.Stderr, "internal error: no pkg for %s -> %s\n", pkg, realPath)
 	}
+
 	copyDir(dst, src, false)
+	if mod, ok := pkgmod[pkg]; ok {
+		copyTestdata(mod.Path, pkg, dst, src)
+	}
+}
+
+// Copy the testdata directories in parent directories.
+// If the package being vendored is a/b/c,
+// try to copy a/b/c/testdata, a/b/testdata and a/testdata to vendor directory,
+// up to the module root.
+func copyTestdata(modPath, pkg, dst, src string) {
+	testdata := func(dir string) string {
+		return filepath.Join(dir, "testdata")
+	}
+	for {
+		if copiedDir[dst] {
+			break
+		}
+		copiedDir[dst] = true
+		if info, err := os.Stat(testdata(src)); err == nil && info.IsDir() {
+			copyDir(testdata(dst), testdata(src), true)
+		}
+		if modPath == pkg {
+			break
+		}
+		pkg = filepath.Dir(pkg)
+		dst = filepath.Dir(dst)
+		src = filepath.Dir(src)
+	}
 }
 
 func copyDir(dst, src string, recursive bool) {
