@@ -730,7 +730,7 @@ func disallowInternal(srcDir string, p *Package, stk *ImportStack) *Package {
 	perr := *p
 	perr.Error = &PackageError{
 		ImportStack: stk.Copy(),
-		Err:         "use of internal package not allowed",
+		Err:         "use of internal package " + p.ImportPath + " not allowed",
 	}
 	perr.Incomplete = true
 	return &perr
