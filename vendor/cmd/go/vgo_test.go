@@ -137,6 +137,27 @@ func TestTags(t *testing.T) {
 	tg.grepStdout(`\[x.go y.go\]`, "Go source files for tag1 and tag2")
 }
 
+func TestAllVsVendor(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x/vendor/v"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module m
+	`), 0666))
+
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/vendor/v/v.go"), []byte(`package v; import "golang.org/x/crypto"`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/vendor/v.go"), []byte(`package main`), 0666))
+
+	tg.cd(tg.path("x"))
+	tg.run("-vgo", "list", "all")
+	tg.grepStdout(`^m$`, "expected m")
+	tg.grepStdout(`^m/vendor$`, "must see package named vendor")
+	tg.grepStdoutNot(`vendor/`, "must not see vendored packages")
+}
+
 func TestFillGoMod(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)

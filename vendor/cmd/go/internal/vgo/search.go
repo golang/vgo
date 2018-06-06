@@ -131,22 +131,18 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 				return filepath.SkipDir
 			}
 
-			if have[name] {
-				return nil
-			}
-			have[name] = true
-			if !match(name) {
-				return nil
-			}
-			if _, _, err := imports.ScanDir(path, imports.Tags()); err == imports.ErrNoGo {
-				return nil
+			if !have[name] {
+				have[name] = true
+				if match(name) {
+					if _, _, err := imports.ScanDir(path, imports.Tags()); err != imports.ErrNoGo {
+						pkgs = append(pkgs, name)
+					}
+				}
 			}
 
 			if elem == "vendor" {
-				return filepath.SkipDir // ignore children
+				return filepath.SkipDir
 			}
-
-			pkgs = append(pkgs, name)
 			return nil
 		})
 	}
