@@ -10,6 +10,7 @@ import (
 	"internal/testenv"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"testing"
@@ -137,12 +138,13 @@ func TestTags(t *testing.T) {
 	tg.grepStdout(`\[x.go y.go\]`, "Go source files for tag1 and tag2")
 }
 
-func TestAllVsVendor(t *testing.T) {
+func TestFSPatterns(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.makeTempdir()
 
 	tg.must(os.MkdirAll(tg.path("x/vendor/v"), 0777))
+	tg.must(os.MkdirAll(tg.path("x/y/z/w"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
 		module m
 	`), 0666))
@@ -150,12 +152,18 @@ func TestAllVsVendor(t *testing.T) {
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x`), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/vendor/v/v.go"), []byte(`package v; import "golang.org/x/crypto"`), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/vendor/v.go"), []byte(`package main`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/y/y.go"), []byte(`package y`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/y/z/go.mod"), []byte(`syntax error`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/y/z/z.go"), []byte(`package z`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/y/z/w/w.go"), []byte(`package w`), 0666))
 
 	tg.cd(tg.path("x"))
 	tg.run("-vgo", "list", "all")
 	tg.grepStdout(`^m$`, "expected m")
 	tg.grepStdout(`^m/vendor$`, "must see package named vendor")
 	tg.grepStdoutNot(`vendor/`, "must not see vendored packages")
+	tg.grepStdout(`^m/y$`, "expected m/y")
+	tg.grepStdoutNot(`^m/y/z`, "should ignore submodule m/y/z...")
 }
 
 func TestVgoBadDomain(t *testing.T) {
@@ -216,18 +224,26 @@ func TestFillGoMod(t *testing.T) {
 }
 
 func TestConvertLegacyConfig(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.makeTempdir()
 
+	// Testing that on Windows the path x/Gopkg.lock turning into x\Gopkg.lock does not confuse converter.
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/Gopkg.lock"), []byte(`
 	  [[projects]]
 		name = "github.com/pkg/errors"
 		packages = ["."]
 		revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-		version = "v0.8.0"`), 0666))
+		version = "v0.6.0"`), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte("package x // import \"x\"\n import _ \"github.com/pkg/errors\""), 0666))
 	tg.cd(tg.path("x"))
-	tg.run("-vgo", "build")
+	tg.run("-vgo", "list", "-m")
+
+	// If the conversion just ignored the Gopkg.lock entirely
+	// it would choose a newer version (like v0.8.0 or maybe
+	// something even newer). Check for the older version to
+	// make sure Gopkg.lock was properly used.
+	tg.grepStderr("v0.6.0", "expected github.com/pkg/errors at v0.6.0")
 }

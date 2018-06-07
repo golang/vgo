@@ -127,8 +127,14 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 				}
 				return nil
 			}
+
 			if !want {
 				return filepath.SkipDir
+			}
+			if path != root {
+				if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+					return filepath.SkipDir
+				}
 			}
 
 			if !have[name] {
