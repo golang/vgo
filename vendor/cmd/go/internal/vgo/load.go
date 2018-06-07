@@ -41,6 +41,7 @@ var (
 	tags      map[string]bool
 	importmap map[string]string
 	pkgdir    map[string]string
+	pkgmod    map[string]module.Version
 	isGetU    bool
 )
 
@@ -146,12 +147,15 @@ func iterate(doImports func(*loader)) {
 
 	importmap = ld.importmap
 	pkgdir = ld.pkgdir
+	pkgmod = ld.pkgmod
 }
 
 type loader struct {
 	imported  map[string]importLevel
 	importmap map[string]string
 	pkgdir    map[string]string
+	pkgmod    map[string]module.Version
+	tags      map[string]bool
 	missing   []missing
 	imports   []string
 	stack     []string
@@ -167,6 +171,8 @@ func newLoader() *loader {
 		imported:  make(map[string]importLevel),
 		importmap: make(map[string]string),
 		pkgdir:    make(map[string]string),
+		pkgmod:    make(map[string]module.Version),
+		tags:      imports.Tags(),
 	}
 	ld.imported["C"] = 100
 	return ld
@@ -214,7 +220,7 @@ func (ld *loader) importPkg(path string, level importLevel) {
 
 	ld.pkgdir[realPath] = dir
 
-	imports, testImports, err := imports.ScanDir(dir, imports.Tags())
+	imports, testImports, err := imports.ScanDir(dir, ld.tags)
 	if err != nil {
 		base.Errorf("vgo: %s [%s]: %v", ld.stackText(), dir, err)
 		return
@@ -239,6 +245,7 @@ func (ld *loader) importDir(path string) string {
 		if len(path) > len(Target.Path) {
 			dir = filepath.Join(dir, path[len(Target.Path)+1:])
 		}
+		ld.pkgmod[path] = Target
 		return dir
 	}
 
@@ -276,6 +283,7 @@ func (ld *loader) importDir(path string) string {
 		mod1 = mod
 	}
 	if dir1 != "" {
+		ld.pkgmod[path] = mod1
 		return dir1
 	}
 	ld.missing = append(ld.missing, missing{path, ld.stackText()})

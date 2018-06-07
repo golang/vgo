@@ -14,17 +14,27 @@ import (
 	"strings"
 
 	"cmd/go/internal/base"
+	"cmd/go/internal/module"
 )
 
 var CmdVendor = &base.Command{
-	UsageLine: "vendor",
-	Run:       runVendor,
+	UsageLine: "vendor [-v]",
 	Short:     "vendor dependencies of current module",
 	Long: `
 Vendor resets the module's vendor directory to include all
-packages needed to builds and test all packages in the module
+packages needed to build and test all packages in the module
 and their dependencies.
+
+The -v flag causes vendor to print to standard error the
+module paths of the modules processed and the import paths
+of the packages copied.
 	`,
+}
+
+var vendorV = CmdVendor.Flag.Bool("v", false, "")
+
+func init() {
+	CmdVendor.Run = runVendor // break init cycle
 }
 
 func runVendor(cmd *base.Command, args []string) {
@@ -35,29 +45,51 @@ func runVendor(cmd *base.Command, args []string) {
 		base.Fatalf("vgo vendor: vendor takes no arguments")
 	}
 	InitMod()
-	// TODO(rsc): This should scan directories with more permissive build tags.
-	pkgs := ImportPaths([]string{"all"})
+	pkgs := ImportPaths([]string{"ALL"})
 
 	vdir := filepath.Join(ModRoot, "vendor")
 	if err := os.RemoveAll(vdir); err != nil {
 		base.Fatalf("vgo vendor: %v", err)
 	}
 
+	modpkgs := make(map[module.Version][]string)
 	for _, pkg := range pkgs {
-		vendorPkg(vdir, pkg)
+		m := pkgmod[pkg]
+		if m == Target {
+			continue
+		}
+		modpkgs[m] = append(modpkgs[m], pkg)
 	}
 
 	var buf bytes.Buffer
-	printListM(&buf)
+	for _, m := range buildList[1:] {
+		if pkgs := modpkgs[m]; len(pkgs) > 0 {
+			repl := ""
+			if r := replaced(m); r != nil {
+				repl = " => " + r.New.Path
+				if r.New.Version != "" {
+					repl += " " + r.New.Version
+				}
+			}
+			fmt.Fprintf(&buf, "# %s %s%s\n", m.Path, m.Version, repl)
+			if *vendorV {
+				fmt.Fprintf(os.Stderr, "# %s %s%s\n", m.Path, m.Version, repl)
+			}
+			for _, pkg := range pkgs {
+				fmt.Fprintf(&buf, "%s\n", pkg)
+				if *vendorV {
+					fmt.Fprintf(os.Stderr, "%s\n", pkg)
+				}
+				vendorPkg(vdir, pkg)
+			}
+		}
+	}
 	if err := ioutil.WriteFile(filepath.Join(vdir, "vgo.list"), buf.Bytes(), 0666); err != nil {
 		base.Fatalf("vgo vendor: %v", err)
 	}
 }
 
 func vendorPkg(vdir, pkg string) {
-	if hasPathPrefix(pkg, Target.Path) {
-		return
-	}
 	realPath := importmap[pkg]
 	if realPath != pkg && importmap[realPath] != "" {
 		fmt.Fprintf(os.Stderr, "warning: %s imported as both %s and %s; making two copies.\n", realPath, realPath, pkg)

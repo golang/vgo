@@ -27,6 +27,12 @@ var slashslash = []byte("//")
 //
 // marks the file as applicable only on Windows and Linux.
 //
+// If tags["*"] is true, then ShouldBuild will consider every
+// build tag except "ignore" to be both true and false for
+// the purpose of satisfying build tags, in order to estimate
+// (conservatively) whether a file could ever possibly be used
+// in any build.
+//
 func ShouldBuild(content []byte, tags map[string]bool) bool {
 	// Pass 1. Identify leading run of // comments and blank lines,
 	// which must be followed by a blank line.
@@ -87,8 +93,8 @@ func ShouldBuild(content []byte, tags map[string]bool) bool {
 
 // matchTags reports whether the name is one of:
 //
-//	tag (if haveTags[tag] is true)
-//	!tag (if haveTags[tag] is false)
+//	tag (if tags[tag] is true)
+//	!tag (if tags[tag] is false)
 //	a comma-separated list of any of these
 //
 func matchTags(name string, tags map[string]bool) bool {
@@ -105,9 +111,13 @@ func matchTags(name string, tags map[string]bool) bool {
 		return false
 	}
 	if strings.HasPrefix(name, "!") { // negation
-		return len(name) > 1 && !matchTags(name[1:], tags)
+		return len(name) > 1 && matchTag(name[1:], tags, false)
 	}
+	return matchTag(name, tags, true)
+}
 
+// matchTag reports whether the tag name is valid and satisfied by tags[name]==want.
+func matchTag(name string, tags map[string]bool, want bool) bool {
 	// Tags must be letters, digits, underscores or dots.
 	// Unlike in Go identifiers, all digits are fine (e.g., "386").
 	for _, c := range name {
@@ -116,13 +126,22 @@ func matchTags(name string, tags map[string]bool) bool {
 		}
 	}
 
-	if name == "linux" && tags["android"] {
+	if tags["*"] && name != "" && name != "ignore" {
+		// Special case for gathering all possible imports:
+		// if we put * in the tags map then all tags
+		// except "ignore" are considered both present and not
+		// (so we return true no matter how 'want' is set).
 		return true
 	}
-	return tags[name]
+
+	have := tags[name]
+	if name == "linux" {
+		have = have || tags["android"]
+	}
+	return have == want
 }
 
-// goodOSArchFile returns false if the name contains a $GOOS or $GOARCH
+// MatchFile returns false if the name contains a $GOOS or $GOARCH
 // suffix which does not match the current system.
 // The recognized name formats are:
 //
@@ -134,7 +153,14 @@ func matchTags(name string, tags map[string]bool) bool {
 //     name_$(GOOS)_$(GOARCH)_test.*
 //
 // An exception: if GOOS=android, then files with GOOS=linux are also matched.
+//
+// If tags["*"] is true, then MatchFile will consider all possible
+// GOOS and GOARCH to be available and will consequently
+// always return true.
 func MatchFile(name string, tags map[string]bool) bool {
+	if tags["*"] {
+		return true
+	}
 	if dot := strings.Index(name, "."); dot != -1 {
 		name = name[:dot]
 	}

@@ -22,11 +22,13 @@ import (
 func expandImportPaths(args []string) []string {
 	var out []string
 	for _, a := range args {
-		if search.IsMetaPackage(a) {
+		// TODO(rsc): Move a == "ALL" test into search.IsMetaPackage
+		// once we officially lock in all the module work (tentatively, Go 1.12).
+		if search.IsMetaPackage(a) || a == "ALL" {
 			switch a {
 			default:
-				fmt.Fprintf(os.Stderr, "warning: %q matches no packages when using modules", a)
-			case "all":
+				fmt.Fprintf(os.Stderr, "vgo: warning: %q matches no packages when using modules\n", a)
+			case "all", "ALL":
 				out = append(out, AllPackages(a)...)
 			}
 			continue
@@ -65,6 +67,9 @@ func MatchPackages(pattern string) []string {
 	if pattern == "all" {
 		return MatchAll()
 	}
+	if pattern == "ALL" {
+		return MatchALL()
+	}
 
 	return matchPackages(pattern, buildList)
 }
@@ -72,7 +77,7 @@ func MatchPackages(pattern string) []string {
 func matchPackages(pattern string, buildList []module.Version) []string {
 	match := func(string) bool { return true }
 	treeCanMatch := func(string) bool { return true }
-	if !search.IsMetaPackage(pattern) {
+	if !search.IsMetaPackage(pattern) && pattern != "ALL" {
 		match = search.MatchPattern(pattern)
 		treeCanMatch = search.TreeCanMatchPattern(pattern)
 	}
@@ -162,8 +167,23 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 // It does not include packages in other modules that are not needed
 // by builds of this module.
 func MatchAll() []string {
+	return matchAll(imports.Tags())
+}
+
+// MatchALL returns a list of the packages matching the pattern "ALL".
+// The pattern "ALL" is like "all" but looks at all source files,
+// even ones that would be ignored by current build tag settings.
+// That's useful for identifying which packages to include in a vendor directory.
+func MatchALL() []string {
+	return matchAll(map[string]bool{"*": true})
+}
+
+// matchAll is the common implementation of MatchAll and MatchALL,
+// which differ only in the set of tags to apply to select files.
+func matchAll(tags map[string]bool) []string {
 	local := matchPackages("all", buildList[:1])
 	ld := newLoader()
+	ld.tags = tags
 	ld.importList(local, levelTestRecursive)
 	var all []string
 	for _, pkg := range ld.importmap {

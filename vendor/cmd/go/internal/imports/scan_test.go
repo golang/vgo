@@ -6,6 +6,7 @@ package imports
 
 import (
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 )
@@ -45,5 +46,17 @@ func TestScan(t *testing.T) {
 	}
 	if !foundHTTP {
 		t.Errorf("json missing test import net/http (%q)", testImports)
+	}
+}
+
+func TestScanStar(t *testing.T) {
+	imports, _, err := ScanDir("testdata/import1", map[string]bool{"*": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"import1", "import2", "import3", "import4"}
+	if !reflect.DeepEqual(imports, want) {
+		t.Errorf("ScanDir testdata/import1:\nhave %v\nwant %v", imports, want)
 	}
 }

@@ -221,6 +221,29 @@ func TestVgoBadDomain(t *testing.T) {
 	tg.grepStderr("tcp.*nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
 }
 
+func TestVgoVendor(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+
+	wd, _ := os.Getwd()
+	tg.cd(filepath.Join(wd, "testdata/vendormod"))
+	tg.run("-vgo", "list", "-m")
+	tg.grepStdout(`^x`, "expected to see module x")
+	tg.grepStdout(`=> ./x`, "expected to see replacement for module x")
+	tg.grepStdout(`^w`, "expected to see module w")
+
+	tg.run("-vgo", "vendor", "-v")
+	tg.grepStderr(`^# x v1.0.0 => ./x`, "expected to see module x with replacement")
+	tg.grepStderr(`^x`, "expected to see package x")
+	tg.grepStderr(`^# y v1.0.0 => ./y`, "expected to see module y with replacement")
+	tg.grepStderr(`^y`, "expected to see package y")
+	tg.grepStderr(`^# z v1.0.0 => ./z`, "expected to see module z with replacement")
+	tg.grepStderr(`^z`, "expected to see package z")
+	tg.grepStderrNot(`w`, "expected NOT to see unused module w")
+
+	tg.must(os.RemoveAll(filepath.Join(wd, "testdata/vendormod/vendor")))
+}
+
 func TestFillGoMod(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
