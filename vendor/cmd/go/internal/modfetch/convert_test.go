@@ -54,9 +54,9 @@ func TestConvertLegacyConfig(t *testing.T) {
 			// TODO: Should v2.0.0 work here too?
 			"github.com/docker/distribution", "v0.0.0-20150410205453-85de3967aa93",
 			`module github.com/docker/distribution
-			
+
 			require (
-    				github.com/AdRoll/goamz v0.0.0-20150130162828-d3664b76d905
+				github.com/AdRoll/goamz v0.0.0-20150130162828-d3664b76d905
 				github.com/MSOpenTech/azure-sdk-for-go v0.0.0-20150323223030-d90753bcad2e
 				github.com/Sirupsen/logrus v0.0.0-20150409230825-55eb11d21d2a
 				github.com/bugsnag/bugsnag-go v0.0.0-20141110184014-b1d153021fcd
@@ -74,8 +74,8 @@ func TestConvertLegacyConfig(t *testing.T) {
 				github.com/yvasiyarov/gorelic v0.0.0-20141212073537-a9bba5b9ab50
 				github.com/yvasiyarov/newrelic_platform_go v0.0.0-20140908184405-b21fdbd4370f
 				golang.org/x/net v0.0.0-20150202051010-1dfe7915deaf
-				gopkg.in/check.v1 v0.0.0-20141024133853-64131543e789
-				gopkg.in/yaml.v2 v0.0.0-20150116202057-bef53efd0c76
+				gopkg.in/check.v1 v1.0.0-20141024133853-64131543e789
+				gopkg.in/yaml.v2 v2.0.0-20150116202057-bef53efd0c76
 			)`,
 		},
 
