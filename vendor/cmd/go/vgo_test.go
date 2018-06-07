@@ -289,6 +289,7 @@ func TestQueryExcluded(t *testing.T) {
 	defer tg.cleanup()
 	tg.makeTempdir()
 
+	tg.setenv("HOME", tg.path("."))
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "github.com/gorilla/mux"`), 0666))
 	gomod := []byte(`
