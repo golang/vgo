@@ -158,6 +158,22 @@ func TestAllVsVendor(t *testing.T) {
 	tg.grepStdoutNot(`vendor/`, "must not see vendored packages")
 }
 
+func TestVgoBadDomain(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	wd, _ := os.Getwd()
+	tg.cd(filepath.Join(wd, "testdata/badmod"))
+
+	tg.runFail("-vgo", "get", "appengine")
+	tg.grepStderr("unknown module appengine: not a domain name", "expected domain error")
+	tg.runFail("-vgo", "get", "x/y.z")
+	tg.grepStderr("unknown module x/y.z: not a domain name", "expected domain error")
+
+	tg.runFail("-vgo", "build")
+	tg.grepStderr("unknown module appengine: not a domain name", "expected domain error")
+	tg.grepStderr("tcp.*nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
+}
+
 func TestFillGoMod(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)

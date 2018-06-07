@@ -26,6 +26,13 @@ type metaImport struct {
 }
 
 func lookupCustomDomain(path string) (Repo, error) {
+	dom := path
+	if i := strings.Index(dom, "/"); i >= 0 {
+		dom = dom[:i]
+	}
+	if !strings.Contains(dom, ".") {
+		return nil, fmt.Errorf("unknown module %s: not a domain name", path)
+	}
 	var body io.ReadCloser
 	err := web.Get(
 		"https://"+path+"?go-get=1",
