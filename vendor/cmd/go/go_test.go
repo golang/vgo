@@ -1963,6 +1963,8 @@ func homeEnvName() string {
 }
 
 func TestDefaultGOPATH(t *testing.T) {
+	t.Skip("vgo") // Needs a more realistic GOROOT; see RuntimeGoroot below.
+
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.parallel()
