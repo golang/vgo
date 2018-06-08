@@ -5,7 +5,7 @@
 
 set -e
 
-go build -o go.latest
-./go.latest help documentation | sed 's/^package main/&_/' >alldocs.go
+go build -o go.latest golang.org/x/vgo
+./go.latest help documentation | sed 's/^package main/package Main/' >alldocs.go
 gofmt -w alldocs.go
 rm go.latest

@@ -68,7 +68,7 @@ and test commands:
 		Supported only on linux/amd64, freebsd/amd64, darwin/amd64 and windows/amd64.
 	-msan
 		enable interoperation with memory sanitizer.
-		Supported only on linux/amd64,
+		Supported only on linux/amd64, linux/arm64
 		and only with Clang/LLVM as the host C compiler.
 	-v
 		print the names of packages as they are compiled.
@@ -305,11 +305,6 @@ func runBuild(cmd *base.Command, args []string) {
 		cfg.BuildO += cfg.ExeSuffix
 	}
 
-	// Special case -o /dev/null by not writing at all.
-	if cfg.BuildO == os.DevNull {
-		cfg.BuildO = ""
-	}
-
 	// sanity check some often mis-used options
 	switch cfg.BuildContext.Compiler {
 	case "gccgo":
@@ -331,6 +326,11 @@ func runBuild(cmd *base.Command, args []string) {
 	}
 
 	pkgs = pkgsFilter(load.Packages(args))
+
+	// Special case -o /dev/null by not writing at all.
+	if cfg.BuildO == os.DevNull {
+		cfg.BuildO = ""
+	}
 
 	if cfg.BuildO != "" {
 		if len(pkgs) > 1 {

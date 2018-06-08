@@ -371,7 +371,7 @@ func (x *File) AddRequire(path, vers string) {
 	x.Syntax.Stmt = append(x.Syntax.Stmt, syntax)
 
 End:
-	x.Require = append(x.Require, &Require{module.Version{path, vers}, syntax})
+	x.Require = append(x.Require, &Require{module.Version{Path: path, Version: vers}, syntax})
 }
 
 func (f *File) SetRequire(req []module.Version) {

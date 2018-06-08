@@ -162,8 +162,19 @@ func runGenerate(cmd *base.Command, args []string) {
 			}
 			continue
 		}
+
+		pkgName := pkg.Name
+
 		for _, file := range pkg.InternalGoFiles() {
-			if !generate(pkg.Name, file) {
+			if !generate(pkgName, file) {
+				break
+			}
+		}
+
+		pkgName += "_test"
+
+		for _, file := range pkg.InternalXGoFiles() {
+			if !generate(pkgName, file) {
 				break
 			}
 		}

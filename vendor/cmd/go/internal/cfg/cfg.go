@@ -85,7 +85,7 @@ var (
 	GOROOT_FINAL = findGOROOT_FINAL()
 
 	// Used in envcmd.MkEnv and build ID computations.
-	GOARM, GO386, GOMIPS = objabi()
+	GOARM, GO386, GOMIPS, GOMIPS64 = objabi()
 
 	// C and C++ compilers
 	CC, CXX = compilers()
@@ -94,14 +94,17 @@ var (
 // Update build context to use our computed GOROOT.
 func init() {
 	BuildContext.GOROOT = GOROOT
-	// Note that we must use runtime.GOOS and runtime.GOARCH here,
-	// as the tool directory does not move based on environment variables.
-	// This matches the initialization of ToolDir in go/build,
-	// except for using GOROOT rather than runtime.GOROOT().
-	build.ToolDir = filepath.Join(GOROOT, "pkg/tool/"+runtime.GOOS+"_"+runtime.GOARCH)
+	if runtime.Compiler != "gccgo" {
+		// Note that we must use runtime.GOOS and runtime.GOARCH here,
+		// as the tool directory does not move based on environment
+		// variables. This matches the initialization of ToolDir in
+		// go/build, except for using GOROOT rather than
+		// runtime.GOROOT.
+		build.ToolDir = filepath.Join(GOROOT, "pkg/tool/"+runtime.GOOS+"_"+runtime.GOARCH)
+	}
 }
 
-func objabi() (GOARM, GO386, GOMIPS string) {
+func objabi() (GOARM, GO386, GOMIPS, GOMIPS64 string) {
 	data, err := ioutil.ReadFile(filepath.Join(GOROOT, "src/cmd/internal/objabi/zbootstrap.go"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vgo objabi: %v\n", err)
@@ -113,6 +116,9 @@ func objabi() (GOARM, GO386, GOMIPS string) {
 		}
 		i := bytes.Index(data, []byte("default"+key+" = `"))
 		if i < 0 {
+			if key == "GOMIPS64" { // new in Go 1.11
+				return ""
+			}
 			fmt.Fprintf(os.Stderr, "vgo objabi: cannot find %s\n", key)
 			os.Exit(2)
 		}
@@ -121,7 +127,7 @@ func objabi() (GOARM, GO386, GOMIPS string) {
 		return string(line[:bytes.IndexByte(line, '`')])
 	}
 
-	return find("GOARM"), find("GO386"), find("GOMIPS")
+	return find("GOARM"), find("GO386"), find("GOMIPS"), find("GOMIPS64")
 }
 
 func compilers() (CC, CXX string) {

@@ -6,8 +6,7 @@ package modfetch
 
 import (
 	"archive/zip"
-	"cmd/go/internal/modfetch/codehost"
-	"cmd/go/internal/webtest"
+	"internal/testenv"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"cmd/go/internal/modfetch/codehost"
 )
 
 func init() {
@@ -349,9 +350,7 @@ var codeRepoTests = []struct {
 }
 
 func TestCodeRepo(t *testing.T) {
-	webtest.LoadOnce("testdata/webtest.txt")
-	webtest.Hook()
-	defer webtest.Unhook()
+	testenv.MustHaveExternalNetwork(t)
 
 	tmpdir, err := ioutil.TempDir("", "vgo-modfetch-test-")
 	if err != nil {
@@ -479,9 +478,7 @@ var importTests = []struct {
 }
 
 func TestImport(t *testing.T) {
-	webtest.LoadOnce("testdata/webtest.txt")
-	webtest.Hook()
-	defer webtest.Unhook()
+	testenv.MustHaveExternalNetwork(t)
 
 	for _, tt := range importTests {
 		t.Run(strings.Replace(tt.path, "/", "_", -1), func(t *testing.T) {
@@ -536,9 +533,7 @@ var codeRepoVersionsTests = []struct {
 }
 
 func TestCodeRepoVersions(t *testing.T) {
-	webtest.LoadOnce("testdata/webtest.txt")
-	webtest.Hook()
-	defer webtest.Unhook()
+	testenv.MustHaveExternalNetwork(t)
 
 	tmpdir, err := ioutil.TempDir("", "vgo-modfetch-test-")
 	if err != nil {
@@ -582,9 +577,7 @@ var latestTests = []struct {
 }
 
 func TestLatest(t *testing.T) {
-	webtest.LoadOnce("testdata/webtest.txt")
-	webtest.Hook()
-	defer webtest.Unhook()
+	testenv.MustHaveExternalNetwork(t)
 
 	tmpdir, err := ioutil.TempDir("", "vgo-modfetch-test-")
 	if err != nil {

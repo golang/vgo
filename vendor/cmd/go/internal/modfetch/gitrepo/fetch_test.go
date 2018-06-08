@@ -7,15 +7,19 @@ package gitrepo
 import (
 	"archive/zip"
 	"bytes"
-	"cmd/go/internal/modfetch/codehost"
+	"fmt"
+	"internal/testenv"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"cmd/go/internal/modfetch/codehost"
 )
 
 func TestMain(m *testing.M) {
@@ -28,25 +32,33 @@ const gitrepo1 = "https://vcs-test.golang.org/git/gitrepo1"
 var localGitRepo string
 
 func testMain(m *testing.M) int {
+	if _, err := exec.LookPath("git"); err != nil {
+		fmt.Fprintln(os.Stderr, "skipping because git binary not found")
+		fmt.Println("PASS")
+		return 0
+	}
+
 	dir, err := ioutil.TempDir("", "gitrepo-test-")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-
-	// Clone gitrepo1 into a local directory.
-	// If we use a file:// URL to access the local directory,
-	// then git starts up all the usual protocol machinery,
-	// which will let us test remote git archive invocations.
-	localGitRepo = filepath.Join(dir, "gitrepo2")
-	if _, err := codehost.Run("", "git", "clone", "--mirror", gitrepo1, localGitRepo); err != nil {
-		log.Fatal(err)
-	}
-	if _, err := codehost.Run(localGitRepo, "git", "config", "daemon.uploadarch", "true"); err != nil {
-		log.Fatal(err)
-	}
-
 	codehost.WorkRoot = dir
+
+	if testenv.HasExternalNetwork() && testenv.HasExec() {
+		// Clone gitrepo1 into a local directory.
+		// If we use a file:// URL to access the local directory,
+		// then git starts up all the usual protocol machinery,
+		// which will let us test remote git archive invocations.
+		localGitRepo = filepath.Join(dir, "gitrepo2")
+		if _, err := codehost.Run("", "git", "clone", "--mirror", gitrepo1, localGitRepo); err != nil {
+			log.Fatal(err)
+		}
+		if _, err := codehost.Run(localGitRepo, "git", "config", "daemon.uploadarch", "true"); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	return m.Run()
 }
 
@@ -72,6 +84,9 @@ var tagsTests = []struct {
 }
 
 func TestTags(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	testenv.MustHaveExec(t)
+
 	for _, tt := range tagsTests {
 		f := func(t *testing.T) {
 			r, err := testRepo(tt.repo)
@@ -110,6 +125,9 @@ var latestTests = []struct {
 }
 
 func TestLatest(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	testenv.MustHaveExec(t)
+
 	for _, tt := range latestTests {
 		f := func(t *testing.T) {
 			r, err := testRepo(tt.repo)
@@ -160,6 +178,9 @@ var readFileTests = []struct {
 }
 
 func TestReadFile(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	testenv.MustHaveExec(t)
+
 	for _, tt := range readFileTests {
 		f := func(t *testing.T) {
 			r, err := testRepo(tt.repo)
@@ -287,6 +308,9 @@ type zipFile struct {
 }
 
 func TestReadZip(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	testenv.MustHaveExec(t)
+
 	for _, tt := range readZipTests {
 		f := func(t *testing.T) {
 			r, err := testRepo(tt.repo)
@@ -441,6 +465,9 @@ var statTests = []struct {
 }
 
 func TestStat(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	testenv.MustHaveExec(t)
+
 	for _, tt := range statTests {
 		f := func(t *testing.T) {
 			r, err := testRepo(tt.repo)

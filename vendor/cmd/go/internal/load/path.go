@@ -32,8 +32,6 @@ func hasSubdir(root, dir string) (rel string, ok bool) {
 	return filepath.ToSlash(dir[len(root):]), true
 }
 
-// vgo: hasPathPrefix moved to ../search
-
 // expandPath returns the symlink-expanded form of path.
 func expandPath(p string) string {
 	x, err := filepath.EvalSymlinks(p)

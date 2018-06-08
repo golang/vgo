@@ -34,16 +34,16 @@ func isStandardImportPath(path string) bool {
 	return false
 }
 
-func PackageModuleInfo(path string) modinfo.ModulePublic {
+func PackageModuleInfo(path string) *modinfo.ModulePublic {
 	var info modinfo.ModulePublic
 	if isStandardImportPath(path) || !Enabled() {
-		return info
+		return nil
 	}
 	target := findModule(path, path)
 	info.Top = target.Path == buildList[0].Path
 	info.Path = target.Path
 	info.Version = target.Version
-	return info
+	return &info
 }
 
 func PackageBuildInfo(path string, deps []string) string {

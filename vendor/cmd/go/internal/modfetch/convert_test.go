@@ -6,19 +6,17 @@ package modfetch
 
 import (
 	"bytes"
+	"internal/testenv"
 	"strings"
 	"testing"
 
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfile"
-	"cmd/go/internal/webtest"
 )
 
 func TestConvertLegacyConfig(t *testing.T) {
-	webtest.LoadOnce("testdata/webtest.txt")
-	webtest.Hook()
-	defer webtest.Unhook()
+	testenv.MustHaveExternalNetwork(t)
 
 	if testing.Verbose() {
 		old := cfg.BuildX
