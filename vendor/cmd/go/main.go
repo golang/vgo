@@ -64,6 +64,7 @@ func init() {
 		help.HelpFileType,
 		help.HelpGopath,
 		help.HelpImportPath,
+		vgo.HelpModule,
 		help.HelpPackages,
 		test.HelpTestflag,
 		test.HelpTestfunc,
@@ -123,8 +124,9 @@ func Main() {
 		os.Exit(2)
 	}
 
+	vgo.Init()
 	if !vgo.MustBeVgo {
-		if vgo.Init(); vgo.Enabled() {
+		if vgo.Enabled() {
 			// Didn't do this above, so do it now.
 			*get.CmdGet = *vgo.CmdGet
 		}

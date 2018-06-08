@@ -227,10 +227,21 @@ func TestVgoVendor(t *testing.T) {
 
 	wd, _ := os.Getwd()
 	tg.cd(filepath.Join(wd, "testdata/vendormod"))
+	defer tg.must(os.RemoveAll(filepath.Join(wd, "testdata/vendormod/vendor")))
+
 	tg.run("-vgo", "list", "-m")
 	tg.grepStdout(`^x`, "expected to see module x")
 	tg.grepStdout(`=> ./x`, "expected to see replacement for module x")
 	tg.grepStdout(`^w`, "expected to see module w")
+
+	tg.must(os.RemoveAll(filepath.Join(wd, "testdata/vendormod/vendor")))
+	if !testing.Short() {
+		tg.run("-vgo", "build")
+		tg.runFail("-vgo", "build", "-getmode=vendor")
+	}
+
+	tg.run("-vgo", "list", "-f={{.Dir}}", "x")
+	tg.grepStdout(`vendormod[/\\]x$`, "expected x in vendormod/x")
 
 	tg.run("-vgo", "vendor", "-v")
 	tg.grepStderr(`^# x v1.0.0 => ./x`, "expected to see module x with replacement")
@@ -241,7 +252,27 @@ func TestVgoVendor(t *testing.T) {
 	tg.grepStderr(`^z`, "expected to see package z")
 	tg.grepStderrNot(`w`, "expected NOT to see unused module w")
 
-	tg.must(os.RemoveAll(filepath.Join(wd, "testdata/vendormod/vendor")))
+	tg.run("-vgo", "list", "-f={{.Dir}}", "x")
+	tg.grepStdout(`vendormod[/\\]x$`, "expected x in vendormod/x")
+
+	tg.run("-vgo", "list", "-getmode=vendor", "-f={{.Dir}}", "x")
+	tg.grepStdout(`vendormod[/\\]vendor[/\\]x$`, "expected x in vendormod/vendor/x in -get=vendor mode")
+
+	tg.run("-vgo", "list", "-f={{.Dir}}", "w")
+	tg.grepStdout(`vendormod[/\\]w$`, "expected w in vendormod/w")
+	tg.runFail("-vgo", "list", "-getmode=vendor", "-f={{.Dir}}", "w")
+	tg.grepStderr(`vendormod[/\\]vendor[/\\]w`, "want error about vendormod/vendor/w not existing")
+
+	tg.run("-vgo", "list", "-getmode=local", "-f={{.Dir}}", "w")
+	tg.grepStdout(`vendormod[/\\]w`, "expected w in vendormod/w")
+
+	tg.runFail("-vgo", "list", "-getmode=local", "-f={{.Dir}}", "newpkg")
+	tg.grepStderr(`module lookup disabled by -getmode=local`, "expected -getmode=local to avoid network")
+
+	if !testing.Short() {
+		tg.run("-vgo", "build")
+		tg.run("-vgo", "build", "-getmode=vendor")
+	}
 }
 
 func TestFillGoMod(t *testing.T) {

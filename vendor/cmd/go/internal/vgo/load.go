@@ -260,6 +260,13 @@ func (ld *loader) importDir(path string) string {
 		}
 	}
 
+	if cfg.BuildGetmode == "vendor" {
+		// Using -getmode=vendor, everything the module needs
+		// (beyond the current module and standard library)
+		// must be in the module's vendor directory.
+		return filepath.Join(ModRoot, "vendor", path)
+	}
+
 	var mod1 module.Version
 	var dir1 string
 	for _, mod := range buildList {

@@ -6,11 +6,13 @@ package modfetch
 
 import (
 	"errors"
+	"fmt"
 	pathpkg "path"
 	"sort"
 	"strings"
 	"time"
 
+	"cmd/go/internal/cfg"
 	"cmd/go/internal/modfetch/bitbucket"
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/modfetch/github"
@@ -60,6 +62,9 @@ type RevInfo struct {
 
 // Lookup returns the module with the given module path.
 func Lookup(path string) (Repo, error) {
+	if cfg.BuildGetmode != "" {
+		return nil, fmt.Errorf("module lookup disabled by -getmode=%s", cfg.BuildGetmode)
+	}
 	if proxyURL != "" {
 		return lookupProxy(path)
 	}
