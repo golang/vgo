@@ -337,3 +337,23 @@ func TestConvertLegacyConfig(t *testing.T) {
 	// make sure Gopkg.lock was properly used.
 	tg.grepStderr("v0.6.0", "expected github.com/pkg/errors at v0.6.0")
 }
+
+func TestVerifyNotDownloaded(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+	tg.setenv("GOPATH", tg.path("gp"))
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require github.com/pkg/errors v0.8.0
+	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.modverify"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
+`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x`), 0666))
+	tg.cd(tg.path("x"))
+	tg.run("-vgo", "verify")
+	tg.mustNotExist(filepath.Join(tg.path("gp"), "/src/v/cache/github.com/pkg/errors/@v/v0.8.0.zip"))
+	tg.mustNotExist(filepath.Join(tg.path("gp"), "/src/v/github.com/pkg"))
+}

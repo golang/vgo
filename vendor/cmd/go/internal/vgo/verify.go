@@ -42,8 +42,11 @@ func runVerify(cmd *base.Command, args []string) {
 		// TODO: take arguments
 		base.Fatalf("vgo verify: verify takes no arguments")
 	}
+
+	// Make go.mod consistent but don't load any packages.
 	InitMod()
-	ImportPaths([]string{"all"})
+	iterate(func(*loader) {})
+	writeGoMod()
 
 	ok := true
 	for _, mod := range buildList[1:] {
