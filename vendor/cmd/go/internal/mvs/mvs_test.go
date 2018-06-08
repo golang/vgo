@@ -32,6 +32,13 @@ upgrade* A: A B1 C4 D5 E2 G1
 upgrade A C4: A B1 C4 D4 E2 F1 G1
 downgrade A2 D2: A2 C4 D2
 
+name: trim
+A: B1 C2
+B1: D3
+C2: B2
+B2:
+build A: A B2 C2
+
 # Cross-dependency between D and E.
 # No matter how it arises, should get result of merging all build lists via max,
 # which leads to including both D2 and E2.
