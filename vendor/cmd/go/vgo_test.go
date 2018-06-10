@@ -669,3 +669,20 @@ func TestVersionWithoutModule(t *testing.T) {
 	tg.cd(tg.path("."))
 	tg.run("-vgo", "version")
 }
+
+func TestImportDir(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.setenv("GOPATH", tg.path("."))
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte(`
+		package x
+		import _ "goji.io"`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte("module x"), 0666))
+	tg.must(os.MkdirAll(filepath.Join(runtime.GOROOT(), "src", "goji.io"), 0777))
+	tg.cd(tg.path("x"))
+	tg.run("-vgo", "build")
+}

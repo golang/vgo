@@ -299,8 +299,7 @@ func (ld *loader) importDir(path string) string {
 		return dir
 	}
 
-	i := strings.Index(path, "/")
-	if i < 0 || !strings.Contains(path[:i], ".") {
+	if search.IsStandardImportPath(path) {
 		if strings.HasPrefix(path, "golang_org/") {
 			return filepath.Join(cfg.GOROOT, "src/vendor", path)
 		}
