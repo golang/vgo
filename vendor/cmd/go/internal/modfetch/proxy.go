@@ -16,7 +16,6 @@ import (
 
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/semver"
-	web "cmd/go/internal/web2"
 )
 
 var proxyURL = os.Getenv("GOPROXY")
@@ -45,7 +44,7 @@ func (p *proxyRepo) ModulePath() string {
 
 func (p *proxyRepo) Versions(prefix string) ([]string, error) {
 	var data []byte
-	err := web.Get(p.url+"/@v/list", web.ReadAllBody(&data))
+	err := webGetBytes(p.url+"/@v/list", &data)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +60,7 @@ func (p *proxyRepo) Versions(prefix string) ([]string, error) {
 
 func (p *proxyRepo) latest() (*RevInfo, error) {
 	var data []byte
-	err := web.Get(p.url+"/@v/list", web.ReadAllBody(&data))
+	err := webGetBytes(p.url+"/@v/list", &data)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +90,7 @@ func (p *proxyRepo) latest() (*RevInfo, error) {
 
 func (p *proxyRepo) Stat(rev string) (*RevInfo, error) {
 	var data []byte
-	err := web.Get(p.url+"/@v/"+pathEscape(rev)+".info", web.ReadAllBody(&data))
+	err := webGetBytes(p.url+"/@v/"+pathEscape(rev)+".info", &data)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,7 @@ func (p *proxyRepo) Stat(rev string) (*RevInfo, error) {
 func (p *proxyRepo) Latest() (*RevInfo, error) {
 	var data []byte
 	u := p.url + "/@latest"
-	err := web.Get(u, web.ReadAllBody(&data))
+	err := webGetBytes(u, &data)
 	if err != nil {
 		// TODO return err if not 404
 		return p.latest()
@@ -119,7 +118,7 @@ func (p *proxyRepo) Latest() (*RevInfo, error) {
 
 func (p *proxyRepo) GoMod(version string) ([]byte, error) {
 	var data []byte
-	err := web.Get(p.url+"/@v/"+pathEscape(version)+".mod", web.ReadAllBody(&data))
+	err := webGetBytes(p.url+"/@v/"+pathEscape(version)+".mod", &data)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +127,7 @@ func (p *proxyRepo) GoMod(version string) ([]byte, error) {
 
 func (p *proxyRepo) Zip(version string, tmpdir string) (tmpfile string, err error) {
 	var body io.ReadCloser
-	err = web.Get(p.url+"/@v/"+pathEscape(version)+".zip", web.Body(&body))
+	err = webGetBody(p.url+"/@v/"+pathEscape(version)+".zip", &body)
 	if err != nil {
 		return "", err
 	}

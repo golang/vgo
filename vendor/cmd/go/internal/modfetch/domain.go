@@ -16,7 +16,6 @@ import (
 
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/modfetch/gitrepo"
-	web "cmd/go/internal/web2"
 )
 
 // metaImport represents the parsed <meta name="go-import"
@@ -34,11 +33,7 @@ func lookupCustomDomain(path string) (Repo, error) {
 		return nil, fmt.Errorf("unknown module %s: not a domain name", path)
 	}
 	var body io.ReadCloser
-	err := web.Get(
-		"https://"+path+"?go-get=1",
-		web.Non200OK(),
-		web.Body(&body),
-	)
+	err := webGetGoGet("https://"+path+"?go-get=1", &body)
 	if body != nil {
 		defer body.Close()
 	}
