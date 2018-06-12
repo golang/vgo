@@ -84,7 +84,7 @@ func runGet(cmd *base.Command, args []string) {
 			vers = "latest"
 		}
 		if vers == "none" {
-			downgrade = append(downgrade, module.Version{path, ""})
+			downgrade = append(downgrade, module.Version{Path: path, Version: ""})
 		} else {
 			info, err := modfetch.Query(path, vers, allowed)
 			if err != nil {

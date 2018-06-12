@@ -81,7 +81,7 @@ func buildList(target module.Version, reqs Reqs, uses map[module.Version][]modul
 			}
 			if _, ok := vers[r.Path]; !ok {
 				vers[r.Path] = v
-				list = append(list, module.Version{r.Path, v})
+				list = append(list, module.Version{Path: r.Path, Version: v})
 			}
 		}
 	}
@@ -183,7 +183,7 @@ func UpgradeAll(target module.Version, reqs Reqs) ([]module.Version, error) {
 			}
 			if !have[r.Path] {
 				have[r.Path] = true
-				list = append(list, module.Version{r.Path, latest.Version})
+				list = append(list, module.Version{Path: r.Path, Version: latest.Version})
 			}
 		}
 	}

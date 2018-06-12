@@ -217,7 +217,7 @@ func Test(t *testing.T) {
 		}
 	}
 	m := func(s string) module.Version {
-		return module.Version{s[:1], s[1:]}
+		return module.Version{Path: s[:1], Version: s[1:]}
 	}
 	ms := func(list []string) []module.Version {
 		var mlist []module.Version
@@ -350,7 +350,7 @@ func (r reqsMap) Latest(path string) (module.Version, error) {
 		}
 	}
 	if m.Path == "" {
-		return module.Version{}, &MissingModuleError{module.Version{path, ""}}
+		return module.Version{}, &MissingModuleError{module.Version{Path: path, Version: ""}}
 	}
 	return m, nil
 }
@@ -363,7 +363,7 @@ func (r reqsMap) Previous(m module.Version) (module.Version, error) {
 		}
 	}
 	if p.Path == "" {
-		return module.Version{m.Path, "none"}, nil
+		return module.Version{Path: m.Path, Version: "none"}, nil
 	}
 	return p, nil
 }

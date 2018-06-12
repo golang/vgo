@@ -331,7 +331,7 @@ func findMissing(m missing) {
 	}
 	found[root] = true
 	fmt.Fprintf(os.Stderr, "vgo: adding %s %s\n", root, info.Version)
-	buildList = append(buildList, module.Version{root, info.Version})
+	buildList = append(buildList, module.Version{Path: root, Version: info.Version})
 	modFile.AddRequire(root, info.Version)
 }
 
@@ -422,7 +422,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if !semver.IsValid(mod.Version) {
 		// Disallow the broader queries supported by fetch.Lookup.
 		panic(fmt.Errorf("invalid semantic version %q for %s", mod.Version, mod.Path))
-		return nil, fmt.Errorf("invalid semantic version %q", mod.Version)
+		// TODO: return nil, fmt.Errorf("invalid semantic version %q", mod.Version)
 	}
 
 	gomod := filepath.Join(srcV, "cache", mod.Path, "@v", mod.Version+".mod")

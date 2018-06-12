@@ -37,7 +37,7 @@ func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, erro
 		// TODO: This turns query for "v2" into Stat "v2.0.0",
 		// but probably it should allow checking for a branch named "v2".
 		vers = semver.Canonical(vers)
-		if allowed != nil && !allowed(module.Version{path, vers}) {
+		if allowed != nil && !allowed(module.Version{Path: path, Version: vers}) {
 			return nil, fmt.Errorf("%s@%s excluded", path, vers)
 		}
 		return repo.Stat(vers)
@@ -59,19 +59,19 @@ func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, erro
 		}
 		if vers == "latest" {
 			for i := len(versions) - 1; i >= 0; i-- {
-				if allowed == nil || allowed(module.Version{path, versions[i]}) {
+				if allowed == nil || allowed(module.Version{Path: path, Version: versions[i]}) {
 					return repo.Stat(versions[i])
 				}
 			}
 		} else if op == "<" {
 			for i := len(versions) - 1; i >= 0; i-- {
-				if semver.Compare(versions[i], vers) < 0 && (allowed == nil || allowed(module.Version{path, versions[i]})) {
+				if semver.Compare(versions[i], vers) < 0 && (allowed == nil || allowed(module.Version{Path: path, Version: versions[i]})) {
 					return repo.Stat(versions[i])
 				}
 			}
 		} else {
 			for i := 0; i < len(versions); i++ {
-				if semver.Compare(versions[i], vers) > 0 && (allowed == nil || allowed(module.Version{path, versions[i]})) {
+				if semver.Compare(versions[i], vers) > 0 && (allowed == nil || allowed(module.Version{Path: path, Version: versions[i]})) {
 					return repo.Stat(versions[i])
 				}
 			}
