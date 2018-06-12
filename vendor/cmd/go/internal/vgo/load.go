@@ -60,7 +60,26 @@ func AddImports(gofiles []string) {
 		ld.importList(imports, levelBuild)
 		ld.importList(testImports, levelBuild)
 	})
-	writeGoMod()
+	WriteGoMod()
+}
+
+// LoadBuildList loads the build list from go.mod.
+// The loading of the build list happens automatically in ImportPaths:
+// LoadBuildList need only be called if ImportPaths is not
+// (typically in commands that care about the module but
+// no particular package).
+func LoadBuildList() {
+	if Init(); !Enabled() {
+		base.Fatalf("vgo: LoadBuildList called but vgo not enabled")
+	}
+	InitMod()
+	iterate(func(*loader) {})
+	WriteGoMod()
+}
+
+// PkgMod returns a map from package import path to the module supplying that package.
+func PkgMod() map[string]module.Version {
+	return pkgmod
 }
 
 func ImportPaths(args []string) []string {
@@ -70,7 +89,7 @@ func ImportPaths(args []string) []string {
 	InitMod()
 
 	paths := importPaths(args)
-	writeGoMod()
+	WriteGoMod()
 	return paths
 }
 

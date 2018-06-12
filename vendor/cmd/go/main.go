@@ -27,6 +27,7 @@ import (
 	"cmd/go/internal/get"
 	"cmd/go/internal/help"
 	"cmd/go/internal/list"
+	"cmd/go/internal/modcmd"
 	"cmd/go/internal/run"
 	"cmd/go/internal/test"
 	"cmd/go/internal/tool"
@@ -49,6 +50,7 @@ func init() {
 		get.CmdGet,
 		work.CmdInstall,
 		list.CmdList,
+		modcmd.CmdMod,
 		run.CmdRun,
 		test.CmdTest,
 		tool.CmdTool,
@@ -124,9 +126,16 @@ func Main() {
 		os.Exit(2)
 	}
 
-	vgo.Init()
-	if !vgo.MustBeVgo {
-		if vgo.Enabled() {
+	// Run vgo.Init so that each subcommand doesn't have to worry about it.
+	// Also install the vgo get command instead of the old go get command in vgo mode.
+	//
+	// If we should be vgo (if the command is named vgo or if invoked as go -vgo),
+	// and there is no go.mod file, vgo.Init will treat that as a fatal error.
+	// Normally that's fine, but if this is 'go mod -init' we need to give it a
+	// chance to create that go.mod file, so skip the init dance for 'go mod'.
+	if args[0] != "mod" {
+		vgo.Init()
+		if !vgo.MustBeVgo && vgo.Enabled() {
 			// Didn't do this above, so do it now.
 			*get.CmdGet = *vgo.CmdGet
 		}

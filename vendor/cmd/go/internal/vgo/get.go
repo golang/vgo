@@ -141,7 +141,7 @@ func runGet(cmd *base.Command, args []string) {
 			}
 		*/
 	}
-	writeGoMod()
+	WriteGoMod()
 
 	if len(args) > 0 {
 		InstallHook(args)

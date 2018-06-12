@@ -18,6 +18,7 @@ import (
 	"cmd/go/internal/semver"
 )
 
+// A File is the parsed, interpreted form of a go.mod file.
 type File struct {
 	Module  *Module
 	Require []*Require
@@ -27,38 +28,45 @@ type File struct {
 	Syntax *FileSyntax
 }
 
+// A Module is the module statement.
 type Module struct {
-	Mod   module.Version
-	Major string
+	Mod    module.Version
+	Syntax *Line
 }
 
+// A Require is a single require statement.
 type Require struct {
 	Mod    module.Version
 	Syntax *Line
 }
 
+// An Exclude is a single exclude statement.
 type Exclude struct {
 	Mod    module.Version
 	Syntax *Line
 }
 
+// A Replace is a single replace statement.
 type Replace struct {
-	Old module.Version
-	New module.Version
-
+	Old    module.Version
+	New    module.Version
 	Syntax *Line
 }
 
-func (f *File) AddModuleStmt(path string) {
-	f.Module = &Module{
-		Mod: module.Version{Path: path},
-	}
+func (f *File) AddModuleStmt(path string) error {
 	if f.Syntax == nil {
 		f.Syntax = new(FileSyntax)
 	}
-	f.Syntax.Stmt = append(f.Syntax.Stmt, &Line{
-		Token: []string{"module", AutoQuote(path)},
-	})
+	if f.Module == nil {
+		f.Module = &Module{
+			Mod:    module.Version{Path: path},
+			Syntax: f.Syntax.addLine(nil, "module", AutoQuote(path)),
+		}
+	} else {
+		f.Module.Mod.Path = path
+		f.Syntax.updateLine(f.Module.Syntax, "module", AutoQuote(path))
+	}
+	return nil
 }
 
 func (f *File) AddComment(text string) {
@@ -135,7 +143,7 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			fmt.Fprintf(errs, "%s:%d: repeated module statement\n", f.Syntax.Name, line.Start.Line)
 			return
 		}
-		f.Module = new(Module)
+		f.Module = &Module{Syntax: line}
 		if len(args) != 1 {
 
 			fmt.Fprintf(errs, "%s:%d: usage: module module/path [version]\n", f.Syntax.Name, line.Start.Line)
@@ -215,7 +223,7 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 		}
 		nv := ""
 		if len(args) == 4 {
-			if !isDirectoryPath(ns) {
+			if !IsDirectoryPath(ns) {
 				fmt.Fprintf(errs, "%s:%d: replacement module without version must be directory path (rooted or starting with ./ or ../)", f.Syntax.Name, line.Start.Line)
 				return
 			}
@@ -231,7 +239,7 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 				fmt.Fprintf(errs, "%s:%d: invalid module version %v: %v\n", f.Syntax.Name, line.Start.Line, old, err)
 				return
 			}
-			if isDirectoryPath(ns) {
+			if IsDirectoryPath(ns) {
 				fmt.Fprintf(errs, "%s:%d: replacement module directory path %q cannot have version", f.Syntax.Name, line.Start.Line, ns)
 				return
 			}
@@ -245,7 +253,10 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 	}
 }
 
-func isDirectoryPath(ns string) bool {
+// IsDirectoryPath reports whether the given path should be interpreted
+// as a directory path. Just like on the go command line, relative paths
+// and rooted paths are directory paths; the rest are module paths.
+func IsDirectoryPath(ns string) bool {
 	// Because go.mod files can move from one system to another,
 	// we check all known path syntaxes, both Unix and Windows.
 	return strings.HasPrefix(ns, "./") || strings.HasPrefix(ns, "../") || strings.HasPrefix(ns, "/") ||
@@ -253,19 +264,21 @@ func isDirectoryPath(ns string) bool {
 		len(ns) >= 2 && ('A' <= ns[0] && ns[0] <= 'Z' || 'a' <= ns[0] && ns[0] <= 'z') && ns[1] == ':'
 }
 
-func mustQuote(t string) bool {
-	for _, r := range t {
+// MustQuote reports whether s must be quoted in order to appear as
+// a single token in a go.mod line.
+func MustQuote(s string) bool {
+	for _, r := range s {
 		if !unicode.IsPrint(r) || r == ' ' || r == '"' || r == '\'' || r == '`' {
 			return true
 		}
 	}
-	return t == "" || strings.Contains(t, "//") || strings.Contains(t, "/*")
+	return s == "" || strings.Contains(s, "//") || strings.Contains(s, "/*")
 }
 
 // AutoQuote returns s or, if quoting is required for s to appear in a go.mod,
 // the quotation of s.
 func AutoQuote(s string) string {
-	if mustQuote(s) {
+	if MustQuote(s) {
 		return strconv.Quote(s)
 	}
 	return s
@@ -339,39 +352,64 @@ func (f *File) Format() ([]byte, error) {
 	return Format(f.Syntax), nil
 }
 
-func (x *File) AddRequire(path, vers string) {
-	var syntax *Line
+// Cleanup cleans up the file f after any edit operations.
+// To avoid quadratic behavior, modifications like DropRequire
+// clear the entry but do not remove it from the slice.
+// Cleanup cleans out all the cleared entries.
+func (f *File) Cleanup() {
+	w := 0
+	for _, r := range f.Require {
+		if r.Mod.Path != "" {
+			f.Require[w] = r
+			w++
+		}
+	}
+	f.Require = f.Require[:w]
 
-	for i, stmt := range x.Syntax.Stmt {
-		switch stmt := stmt.(type) {
-		case *LineBlock:
-			if len(stmt.Token) > 0 && stmt.Token[0] == "require" {
-				syntax = &Line{Token: []string{AutoQuote(path), vers}}
-				stmt.Line = append(stmt.Line, syntax)
-				goto End
-			}
-		case *Line:
-			if len(stmt.Token) > 0 && stmt.Token[0] == "require" {
-				stmt.Token = stmt.Token[1:]
-				syntax = &Line{Token: []string{AutoQuote(path), vers}}
-				x.Syntax.Stmt[i] = &LineBlock{
-					Comments: stmt.Comments,
-					Token:    []string{"require"},
-					Line: []*Line{
-						stmt,
-						syntax,
-					},
-				}
-				goto End
+	w = 0
+	for _, x := range f.Exclude {
+		if x.Mod.Path != "" {
+			f.Exclude[w] = x
+			w++
+		}
+	}
+	f.Exclude = f.Exclude[:w]
+
+	w = 0
+	for _, r := range f.Replace {
+		if r.Old.Path != "" {
+			f.Replace[w] = r
+			w++
+		}
+	}
+	f.Replace = f.Replace[:w]
+
+	f.Syntax.Cleanup()
+}
+
+func (f *File) AddRequire(path, vers string) error {
+	need := true
+	for _, r := range f.Require {
+		if r.Mod.Path == path {
+			if need {
+				r.Mod.Version = vers
+				f.Syntax.updateLine(r.Syntax, "require", AutoQuote(path), vers)
+				need = false
+			} else {
+				f.Syntax.removeLine(r.Syntax)
+				*r = Require{}
 			}
 		}
 	}
 
-	syntax = &Line{Token: []string{"require", AutoQuote(path), vers}}
-	x.Syntax.Stmt = append(x.Syntax.Stmt, syntax)
+	if need {
+		f.AddNewRequire(path, vers)
+	}
+	return nil
+}
 
-End:
-	x.Require = append(x.Require, &Require{module.Version{Path: path, Version: vers}, syntax})
+func (f *File) AddNewRequire(path, vers string) {
+	f.Require = append(f.Require, &Require{module.Version{Path: path, Version: vers}, f.Syntax.addLine(nil, "require", AutoQuote(path), vers)})
 }
 
 func (f *File) SetRequire(req []module.Version) {
@@ -420,9 +458,87 @@ func (f *File) SetRequire(req []module.Version) {
 	f.Syntax.Stmt = newStmts
 
 	for path, vers := range need {
-		f.AddRequire(path, vers)
+		f.AddNewRequire(path, vers)
 	}
 	f.SortBlocks()
+}
+
+func (f *File) DropRequire(path string) error {
+	for _, r := range f.Require {
+		if r.Mod.Path == path {
+			f.Syntax.removeLine(r.Syntax)
+			*r = Require{}
+		}
+	}
+	return nil
+}
+
+func (f *File) AddExclude(path, vers string) error {
+	var hint *Line
+	for _, x := range f.Exclude {
+		if x.Mod.Path == path && x.Mod.Version == vers {
+			return nil
+		}
+		if x.Mod.Path == path {
+			hint = x.Syntax
+		}
+	}
+
+	f.Exclude = append(f.Exclude, &Exclude{Mod: module.Version{Path: path, Version: vers}, Syntax: f.Syntax.addLine(hint, "exclude", AutoQuote(path), vers)})
+	return nil
+}
+
+func (f *File) DropExclude(path, vers string) error {
+	for _, x := range f.Exclude {
+		if x.Mod.Path == path && x.Mod.Version == vers {
+			f.Syntax.removeLine(x.Syntax)
+			*x = Exclude{}
+		}
+	}
+	return nil
+}
+
+func (f *File) AddReplace(oldPath, oldVers, newPath, newVers string) error {
+	need := true
+	old := module.Version{Path: oldPath, Version: oldVers}
+	new := module.Version{Path: newPath, Version: newVers}
+	tokens := []string{"replace", AutoQuote(oldPath), oldVers, "=>", AutoQuote(newPath)}
+	if newVers != "" {
+		tokens = append(tokens, newVers)
+	}
+
+	var hint *Line
+	for _, r := range f.Replace {
+		if r.Old == old {
+			if need {
+				// Found replacement for old; update to use new.
+				r.New = new
+				f.Syntax.updateLine(r.Syntax, tokens...)
+				need = false
+				continue
+			}
+			// Already added; delete other replacements for same.
+			f.Syntax.removeLine(r.Syntax)
+			*r = Replace{}
+		}
+		if r.Old.Path == oldPath {
+			hint = r.Syntax
+		}
+	}
+	if need {
+		f.Replace = append(f.Replace, &Replace{Old: old, New: new, Syntax: f.Syntax.addLine(hint, tokens...)})
+	}
+	return nil
+}
+
+func (f *File) DropReplace(oldPath, oldVers string) error {
+	for _, r := range f.Replace {
+		if r.Old.Path == oldPath && r.Old.Version == oldVers {
+			f.Syntax.removeLine(r.Syntax)
+			*r = Replace{}
+		}
+	}
+	return nil
 }
 
 func (f *File) SortBlocks() {

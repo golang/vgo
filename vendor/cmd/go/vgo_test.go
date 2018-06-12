@@ -5,8 +5,7 @@
 package Main_test
 
 import (
-	"cmd/go/internal/modconv"
-	"cmd/go/internal/vgo"
+	"bytes"
 	"internal/testenv"
 	"io/ioutil"
 	"os"
@@ -14,6 +13,9 @@ import (
 	"runtime"
 	"sort"
 	"testing"
+
+	"cmd/go/internal/modconv"
+	"cmd/go/internal/vgo"
 )
 
 func TestVGOROOT(t *testing.T) {
@@ -79,6 +81,146 @@ func TestFindModulePath(t *testing.T) {
 		t.Fatalf("FindModulePath = %q, want %q", path, "x")
 	}
 }
+
+func TestModEdit(t *testing.T) {
+	// Test that local replacements work
+	// and that they can use a dummy name
+	// that isn't resolvable and need not even
+	// include a dot. See golang.org/issue/24100.
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+	tg.cd(tg.path("."))
+	tg.must(os.MkdirAll(tg.path("w"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x.go"), []byte("package x\n"), 0666))
+	tg.must(ioutil.WriteFile(tg.path("w/w.go"), []byte("package w\n"), 0666))
+
+	mustHaveGoMod := func(text string) {
+		data, err := ioutil.ReadFile(tg.path("go.mod"))
+		tg.must(err)
+		if string(data) != text {
+			t.Fatalf("go.mod mismatch:\nhave:<<<\n%s>>>\nwant:<<<\n%s\n", string(data), text)
+		}
+	}
+
+	tg.runFail("-vgo", "mod", "-init")
+	tg.grepStderr(`cannot determine module path`, "")
+	_, err := os.Stat(tg.path("go.mod"))
+	if err == nil {
+		t.Fatalf("failed go mod -init created go.mod")
+	}
+
+	tg.run("-vgo", "mod", "-init", "-module", "x.x/y/z")
+	tg.grepStderr("creating new go.mod: module x.x/y/z", "")
+	mustHaveGoMod(`module x.x/y/z
+`)
+
+	tg.runFail("-vgo", "mod", "-init")
+	mustHaveGoMod(`module x.x/y/z
+`)
+
+	tg.run("-vgo", "mod",
+		"-droprequire=x.1",
+		"-addrequire=x.1@v1.0.0",
+		"-addrequire=x.2@v1.1.0",
+		"-droprequire=x.2",
+		"-addexclude=x.1 @ v1.2.0",
+		"-addexclude=x.1@v1.2.1",
+		"-addreplace=x.1@v1.3.0=>y.1@v1.4.0",
+		"-addreplace=x.1@v1.4.0 => ../z",
+	)
+	mustHaveGoMod(`module x.x/y/z
+
+require x.1 v1.0.0
+
+exclude (
+	x.1 v1.2.0
+	x.1 v1.2.1
+)
+
+replace (
+	x.1 v1.3.0 => y.1 v1.4.0
+	x.1 v1.4.0 => ../z
+)
+`)
+
+	tg.run("-vgo", "mod",
+		"-droprequire=x.1",
+		"-dropexclude=x.1@v1.2.1",
+		"-dropreplace=x.1@v1.3.0",
+		"-addrequire=x.3@v1.99.0",
+	)
+	mustHaveGoMod(`module x.x/y/z
+
+exclude x.1 v1.2.0
+
+replace x.1 v1.4.0 => ../z
+
+require x.3 v1.99.0
+`)
+
+	tg.run("-vgo", "mod", "-json")
+	want := `{
+	"Module": {
+		"Path": "x.x/y/z",
+		"Version": ""
+	},
+	"Require": [
+		{
+			"Path": "x.3",
+			"Version": "v1.99.0"
+		}
+	],
+	"Exclude": [
+		{
+			"Path": "x.1",
+			"Version": "v1.2.0"
+		}
+	],
+	"Replace": [
+		{
+			"Old": {
+				"Path": "x.1",
+				"Version": "v1.4.0"
+			},
+			"New": {
+				"Path": "../z",
+				"Version": ""
+			}
+		}
+	]
+}
+`
+	if have := tg.getStdout(); have != want {
+		t.Fatalf("go mod -json mismatch:\nhave:<<<\n%s>>>\nwant:<<<\n%s\n", have, want)
+	}
+
+	tg.run("-vgo", "mod", "-packages")
+	want = `x.x/y/z
+x.x/y/z/w
+`
+	if have := tg.getStdout(); have != want {
+		t.Fatalf("go mod -packages mismatch:\nhave:<<<\n%s>>>\nwant:<<<\n%s\n", have, want)
+	}
+
+	data, err := ioutil.ReadFile(tg.path("go.mod"))
+	tg.must(err)
+	data = bytes.Replace(data, []byte("\n"), []byte("\r\n"), -1)
+	data = append(data, "    \n"...)
+	tg.must(ioutil.WriteFile(tg.path("go.mod"), data, 0666))
+
+	tg.run("-vgo", "mod", "-fmt")
+	mustHaveGoMod(`module x.x/y/z
+
+exclude x.1 v1.2.0
+
+replace x.1 v1.4.0 => ../z
+
+require x.3 v1.99.0
+`)
+}
+
+// TODO(rsc): Test mod -sync, mod -fix (network required).
 
 func TestLocalModule(t *testing.T) {
 	// Test that local replacements work

@@ -44,9 +44,7 @@ func runVerify(cmd *base.Command, args []string) {
 	}
 
 	// Make go.mod consistent but don't load any packages.
-	InitMod()
-	iterate(func(*loader) {})
-	writeGoMod()
+	LoadBuildList()
 
 	ok := true
 	for _, mod := range buildList[1:] {
