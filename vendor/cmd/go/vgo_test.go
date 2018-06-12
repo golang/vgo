@@ -284,7 +284,7 @@ func TestFillGoMod(t *testing.T) {
 	defer tg.cleanup()
 	tg.makeTempdir()
 
-	tg.setenv("HOME", tg.path("."))
+	tg.setenv(homeEnvName(), tg.path("."))
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`
 		package x
@@ -352,6 +352,8 @@ func TestConvertLegacyConfig(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.makeTempdir()
+
+	tg.setenv(homeEnvName(), tg.path("."))
 
 	// Testing that on Windows the path x/Gopkg.lock turning into x\Gopkg.lock does not confuse converter.
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
