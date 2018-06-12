@@ -84,6 +84,10 @@ func runVendor(cmd *base.Command, args []string) {
 			}
 		}
 	}
+	if buf.Len() == 0 {
+		fmt.Fprintf(os.Stderr, "vgo: no dependencies to vendor\n")
+		return
+	}
 	if err := ioutil.WriteFile(filepath.Join(vdir, "vgo.list"), buf.Bytes(), 0666); err != nil {
 		base.Fatalf("vgo vendor: %v", err)
 	}

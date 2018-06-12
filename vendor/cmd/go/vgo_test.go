@@ -357,3 +357,16 @@ func TestVerifyNotDownloaded(t *testing.T) {
 	tg.mustNotExist(filepath.Join(tg.path("gp"), "/src/v/cache/github.com/pkg/errors/@v/v0.8.0.zip"))
 	tg.mustNotExist(filepath.Join(tg.path("gp"), "/src/v/github.com/pkg"))
 }
+
+func TestVendorWithoutDeps(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte(`package x`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`module x`), 0666))
+	tg.cd(tg.path("x"))
+	tg.run("-vgo", "vendor")
+	tg.grepStderr("vgo: no dependencies to vendor", "print vendor info")
+}
