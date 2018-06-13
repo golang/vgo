@@ -650,39 +650,3 @@ func TestNonCanonicalSemver(t *testing.T) {
 		t.Fatal("unexpected versions returned:", v)
 	}
 }
-
-var modPathTests = []struct {
-	input    []byte
-	expected string
-}{
-	{input: []byte("module \"github.com/rsc/vgotest\""), expected: "github.com/rsc/vgotest"},
-	{input: []byte("module github.com/rsc/vgotest"), expected: "github.com/rsc/vgotest"},
-	{input: []byte("module  \"github.com/rsc/vgotest\""), expected: "github.com/rsc/vgotest"},
-	{input: []byte("module  github.com/rsc/vgotest"), expected: "github.com/rsc/vgotest"},
-	{input: []byte("module `github.com/rsc/vgotest`"), expected: "github.com/rsc/vgotest"},
-	{input: []byte("module \"github.com/rsc/vgotest/v2\""), expected: "github.com/rsc/vgotest/v2"},
-	{input: []byte("module github.com/rsc/vgotest/v2"), expected: "github.com/rsc/vgotest/v2"},
-	{input: []byte("module \"gopkg.in/yaml.v2\""), expected: "gopkg.in/yaml.v2"},
-	{input: []byte("module gopkg.in/yaml.v2"), expected: "gopkg.in/yaml.v2"},
-	{input: []byte("module \"gopkg.in/check.v1\"\n"), expected: "gopkg.in/check.v1"},
-	{input: []byte("module \"gopkg.in/check.v1\n\""), expected: ""},
-	{input: []byte("module gopkg.in/check.v1\n"), expected: "gopkg.in/check.v1"},
-	{input: []byte("module \"gopkg.in/check.v1\"\r\n"), expected: "gopkg.in/check.v1"},
-	{input: []byte("module gopkg.in/check.v1\r\n"), expected: "gopkg.in/check.v1"},
-	{input: []byte("module \"gopkg.in/check.v1\"\n\n"), expected: "gopkg.in/check.v1"},
-	{input: []byte("module gopkg.in/check.v1\n\n"), expected: "gopkg.in/check.v1"},
-	{input: []byte("module \n\"gopkg.in/check.v1\"\n\n"), expected: ""},
-	{input: []byte("module \ngopkg.in/check.v1\n\n"), expected: ""},
-	{input: []byte("module \"gopkg.in/check.v1\"asd"), expected: ""},
-}
-
-func TestModPath(t *testing.T) {
-	for _, test := range modPathTests {
-		t.Run(string(test.input), func(t *testing.T) {
-			result := modPath(test.input)
-			if result != test.expected {
-				t.Fatalf("modPath(%s): %s, want %s", string(test.input), result, test.expected)
-			}
-		})
-	}
-}
