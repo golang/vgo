@@ -346,7 +346,7 @@ func (ld *loader) importDir(path string) string {
 	return ""
 }
 
-// Replacement the replacement for mod, if any, from go.mod.
+// Replacement returns the replacement for mod, if any, from go.mod.
 // If there is no replacement for mod, Replacement returns
 // a module.Version with Path == "".
 func Replacement(mod module.Version) module.Version {

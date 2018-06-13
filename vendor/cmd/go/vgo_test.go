@@ -325,7 +325,7 @@ func TestGetModuleVersion(t *testing.T) {
 		require github.com/gobuffalo/uuid v1.1.0
 	`), 0666))
 	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v2.0.0")
-	tg.run("-vgo", "list", "-m")
+	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout("github.com/gobuffalo/uuid.*v0.0.0-20180207211247-3a9fb6c5c481", "did downgrade to v0.0.0-*")
 
 	tooSlow(t)
@@ -335,15 +335,16 @@ func TestGetModuleVersion(t *testing.T) {
 		require github.com/gobuffalo/uuid v1.2.0
 	`), 0666))
 	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v1.1.0")
-	tg.run("-vgo", "list", "-m")
-	tg.grepStdout("github.com/gobuffalo/uuid.*v1.1.0", "did downgrade to v1.1.0")
+	tg.run("-vgo", "list", "-m", "-u", "all")
+	tg.grepStdout(`github.com/gobuffalo/uuid v1.1.0`, "did downgrade to v1.1.0")
+	tg.grepStdout(`github.com/gobuffalo/uuid v1.1.0 \[v1`, "did show upgrade to v1.2.0 or later")
 
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
 		module x
 		require github.com/gobuffalo/uuid v1.1.0
 	`), 0666))
 	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v1.2.0")
-	tg.run("-vgo", "list", "-m")
+	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout("github.com/gobuffalo/uuid.*v1.2.0", "did upgrade to v1.2.0")
 }
 
@@ -433,7 +434,7 @@ package sub
 	tg.grepStderr(`^unused y.1`, "need y.1 unused")
 	tg.grepStderrNot(`^unused [^y]`, "only y.1 should be unused")
 
-	tg.run("-vgo", "list", "-m")
+	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdoutNot(`^y.1`, "y should be gone")
 	tg.grepStdout(`^w.1\s+v1.2.0`, "need w.1 to stay at v1.2.0")
 	tg.grepStdout(`^z.1\s+v1.2.0`, "need z.1 to stay at v1.2.0 even though y is gone")
@@ -447,7 +448,7 @@ func TestVgoVendor(t *testing.T) {
 	tg.cd(filepath.Join(wd, "testdata/vendormod"))
 	defer os.RemoveAll(filepath.Join(wd, "testdata/vendormod/vendor"))
 
-	tg.run("-vgo", "list", "-m")
+	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout(`^x`, "expected to see module x")
 	tg.grepStdout(`=> ./x`, "expected to see replacement for module x")
 	tg.grepStdout(`^w`, "expected to see module w")
@@ -473,7 +474,13 @@ func TestVgoVendor(t *testing.T) {
 	tg.run("-vgo", "list", "-f={{.Dir}}", "x")
 	tg.grepStdout(`vendormod[/\\]x$`, "expected x in vendormod/x")
 
+	tg.run("-vgo", "list", "-f={{.Dir}}", "-m", "x")
+	tg.grepStdout(`vendormod[/\\]x$`, "expected x in vendormod/x")
+
 	tg.run("-vgo", "list", "-getmode=vendor", "-f={{.Dir}}", "x")
+	tg.grepStdout(`vendormod[/\\]vendor[/\\]x$`, "expected x in vendormod/vendor/x in -get=vendor mode")
+
+	tg.run("-vgo", "list", "-getmode=vendor", "-f={{.Dir}}", "-m", "x")
 	tg.grepStdout(`vendormod[/\\]vendor[/\\]x$`, "expected x in vendormod/vendor/x in -get=vendor mode")
 
 	tg.run("-vgo", "list", "-f={{.Dir}}", "w")
@@ -520,7 +527,7 @@ func TestFillGoMod(t *testing.T) {
 	tg.cd(tg.path("x"))
 	tg.run("-vgo", "build", "-v")
 	tg.grepStderr("copying requirements from .*Gopkg.lock", "did not copy Gopkg.lock")
-	tg.run("-vgo", "list", "-m")
+	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStderrNot("copying requirements from .*Gopkg.lock", "should not copy Gopkg.lock again")
 	tg.grepStdout("rsc.io/sampler.*v1.0.0", "did not copy Gopkg.lock")
 
@@ -619,7 +626,7 @@ func TestConvertLegacyConfig(t *testing.T) {
 		version = "v0.6.0"`), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte("package x // import \"x\"\n import _ \"github.com/pkg/errors\""), 0666))
 	tg.cd(tg.path("x"))
-	tg.run("-vgo", "list", "-m")
+	tg.run("-vgo", "list", "-m", "all")
 
 	// If the conversion just ignored the Gopkg.lock entirely
 	// it would choose a newer version (like v0.8.0 or maybe

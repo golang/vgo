@@ -50,21 +50,22 @@ type PackagePublic struct {
 	// Note: These fields are part of the go command's public API.
 	// See list.go. It is okay to add fields, but not to change or
 	// remove existing ones. Keep in sync with list.go
-	Dir           string `json:",omitempty"` // directory containing package sources
-	ImportPath    string `json:",omitempty"` // import path of package in dir
-	ImportComment string `json:",omitempty"` // path in import comment on package statement
-	Name          string `json:",omitempty"` // package name
-	Doc           string `json:",omitempty"` // package documentation string
-	Target        string `json:",omitempty"` // installed target for this package (may be executable)
-	Shlib         string `json:",omitempty"` // the shared library that contains this package (only set when -linkshared)
-	Goroot        bool   `json:",omitempty"` // is this package found in the Go root?
-	Standard      bool   `json:",omitempty"` // is this package part of the standard Go library?
-	Root          string `json:",omitempty"` // Go root or Go path dir containing this package
-	ConflictDir   string `json:",omitempty"` // Dir is hidden by this other directory
-	BinaryOnly    bool   `json:",omitempty"` // package cannot be recompiled
-	ForTest       string `json:",omitempty"` // package is only for use in named test
-	DepOnly       bool   `json:",omitempty"` // package is only as a dependency, not explicitly listed
-	Export        string `json:",omitempty"` // file containing export data (set by go list -export)
+	Dir           string                `json:",omitempty"` // directory containing package sources
+	ImportPath    string                `json:",omitempty"` // import path of package in dir
+	ImportComment string                `json:",omitempty"` // path in import comment on package statement
+	Name          string                `json:",omitempty"` // package name
+	Doc           string                `json:",omitempty"` // package documentation string
+	Target        string                `json:",omitempty"` // installed target for this package (may be executable)
+	Shlib         string                `json:",omitempty"` // the shared library that contains this package (only set when -linkshared)
+	Goroot        bool                  `json:",omitempty"` // is this package found in the Go root?
+	Standard      bool                  `json:",omitempty"` // is this package part of the standard Go library?
+	Root          string                `json:",omitempty"` // Go root or Go path dir containing this package
+	ConflictDir   string                `json:",omitempty"` // Dir is hidden by this other directory
+	BinaryOnly    bool                  `json:",omitempty"` // package cannot be recompiled
+	ForTest       string                `json:",omitempty"` // package is only for use in named test
+	DepOnly       bool                  `json:",omitempty"` // package is only as a dependency, not explicitly listed
+	Export        string                `json:",omitempty"` // file containing export data (set by go list -export)
+	Module        *modinfo.ModulePublic `json:",omitempty"` // info about package's module, if any
 
 	// Stale and StaleReason remain here *only* for the list command.
 	// They are only initialized in preparation for list execution.
@@ -112,8 +113,6 @@ type PackagePublic struct {
 	TestImports  []string `json:",omitempty"` // imports from TestGoFiles
 	XTestGoFiles []string `json:",omitempty"` // _test.go files outside package
 	XTestImports []string `json:",omitempty"` // imports from XTestGoFiles
-
-	Module *modinfo.ModulePublic `json:",omitempty"` // info about package module
 }
 
 // AllFiles returns the names of all the files considered for the package.

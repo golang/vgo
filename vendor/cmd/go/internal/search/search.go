@@ -421,3 +421,10 @@ func IsStandardImportPath(path string) bool {
 	elem := path[:i]
 	return !strings.Contains(elem, ".")
 }
+
+// IsRelativePath reports whether pattern should be interpreted as a directory
+// path relative to the current directory, as opposed to a pattern matching
+// import paths.
+func IsRelativePath(pattern string) bool {
+	return strings.HasPrefix(pattern, "./") || strings.HasPrefix(pattern, "../") || pattern == "." || pattern == ".."
+}

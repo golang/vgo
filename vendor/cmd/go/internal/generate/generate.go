@@ -155,7 +155,7 @@ func runGenerate(cmd *base.Command, args []string) {
 	// Even if the arguments are .go files, this loop suffices.
 	printed := false
 	for _, pkg := range load.Packages(args) {
-		if vgo.Enabled() && !pkg.Module.Top {
+		if vgo.Enabled() && !pkg.Module.Main {
 			if !printed {
 				fmt.Fprintf(os.Stderr, "vgo: not generating in packages in dependency modules\n")
 				printed = true

@@ -8,13 +8,16 @@ import (
 	"bytes"
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
+	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modinfo"
 	"cmd/go/internal/module"
 	"cmd/go/internal/search"
+	"cmd/go/internal/semver"
 	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -34,16 +37,112 @@ func isStandardImportPath(path string) bool {
 	return false
 }
 
-func PackageModuleInfo(path string) *modinfo.ModulePublic {
-	var info modinfo.ModulePublic
-	if isStandardImportPath(path) || !Enabled() {
+func PackageModuleInfo(pkgpath string) *modinfo.ModulePublic {
+	if isStandardImportPath(pkgpath) || !Enabled() {
 		return nil
 	}
-	target := findModule(path, path)
-	info.Top = target.Path == buildList[0].Path
-	info.Path = target.Path
-	info.Version = target.Version
-	return &info
+	return moduleInfo(findModule(pkgpath, pkgpath))
+}
+
+func ModuleInfo(path string) *modinfo.ModulePublic {
+	if !Enabled() {
+		return nil
+	}
+
+	if i := strings.Index(path, "@"); i >= 0 {
+		return moduleInfo(module.Version{Path: path[:i], Version: path[i+1:]})
+	}
+
+	for _, m := range buildList {
+		if m.Path == path {
+			return moduleInfo(m)
+		}
+	}
+
+	return &modinfo.ModulePublic{
+		Path: path,
+		Error: &modinfo.ModuleError{
+			Err: "module not in current build",
+		},
+	}
+}
+
+// AddUpdate fills in m.Update if an updated version is available.
+func AddUpdate(m *modinfo.ModulePublic) {
+	addUpdate(m)
+	if m.Replace != nil {
+		addUpdate(m.Replace)
+	}
+}
+
+func addUpdate(m *modinfo.ModulePublic) {
+	if m.Version != "" {
+		if info, err := modfetch.Query(m.Path, "latest", allowed); err == nil && info.Version != m.Version {
+			m.Update = &modinfo.ModulePublic{
+				Path:    m.Path,
+				Version: info.Version,
+				Time:    &info.Time,
+			}
+		}
+	}
+}
+
+func moduleInfo(m module.Version) *modinfo.ModulePublic {
+	if m == Target {
+		return &modinfo.ModulePublic{
+			Path:    m.Path,
+			Version: m.Version,
+			Main:    true,
+		}
+	}
+
+	info := &modinfo.ModulePublic{
+		Path:    m.Path,
+		Version: m.Version,
+	}
+
+	// complete fills in the extra fields in m.
+	complete := func(m *modinfo.ModulePublic) {
+		if m.Version != "" {
+			if q, err := modfetch.Query(m.Path, m.Version, nil); err != nil {
+				m.Error = &modinfo.ModuleError{Err: err.Error()}
+			} else {
+				m.Version = q.Version
+				m.Time = &q.Time
+			}
+
+			if semver.IsValid(m.Version) {
+				dir := filepath.Join(SrcMod, m.Path+"@"+m.Version)
+				if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+					m.Dir = dir
+				}
+			}
+		}
+		if cfg.BuildGetmode == "vendor" {
+			m.Dir = filepath.Join(ModRoot, "vendor", m.Path)
+		}
+	}
+
+	complete(info)
+
+	if r := Replacement(m); r.Path != "" {
+		info.Replace = &modinfo.ModulePublic{
+			Path:    r.Path,
+			Version: r.Version,
+		}
+		if r.Version == "" {
+			if filepath.IsAbs(r.Path) {
+				info.Replace.Dir = r.Path
+			} else {
+				info.Replace.Dir = filepath.Join(ModRoot, r.Path)
+			}
+		}
+		complete(info.Replace)
+		info.Dir = info.Replace.Dir
+		info.Error = nil // ignore error loading original module version (it has been replaced)
+	}
+
+	return info
 }
 
 func PackageBuildInfo(path string, deps []string) string {

@@ -34,7 +34,7 @@ See also: go fmt, go vet.
 func runFix(cmd *base.Command, args []string) {
 	printed := false
 	for _, pkg := range load.Packages(args) {
-		if vgo.Enabled() && !pkg.Module.Top {
+		if vgo.Enabled() && !pkg.Module.Main {
 			if !printed {
 				fmt.Fprintf(os.Stderr, "vgo: not fixing packages in dependency modules\n")
 				printed = true
