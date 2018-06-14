@@ -67,8 +67,8 @@ func printListM(w io.Writer) {
 			v = "-"
 		}
 		rows = append(rows, []string{mod.Path, v})
-		if r := replaced(mod); r != nil {
-			rows = append(rows, []string{" => " + r.New.Path, r.New.Version})
+		if r := Replacement(mod); r.Path != "" {
+			rows = append(rows, []string{" => " + r.Path, r.Version})
 		}
 	}
 	printTable(w, rows)

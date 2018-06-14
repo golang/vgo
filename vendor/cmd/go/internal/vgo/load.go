@@ -78,9 +78,30 @@ func LoadBuildList() []module.Version {
 	return buildList
 }
 
-// PkgMod returns a map from package import path to the module supplying that package.
-func PkgMod() map[string]module.Version {
-	return pkgmod
+// BuildList returns the module build list,
+// typically constructed by a previous call to
+// LoadBuildList or ImportPaths.
+func BuildList() []module.Version {
+	return buildList
+}
+
+// ImportMap returns the actual package import path
+// for an import path found in source code.
+// If the given import path does not appear in the source code
+// for the packages that have been loaded, ImportMap returns the empty string.
+func ImportMap(path string) string {
+	return importmap[path]
+}
+
+// PackageDir returns the directory containing the source code
+// for the package named by the import path.
+func PackageDir(path string) string {
+	return pkgdir[path]
+}
+
+// PackageModule returns the module providing the package named by the import path.
+func PackageModule(path string) module.Version {
+	return pkgmod[path]
 }
 
 func ImportPaths(args []string) []string {
@@ -321,14 +342,20 @@ func (ld *loader) importDir(path string) string {
 	return ""
 }
 
-func replaced(mod module.Version) *modfile.Replace {
+// Replacement the replacement for mod, if any, from go.mod.
+// If there is no replacement for mod, Replacement returns
+// a module.Version with Path == "".
+func Replacement(mod module.Version) module.Version {
 	var found *modfile.Replace
 	for _, r := range modFile.Replace {
 		if r.Old == mod {
 			found = r // keep going
 		}
 	}
-	return found
+	if found == nil {
+		return module.Version{}
+	}
+	return found.New
 }
 
 func importPathInModule(path, mpath string) bool {
@@ -421,10 +448,10 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	}
 
 	origPath := mod.Path
-	if repl := replaced(mod); repl != nil {
-		if repl.New.Version == "" {
+	if repl := Replacement(mod); repl.Path != "" {
+		if repl.Version == "" {
 			// TODO: need to slip the new version into the tags list etc.
-			dir := repl.New.Path
+			dir := repl.Path
 			if !filepath.IsAbs(dir) {
 				dir = filepath.Join(ModRoot, dir)
 			}
@@ -443,7 +470,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 			}
 			return list, nil
 		}
-		mod = repl.New
+		mod = repl
 	}
 
 	if mod.Version == "none" {

@@ -26,15 +26,15 @@ import (
 // holding the root of mod's source tree.
 // It downloads the module if needed.
 func fetch(mod module.Version) (dir string, err error) {
-	if r := replaced(mod); r != nil {
-		if r.New.Version == "" {
-			dir = r.New.Path
+	if r := Replacement(mod); r.Path != "" {
+		if r.Version == "" {
+			dir = r.Path
 			if !filepath.IsAbs(dir) {
 				dir = filepath.Join(ModRoot, dir)
 			}
 			return dir, nil
 		}
-		mod = r.New
+		mod = r
 	}
 
 	modpath := mod.Path + "@" + mod.Version

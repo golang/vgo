@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package vgo
+package modcmd
 
 import (
 	"bytes"
@@ -15,48 +15,23 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/module"
+	"cmd/go/internal/vgo"
 )
 
-var CmdVendor = &base.Command{
-	UsageLine: "vendor [-v]",
-	Short:     "vendor dependencies of current module",
-	Long: `
-Vendor resets the module's vendor directory to include all
-packages needed to build and test all packages in the module
-and their dependencies.
-
-The -v flag causes vendor to print to standard error the
-module paths of the modules processed and the import paths
-of the packages copied.
-	`,
-}
-
-var vendorV = CmdVendor.Flag.Bool("v", false, "")
 var copiedDir map[string]bool
 
-func init() {
-	CmdVendor.Run = runVendor // break init cycle
-}
+func runVendor() {
+	pkgs := vgo.ImportPaths([]string{"ALL"})
 
-func runVendor(cmd *base.Command, args []string) {
-	if Init(); !Enabled() {
-		base.Fatalf("vgo vendor: cannot use -m outside module")
-	}
-	if len(args) != 0 {
-		base.Fatalf("vgo vendor: vendor takes no arguments")
-	}
-	InitMod()
-	pkgs := ImportPaths([]string{"ALL"})
-
-	vdir := filepath.Join(ModRoot, "vendor")
+	vdir := filepath.Join(vgo.ModRoot, "vendor")
 	if err := os.RemoveAll(vdir); err != nil {
 		base.Fatalf("vgo vendor: %v", err)
 	}
 
 	modpkgs := make(map[module.Version][]string)
 	for _, pkg := range pkgs {
-		m := pkgmod[pkg]
-		if m == Target {
+		m := vgo.PackageModule(pkg)
+		if m == vgo.Target {
 			continue
 		}
 		modpkgs[m] = append(modpkgs[m], pkg)
@@ -64,22 +39,22 @@ func runVendor(cmd *base.Command, args []string) {
 
 	var buf bytes.Buffer
 	copiedDir = make(map[string]bool)
-	for _, m := range buildList[1:] {
+	for _, m := range vgo.BuildList()[1:] {
 		if pkgs := modpkgs[m]; len(pkgs) > 0 {
 			repl := ""
-			if r := replaced(m); r != nil {
-				repl = " => " + r.New.Path
-				if r.New.Version != "" {
-					repl += " " + r.New.Version
+			if r := vgo.Replacement(m); r.Path != "" {
+				repl = " => " + r.Path
+				if r.Version != "" {
+					repl += " " + r.Version
 				}
 			}
 			fmt.Fprintf(&buf, "# %s %s%s\n", m.Path, m.Version, repl)
-			if *vendorV {
+			if *modV {
 				fmt.Fprintf(os.Stderr, "# %s %s%s\n", m.Path, m.Version, repl)
 			}
 			for _, pkg := range pkgs {
 				fmt.Fprintf(&buf, "%s\n", pkg)
-				if *vendorV {
+				if *modV {
 					fmt.Fprintf(os.Stderr, "%s\n", pkg)
 				}
 				vendorPkg(vdir, pkg)
@@ -96,20 +71,20 @@ func runVendor(cmd *base.Command, args []string) {
 }
 
 func vendorPkg(vdir, pkg string) {
-	realPath := importmap[pkg]
-	if realPath != pkg && importmap[realPath] != "" {
+	realPath := vgo.ImportMap(pkg)
+	if realPath != pkg && vgo.ImportMap(realPath) != "" {
 		fmt.Fprintf(os.Stderr, "warning: %s imported as both %s and %s; making two copies.\n", realPath, realPath, pkg)
 	}
 
 	dst := filepath.Join(vdir, pkg)
-	src := pkgdir[realPath]
+	src := vgo.PackageDir(realPath)
 	if src == "" {
 		fmt.Fprintf(os.Stderr, "internal error: no pkg for %s -> %s\n", pkg, realPath)
 	}
 
 	copyDir(dst, src, false)
-	if mod, ok := pkgmod[pkg]; ok {
-		copyTestdata(mod.Path, pkg, dst, src)
+	if m := vgo.PackageModule(realPath); m.Path != "" {
+		copyTestdata(m.Path, realPath, dst, src)
 	}
 }
 

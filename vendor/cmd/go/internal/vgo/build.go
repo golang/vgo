@@ -76,14 +76,14 @@ func PackageBuildInfo(path string, deps []string) string {
 		if mv == "" {
 			mv = "(devel)"
 		}
-		r := replaced(mod)
+		r := Replacement(mod)
 		h := ""
-		if r == nil {
+		if r.Path == "" {
 			h = "\t" + findModHash(mod)
 		}
 		fmt.Fprintf(&buf, "dep\t%s\t%s%s\n", mod.Path, mod.Version, h)
-		if r := replaced(mod); r != nil {
-			fmt.Fprintf(&buf, "=>\t%s\t%s\t%s\n", r.New.Path, r.New.Version, findModHash(r.New))
+		if r.Path != "" {
+			fmt.Fprintf(&buf, "=>\t%s\t%s\t%s\n", r.Path, r.Version, findModHash(r))
 		}
 	}
 	return buf.String()

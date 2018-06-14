@@ -18,11 +18,13 @@ import (
 )
 
 var CmdMod = &base.Command{
-	UsageLine: "mod [maintenance flags]",
+	UsageLine: "mod [-v] [maintenance flags]",
 	Short:     "module maintenance",
 	Long: `
 Mod performs module maintenance operations as specified by the
 following flags, which may be combined.
+
+The -v flag enables additional output about operations performed.
 
 The first group of operations provide low-level editing operations
 for manipulating go.mod from the command line or in scripts or
@@ -146,6 +148,8 @@ non-zero status.
 }
 
 var (
+	modV = CmdMod.Flag.Bool("v", false, "")
+
 	modFmt      = CmdMod.Flag.Bool("fmt", false, "")
 	modFix      = CmdMod.Flag.Bool("fix", false, "")
 	modJSON     = CmdMod.Flag.Bool("json", false, "")
@@ -244,7 +248,7 @@ func runMod(cmd *base.Command, args []string) {
 		}
 		vgo.WriteGoMod()
 		if *modVendor {
-			panic("TODO: move runVendor over")
+			runVendor()
 		}
 	}
 
