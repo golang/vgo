@@ -80,8 +80,12 @@ func importPaths(args []string) []string {
 	case "test", "vet":
 		level = levelTest
 	}
+	isALL := len(args) == 1 && args[0] == "ALL"
 	cleaned := search.CleanImportPaths(args)
 	iterate(func(ld *loader) {
+		if isALL {
+			ld.tags = map[string]bool{"*": true}
+		}
 		args = expandImportPaths(cleaned)
 		for i, pkg := range args {
 			if pkg == "." || pkg == ".." || strings.HasPrefix(pkg, "./") || strings.HasPrefix(pkg, "../") {
