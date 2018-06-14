@@ -261,7 +261,7 @@ func runMod(cmd *base.Command, args []string) {
 	}
 
 	if *modVerify {
-		panic("TODO: move runVerify over")
+		runVerify()
 	}
 }
 

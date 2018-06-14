@@ -40,7 +40,7 @@ var (
 	Target   module.Version
 
 	gopath string
-	srcV   string
+	SrcV   string // GOPATH/src/v directory where versioned cache lives
 
 	CmdModInit   bool   // go mod -init flag
 	CmdModModule string // go mod -module flag
@@ -170,8 +170,8 @@ func InitMod() {
 	if _, err := os.Stat(filepath.Join(gopath, "go.mod")); err == nil {
 		base.Fatalf("$GOPATH/go.mod exists but should not")
 	}
-	srcV = filepath.Join(list[0], "src/v")
-	codehost.WorkRoot = filepath.Join(srcV, "cache/vcswork")
+	SrcV = filepath.Join(list[0], "src/v")
+	codehost.WorkRoot = filepath.Join(SrcV, "cache/vcswork")
 
 	if CmdModInit {
 		// Running go mod -init: do legacy module conversion

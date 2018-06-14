@@ -63,18 +63,19 @@ func AddImports(gofiles []string) {
 	WriteGoMod()
 }
 
-// LoadBuildList loads the build list from go.mod.
+// LoadBuildList loads and returns the build list from go.mod.
 // The loading of the build list happens automatically in ImportPaths:
 // LoadBuildList need only be called if ImportPaths is not
 // (typically in commands that care about the module but
 // no particular package).
-func LoadBuildList() {
+func LoadBuildList() []module.Version {
 	if Init(); !Enabled() {
 		base.Fatalf("vgo: LoadBuildList called but vgo not enabled")
 	}
 	InitMod()
 	iterate(func(*loader) {})
 	WriteGoMod()
+	return buildList
 }
 
 // PkgMod returns a map from package import path to the module supplying that package.
@@ -455,8 +456,8 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		// TODO: return nil, fmt.Errorf("invalid semantic version %q", mod.Version)
 	}
 
-	gomod := filepath.Join(srcV, "cache", mod.Path, "@v", mod.Version+".mod")
-	infofile := filepath.Join(srcV, "cache", mod.Path, "@v", mod.Version+".info")
+	gomod := filepath.Join(SrcV, "cache", mod.Path, "@v", mod.Version+".mod")
+	infofile := filepath.Join(SrcV, "cache", mod.Path, "@v", mod.Version+".info")
 	var f *modfile.File
 	if data, err := ioutil.ReadFile(gomod); err == nil {
 		// If go.mod has a //vgo comment at the start,

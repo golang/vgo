@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package vgo
+package modcmd
 
 import (
 	"bytes"
@@ -14,40 +14,12 @@ import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/dirhash"
 	"cmd/go/internal/module"
+	"cmd/go/internal/vgo"
 )
 
-var CmdVerify = &base.Command{
-	UsageLine: "verify",
-	Run:       runVerify,
-	Short:     "verify downloaded modules against expected hashes",
-	Long: `
-Verify checks that the dependencies of the current module,
-which are stored in a local downloaded source cache,
-have not been modified since being downloaded.
-
-If all the modules are unmodified, verify prints
-
-	all modules verified
-
-and exits successfully (status 0). Otherwise, verify reports
-which modules have been changed and exits with a non-zero status.
-	`,
-}
-
-func runVerify(cmd *base.Command, args []string) {
-	if Init(); !Enabled() {
-		base.Fatalf("vgo verify: cannot use outside module")
-	}
-	if len(args) != 0 {
-		// TODO: take arguments
-		base.Fatalf("vgo verify: verify takes no arguments")
-	}
-
-	// Make go.mod consistent but don't load any packages.
-	LoadBuildList()
-
+func runVerify() {
 	ok := true
-	for _, mod := range buildList[1:] {
+	for _, mod := range vgo.LoadBuildList()[1:] {
 		ok = verifyMod(mod) && ok
 	}
 	if ok {
@@ -57,9 +29,9 @@ func runVerify(cmd *base.Command, args []string) {
 
 func verifyMod(mod module.Version) bool {
 	ok := true
-	zip := filepath.Join(srcV, "cache", mod.Path, "/@v/", mod.Version+".zip")
+	zip := filepath.Join(vgo.SrcV, "cache", mod.Path, "/@v/", mod.Version+".zip")
 	_, zipErr := os.Stat(zip)
-	dir := filepath.Join(srcV, mod.Path+"@"+mod.Version)
+	dir := filepath.Join(vgo.SrcV, mod.Path+"@"+mod.Version)
 	_, dirErr := os.Stat(dir)
 	data, err := ioutil.ReadFile(zip + "hash")
 	if err != nil {

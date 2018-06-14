@@ -55,7 +55,6 @@ func init() {
 		test.CmdTest,
 		tool.CmdTool,
 		vgo.CmdVendor,
-		vgo.CmdVerify,
 		version.CmdVersion,
 		vet.CmdVet,
 
@@ -126,14 +125,16 @@ func Main() {
 		os.Exit(2)
 	}
 
-	// Run vgo.Init so that each subcommand doesn't have to worry about it.
-	// Also install the vgo get command instead of the old go get command in vgo mode.
-	//
-	// If we should be vgo (if the command is named vgo or if invoked as go -vgo),
-	// and there is no go.mod file, vgo.Init will treat that as a fatal error.
-	// Normally that's fine, but if this is 'go mod -init' we need to give it a
-	// chance to create that go.mod file, so skip the init dance for 'go mod'.
-	if args[0] != "mod" {
+	switch args[0] {
+	case "verify":
+		fmt.Fprintf(os.Stderr, "go verify is now go mod -verify\n")
+		os.Exit(2)
+	case "mod":
+		// Skip vgo.Init (which may insist on go.mod existing)
+		// so that go mod -init has a chance to write the file.
+	default:
+		// Run vgo.Init so that each subcommand doesn't have to worry about it.
+		// Also install the vgo get command instead of the old go get command in vgo mode.
 		vgo.Init()
 		if !vgo.MustBeVgo && vgo.Enabled() {
 			// Didn't do this above, so do it now.
