@@ -363,6 +363,82 @@ func TestVgoBadDomain(t *testing.T) {
 	tg.grepStderr("tcp.*nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
 }
 
+func TestVgoSync(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	write := func(name, text string) {
+		name = tg.path(name)
+		dir := filepath.Dir(name)
+		tg.must(os.MkdirAll(dir, 0777))
+		tg.must(ioutil.WriteFile(name, []byte(text), 0666))
+	}
+
+	write("m/go.mod", `
+module m
+
+require (
+	x.1 v1.0.0
+	y.1 v1.0.0
+	w.1 v1.2.0
+)
+
+replace x.1 v1.0.0 => ../x
+replace y.1 v1.0.0 => ../y
+replace z.1 v1.1.0 => ../z
+replace z.1 v1.2.0 => ../z
+replace w.1 v1.1.0 => ../w
+replace w.1 v1.2.0 => ../w
+`)
+	write("m/m.go", `
+package m
+
+import _ "x.1"
+import _ "z.1/sub"
+`)
+
+	write("w/go.mod", `
+module w
+`)
+	write("w/w.go", `
+package w
+`)
+
+	write("x/go.mod", `
+module x
+require w.1 v1.1.0
+require z.1 v1.1.0
+`)
+	write("x/x.go", `
+package x
+
+import _ "w.1"
+`)
+
+	write("y/go.mod", `
+module y
+require z.1 v1.2.0
+`)
+
+	write("z/go.mod", `
+module z
+`)
+	write("z/sub/sub.go", `
+package sub
+`)
+
+	tg.cd(tg.path("m"))
+	tg.run("-vgo", "mod", "-sync", "-v")
+	tg.grepStderr(`^unused y.1`, "need y.1 unused")
+	tg.grepStderrNot(`^unused [^y]`, "only y.1 should be unused")
+
+	tg.run("-vgo", "list", "-m")
+	tg.grepStdoutNot(`^y.1`, "y should be gone")
+	tg.grepStdout(`^w.1\s+v1.2.0`, "need w.1 to stay at v1.2.0")
+	tg.grepStdout(`^z.1\s+v1.2.0`, "need z.1 to stay at v1.2.0 even though y is gone")
+}
+
 func TestVgoVendor(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()

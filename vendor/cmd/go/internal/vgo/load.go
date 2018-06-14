@@ -85,6 +85,12 @@ func BuildList() []module.Version {
 	return buildList
 }
 
+// SetBuildList sets the module build list.
+// The caller is responsible for ensuring that the list is valid.
+func SetBuildList(list []module.Version) {
+	buildList = list
+}
+
 // ImportMap returns the actual package import path
 // for an import path found in source code.
 // If the given import path does not appear in the source code

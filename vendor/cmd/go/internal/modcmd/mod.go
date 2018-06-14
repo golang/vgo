@@ -236,15 +236,34 @@ func runMod(cmd *base.Command, args []string) {
 	needBuildList := *modFix
 
 	if *modSync || *modVendor || needBuildList {
+		var pkgs []string
 		if *modSync || *modVendor {
-			fmt.Println(vgo.ImportPaths([]string{"ALL"}))
+			pkgs = vgo.ImportPaths([]string{"ALL"})
 		} else {
 			vgo.LoadBuildList()
 		}
 		if *modSync {
 			// ImportPaths(ALL) already added missing modules.
 			// Remove unused modules.
-			panic("TODO sync unused")
+			used := map[module.Version]bool{vgo.Target: true}
+			for _, pkg := range pkgs {
+				used[vgo.PackageModule(pkg)] = true
+			}
+
+			inGoMod := make(map[string]bool)
+			for _, r := range vgo.ModFile().Require {
+				inGoMod[r.Mod.Path] = true
+			}
+
+			var keep []module.Version
+			for _, m := range vgo.BuildList() {
+				if used[m] {
+					keep = append(keep, m)
+				} else if *modV && inGoMod[m.Path] {
+					fmt.Fprintf(os.Stderr, "unused %s\n", m.Path)
+				}
+			}
+			vgo.SetBuildList(keep)
 		}
 		vgo.WriteGoMod()
 		if *modVendor {
