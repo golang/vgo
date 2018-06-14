@@ -217,7 +217,7 @@ func TestVgoBadDomain(t *testing.T) {
 	tg.grepStderr("unknown module x/y.z: not a domain name", "expected domain error")
 
 	tg.runFail("-vgo", "build")
-	tg.grepStderr("unknown module appengine: not a domain name", "expected domain error")
+	tg.grepStderrNot("unknown module appengine: not a domain name", "expected nothing about appengine")
 	tg.grepStderr("tcp.*nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
 }
 

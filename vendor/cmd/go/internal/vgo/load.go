@@ -220,7 +220,7 @@ func (ld *loader) importPkg(path string, level importLevel) {
 
 	ld.pkgdir[realPath] = dir
 
-	imports, testImports, err := imports.ScanDir(dir, ld.tags)
+	imports, testImports, err := scanDir(dir, ld.tags)
 	if err != nil {
 		base.Errorf("vgo: %s [%s]: %v", ld.stackText(), dir, err)
 		return
@@ -579,4 +579,32 @@ func (*mvsReqs) Next(m module.Version) (module.Version, error) {
 		return module.Version{Path: m.Path, Version: list[i]}, nil
 	}
 	return module.Version{Path: m.Path, Version: "none"}, nil
+}
+
+// scanDir is like imports.ScanDir but elides known magic imports from the list,
+// so that vgo does not go looking for packages that don't really exist.
+//
+// The only known magic imports are appengine and appengine/*.
+// These are so old that they predate "go get" and did not use URL-like paths.
+// Most code today now uses google.golang.org/appengine instead,
+// but not all code has been so updated. When we mostly ignore build tags
+// during "vgo vendor", we look into "// +build appengine" files and
+// may see these legacy imports. We drop them so that the module
+// search does not look for modules to try to satisfy them.
+func scanDir(path string, tags map[string]bool) (imports_, testImports []string, err error) {
+	imports_, testImports, err = imports.ScanDir(path, tags)
+
+	filter := func(x []string) []string {
+		w := 0
+		for _, pkg := range x {
+			if pkg != "appengine" && !strings.HasPrefix(pkg, "appengine/") &&
+				pkg != "appengine_internal" && !strings.HasPrefix(pkg, "appengine_internal/") {
+				x[w] = pkg
+				w++
+			}
+		}
+		return x
+	}
+
+	return filter(imports_), filter(testImports), err
 }

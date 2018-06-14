@@ -145,7 +145,7 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 			if !have[name] {
 				have[name] = true
 				if match(name) {
-					if _, _, err := imports.ScanDir(path, imports.Tags()); err != imports.ErrNoGo {
+					if _, _, err := scanDir(path, imports.Tags()); err != imports.ErrNoGo {
 						pkgs = append(pkgs, name)
 					}
 				}
