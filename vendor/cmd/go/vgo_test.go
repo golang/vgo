@@ -565,6 +565,42 @@ func TestQueryExcluded(t *testing.T) {
 	tg.grepStderr("github.com/gorilla/mux@v1.6.0 excluded", "print version excluded")
 }
 
+func TestRequireExcluded(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "github.com/gorilla/mux"`), 0666))
+
+	tg.setenv(homeEnvName(), tg.path("home"))
+	tg.cd(tg.path("x"))
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		exclude github.com/gorilla/mux latest
+		require github.com/gorilla/mux latest
+	`), 0666))
+	tg.runFail("-vgo", "build")
+	tg.grepStderr("no newer version available", "only available version excluded")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		exclude github.com/gorilla/mux v1.6.1
+		require github.com/gorilla/mux v1.6.1
+	`), 0666))
+	tg.run("-vgo", "build")
+	tg.grepStderr("finding github.com/gorilla/mux v1.6.2", "find version 1.6.2")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		exclude github.com/gorilla/mux v1.6.2
+		require github.com/gorilla/mux v1.6.1
+	`), 0666))
+	tg.run("-vgo", "build")
+	tg.grepStderr("finding github.com/gorilla/mux v1.6.1", "find version 1.6.1")
+}
+
 func TestConvertLegacyConfig(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)

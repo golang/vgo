@@ -433,7 +433,7 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 				if err != nil {
 					return cached{nil, err}
 				}
-				if mv1.Version == "" {
+				if mv1.Version == "none" {
 					return cached{nil, fmt.Errorf("%s(%s) depends on excluded %s(%s) with no newer version available", mod.Path, mod.Version, mv.Path, mv.Version)}
 				}
 				mv = mv1
