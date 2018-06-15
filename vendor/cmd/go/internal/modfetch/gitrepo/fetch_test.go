@@ -173,7 +173,7 @@ var readFileTests = []struct {
 		repo: gitrepo1,
 		rev:  "v2.3.4",
 		file: "another.txt",
-		err:  "file not found",
+		err:  os.ErrNotExist.Error(),
 	},
 }
 

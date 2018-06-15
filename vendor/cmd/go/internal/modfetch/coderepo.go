@@ -212,7 +212,10 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 		gomod1, err1 := r.code.ReadFile(rev, file1, codehost.MaxGoMod)
 		r.codeMu.Unlock()
 		if err1 != nil {
-			return "", "", nil, fmt.Errorf("missing go.mod")
+			if os.IsNotExist(err1) {
+				return "", "", nil, errors.New("missing go.mod")
+			}
+			return "", "", nil, fmt.Errorf("reading go.mod: %v", err1)
 		}
 		return rev, r.codeDir, gomod1, nil
 	}
@@ -230,6 +233,14 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 	gomod1, err1 := r.code.ReadFile(rev, file1, codehost.MaxGoMod)
 	gomod2, err2 := r.code.ReadFile(rev, file2, codehost.MaxGoMod)
 	r.codeMu.Unlock()
+
+	if err1 != nil && !os.IsNotExist(err1) {
+		return "", "", nil, fmt.Errorf("reading %s: %v", file1, err1)
+	}
+	if err2 != nil && !os.IsNotExist(err2) {
+		return "", "", nil, fmt.Errorf("reading %s: %v", file2, err2)
+	}
+
 	found1 := err1 == nil && isMajor(gomod1, r.pathMajor)
 	found2 := err2 == nil && isMajor(gomod2, r.pathMajor)
 
@@ -264,7 +275,7 @@ func (r *codeRepo) GoMod(version string) (data []byte, err error) {
 	data, err = r.code.ReadFile(rev, path.Join(dir, "go.mod"), codehost.MaxGoMod)
 	r.codeMu.Unlock()
 	if err != nil {
-		if e := strings.ToLower(err.Error()); strings.Contains(e, "not found") || strings.Contains(e, "404") { // TODO
+		if os.IsNotExist(err) {
 			return r.legacyGoMod(rev, dir), nil
 		}
 		return nil, err

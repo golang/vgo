@@ -279,7 +279,7 @@ func (r *repo) statOrArchive(rev string, archiveArgs ...string) (info *codehost.
 				return &codehost.RevInfo{Version: rev}, out, nil
 			}
 			if bytes.Contains(err.(*codehost.RunError).Stderr, []byte("did not match any files")) {
-				return nil, nil, fmt.Errorf("file not found")
+				return nil, nil, os.ErrNotExist
 			}
 			if bytes.Contains(err.(*codehost.RunError).Stderr, []byte("Operation not supported by protocol")) {
 				r.canArchive = false
@@ -422,7 +422,7 @@ func (r *repo) ReadFile(rev, file string, maxSize int64) ([]byte, error) {
 	}
 	out, err := codehost.Run(r.dir, "git", "cat-file", "blob", info.Name+":"+file)
 	if err != nil {
-		return nil, fmt.Errorf("file not found")
+		return nil, os.ErrNotExist
 	}
 	return out, nil
 }
@@ -441,7 +441,7 @@ func (r *repo) ReadZip(rev, subdir string, maxSize int64) (zip io.ReadCloser, ac
 		archive, err = codehost.Run(r.dir, "git", "archive", "--format=zip", "--prefix=prefix/", info.Name, args)
 		if err != nil {
 			if bytes.Contains(err.(*codehost.RunError).Stderr, []byte("did not match any files")) {
-				return nil, "", fmt.Errorf("file not found")
+				return nil, "", os.ErrNotExist
 			}
 			return nil, "", err
 		}
