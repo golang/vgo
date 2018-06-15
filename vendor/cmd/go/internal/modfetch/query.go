@@ -28,7 +28,7 @@ import (
 // result to revisions on a particular branch name.
 //
 func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, error) {
-	if strings.HasPrefix(vers, "v") && semver.IsValid(vers) {
+	if semver.IsValid(vers) {
 		// TODO: This turns query for "v2" into Stat "v2.0.0",
 		// but probably it should allow checking for a branch named "v2".
 		vers = semver.Canonical(vers)
