@@ -6,7 +6,6 @@ package vgo
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"go/build"
 	"io/ioutil"
@@ -501,71 +500,16 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		// TODO: return nil, fmt.Errorf("invalid semantic version %q", mod.Version)
 	}
 
-	gomod := filepath.Join(SrcV, "cache", mod.Path, "@v", mod.Version+".mod")
-	infofile := filepath.Join(SrcV, "cache", mod.Path, "@v", mod.Version+".info")
-	var f *modfile.File
-	if data, err := ioutil.ReadFile(gomod); err == nil {
-		// If go.mod has a //vgo comment at the start,
-		// it was auto-converted from a legacy lock file.
-		// The auto-conversion details may have bugs and
-		// may be fixed in newer versions of vgo.
-		// We ignore cached go.mod files if they do not match
-		// our own vgoVersion.
-		if !bytes.HasPrefix(data, vgoVersion[:len("//vgo")]) || bytes.HasPrefix(data, vgoVersion) {
-			f, err := modfile.Parse(gomod, data, nil)
-			if err != nil {
-				return nil, err
-			}
-			var list []module.Version
-			for _, r := range f.Require {
-				list = append(list, r.Mod)
-			}
-			return list, nil
-		}
-		f, err = modfile.Parse("go.mod", data, nil)
-		if err != nil {
-			return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
-		}
-	} else {
-		if !quietLookup {
-			fmt.Fprintf(os.Stderr, "vgo: finding %s %s\n", mod.Path, mod.Version)
-		}
-		repo, err := modfetch.Lookup(mod.Path)
-		if err != nil {
-			base.Errorf("vgo: %s: %v\n", mod.Path, err)
-			return nil, err
-		}
-		info, err := repo.Stat(mod.Version)
-		if err != nil {
-			base.Errorf("vgo: %s %s: %v\n", mod.Path, mod.Version, err)
-			return nil, err
-		}
-		data, err := repo.GoMod(info.Version)
-		if err != nil {
-			base.Errorf("vgo: %s %s: %v\n", mod.Path, mod.Version, err)
-			return nil, err
-		}
-
-		f, err = modfile.Parse("go.mod", data, nil)
-		if err != nil {
-			return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
-		}
-
-		dir := filepath.Dir(gomod)
-		if err := os.MkdirAll(dir, 0777); err != nil {
-			return nil, fmt.Errorf("caching go.mod: %v", err)
-		}
-		js, err := json.Marshal(info)
-		if err != nil {
-			return nil, fmt.Errorf("internal error: json failure: %v", err)
-		}
-		if err := ioutil.WriteFile(infofile, js, 0666); err != nil {
-			return nil, fmt.Errorf("caching info: %v", err)
-		}
-		if err := ioutil.WriteFile(gomod, data, 0666); err != nil {
-			return nil, fmt.Errorf("caching go.mod: %v", err)
-		}
+	data, err := modfetch.GoMod(mod.Path, mod.Version)
+	if err != nil {
+		base.Errorf("vgo: %s %s: %v\n", mod.Path, mod.Version, err)
+		return nil, err
 	}
+	f, err := modfile.Parse("go.mod", data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
+	}
+
 	if mpath := f.Module.Mod.Path; mpath != origPath && mpath != mod.Path {
 		return nil, fmt.Errorf("downloaded %q and got module %q", mod.Path, mpath)
 	}
@@ -582,8 +526,6 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	}
 	return list, nil
 }
-
-var quietLookup bool
 
 func (*mvsReqs) Max(v1, v2 string) string {
 	if semver.Compare(v1, v2) == -1 {

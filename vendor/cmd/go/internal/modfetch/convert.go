@@ -9,9 +9,12 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfile"
+	"cmd/go/internal/module"
+	"cmd/go/internal/par"
 	"cmd/go/internal/semver"
 )
 
@@ -37,7 +40,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 
 	// Convert requirements block, which may use raw SHA1 hashes as versions,
 	// to valid semver requirement list, respecting major versions.
-	need := make(map[string]string)
+	var work par.Work
 	for _, r := range require {
 		if r.Path == "" {
 			continue
@@ -50,20 +53,24 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 				r.Path = strings.Join(f[:3], "/")
 			}
 		}
+		work.Add(r)
+	}
 
-		repo, err := Lookup(r.Path)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "vgo: lookup %s: %v\n", r.Path, err)
-			continue
-		}
-		info, err := repo.Stat(r.Version)
+	var (
+		mu   sync.Mutex
+		need = make(map[string]string)
+	)
+	work.Do(10, func(item interface{}) {
+		r := item.(module.Version)
+		info, err := Stat(r.Path, r.Version)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "vgo: stat %s@%s: %v\n", r.Path, r.Version, err)
-			continue
+			return
 		}
-		path := repo.ModulePath()
-		need[path] = semver.Max(need[path], info.Version)
-	}
+		mu.Lock()
+		need[r.Path] = semver.Max(need[r.Path], info.Version)
+		mu.Unlock()
+	})
 
 	var paths []string
 	for path := range need {
@@ -71,7 +78,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	}
 	sort.Strings(paths)
 	for _, path := range paths {
-		f.AddRequire(path, need[path])
+		f.AddNewRequire(path, need[path])
 	}
 
 	return nil

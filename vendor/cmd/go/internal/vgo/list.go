@@ -80,7 +80,7 @@ func ListMU() {
 	}
 	InitMod()
 
-	quietLookup = true // do not chatter in v.Lookup
+	modfetch.QuietLookup = true // do not chatter in v.Lookup
 	iterate(func(*loader) {})
 
 	var rows [][]string

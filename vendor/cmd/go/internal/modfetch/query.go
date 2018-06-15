@@ -28,11 +28,6 @@ import (
 // result to revisions on a particular branch name.
 //
 func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, error) {
-	repo, err := Lookup(path)
-	if err != nil {
-		return nil, err
-	}
-
 	if strings.HasPrefix(vers, "v") && semver.IsValid(vers) {
 		// TODO: This turns query for "v2" into Stat "v2.0.0",
 		// but probably it should allow checking for a branch named "v2".
@@ -40,6 +35,21 @@ func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, erro
 		if allowed != nil && !allowed(module.Version{Path: path, Version: vers}) {
 			return nil, fmt.Errorf("%s@%s excluded", path, vers)
 		}
+
+		// Fast path that avoids network overhead of Lookup (resolving path to repo host),
+		// if we already have this stat information cached on disk.
+		info, err := Stat(path, vers)
+		if err == nil {
+			return info, nil
+		}
+	}
+
+	repo, err := Lookup(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if semver.IsValid(vers) {
 		return repo.Stat(vers)
 	}
 	if strings.HasPrefix(vers, ">") || strings.HasPrefix(vers, "<") || vers == "latest" {

@@ -29,9 +29,9 @@ func runVerify() {
 
 func verifyMod(mod module.Version) bool {
 	ok := true
-	zip := filepath.Join(vgo.SrcV, "cache", mod.Path, "/@v/", mod.Version+".zip")
+	zip := filepath.Join(vgo.SrcMod, "cache", mod.Path, "/@v/", mod.Version+".zip")
 	_, zipErr := os.Stat(zip)
-	dir := filepath.Join(vgo.SrcV, mod.Path+"@"+mod.Version)
+	dir := filepath.Join(vgo.SrcMod, mod.Path+"@"+mod.Version)
 	_, dirErr := os.Stat(dir)
 	data, err := ioutil.ReadFile(zip + "hash")
 	if err != nil {

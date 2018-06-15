@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"cmd/go/internal/modconv"
@@ -26,10 +27,12 @@ import (
 
 // A codeRepo implements modfetch.Repo using an underlying codehost.Repo.
 type codeRepo struct {
-	modPath  string
+	modPath string
+
 	code     codehost.Repo
 	codeRoot string
 	codeDir  string
+	codeMu   sync.Mutex // protects code methods
 
 	path        string
 	pathPrefix  string
@@ -95,7 +98,9 @@ func (r *codeRepo) Versions(prefix string) ([]string, error) {
 	if r.codeDir != "" {
 		p = r.codeDir + "/" + p
 	}
+	r.codeMu.Lock()
 	tags, err := r.code.Tags(p)
+	r.codeMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +130,9 @@ func (r *codeRepo) Stat(rev string) (*RevInfo, error) {
 	if semver.IsValid(codeRev) && r.codeDir != "" {
 		codeRev = r.codeDir + "/" + codeRev
 	}
+	r.codeMu.Lock()
 	info, err := r.code.Stat(codeRev)
+	r.codeMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +140,9 @@ func (r *codeRepo) Stat(rev string) (*RevInfo, error) {
 }
 
 func (r *codeRepo) Latest() (*RevInfo, error) {
+	r.codeMu.Lock()
 	info, err := r.code.Latest()
+	r.codeMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +208,9 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 			return rev, "", nil, nil
 		}
 		file1 := path.Join(r.codeDir, "go.mod")
+		r.codeMu.Lock()
 		gomod1, err1 := r.code.ReadFile(rev, file1, codehost.MaxGoMod)
+		r.codeMu.Unlock()
 		if err1 != nil {
 			return "", "", nil, fmt.Errorf("missing go.mod")
 		}
@@ -215,8 +226,10 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 	// a replace directive.
 	file1 := path.Join(r.codeDir, "go.mod")
 	file2 := path.Join(r.codeDir, r.pathMajor[1:], "go.mod")
+	r.codeMu.Lock()
 	gomod1, err1 := r.code.ReadFile(rev, file1, codehost.MaxGoMod)
 	gomod2, err2 := r.code.ReadFile(rev, file2, codehost.MaxGoMod)
+	r.codeMu.Unlock()
 	found1 := err1 == nil && isMajor(gomod1, r.pathMajor)
 	found2 := err2 == nil && isMajor(gomod2, r.pathMajor)
 
@@ -247,7 +260,9 @@ func (r *codeRepo) GoMod(version string) (data []byte, err error) {
 	if gomod != nil {
 		return gomod, nil
 	}
+	r.codeMu.Lock()
 	data, err = r.code.ReadFile(rev, path.Join(dir, "go.mod"), codehost.MaxGoMod)
+	r.codeMu.Unlock()
 	if err != nil {
 		if e := strings.ToLower(err.Error()); strings.Contains(e, "not found") || strings.Contains(e, "404") { // TODO
 			return r.legacyGoMod(rev, dir), nil
@@ -274,7 +289,9 @@ func (r *codeRepo) legacyGoMod(rev, dir string) []byte {
 	mf := new(modfile.File)
 	mf.AddModuleStmt(r.modPath)
 	for _, file := range altConfigs {
+		r.codeMu.Lock()
 		data, err := r.code.ReadFile(rev, path.Join(dir, file), codehost.MaxGoMod)
+		r.codeMu.Unlock()
 		if err != nil {
 			continue
 		}
@@ -303,7 +320,9 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 	if err != nil {
 		return "", err
 	}
+	r.codeMu.Lock()
 	dl, actualDir, err := r.code.ReadZip(rev, dir, codehost.MaxZipFile)
+	r.codeMu.Unlock()
 	if err != nil {
 		return "", err
 	}
@@ -441,7 +460,10 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 	}
 
 	if !haveLICENSE && subdir != "" {
-		if data, err := r.code.ReadFile(rev, "LICENSE", codehost.MaxLICENSE); err == nil {
+		r.codeMu.Lock()
+		data, err := r.code.ReadFile(rev, "LICENSE", codehost.MaxLICENSE)
+		r.codeMu.Unlock()
+		if err == nil {
 			w, err := zw.Create(r.modPrefix(version) + "/LICENSE")
 			if err != nil {
 				return "", err

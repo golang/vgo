@@ -94,10 +94,33 @@ type repo struct {
 	refsOnce sync.Once
 	refs     map[string]string
 	refsErr  error
+
+	localTagsOnce sync.Once
+	localTags     map[string]bool
 }
 
 func (r *repo) Root() string {
 	return r.root
+}
+
+// loadLocalTags loads tag references from the local git cache
+// into the map r.localTags.
+// Should only be called as r.localTagsOnce.Do(r.loadLocalTags).
+func (r *repo) loadLocalTags() {
+	// The git protocol sends all known refs and ls-remote filters them on the client side,
+	// so we might as well record both heads and tags in one shot.
+	// Most of the time we only care about tags but sometimes we care about heads too.
+	out, err := codehost.Run(r.dir, "git", "tag", "-l")
+	if err != nil {
+		return
+	}
+
+	r.localTags = make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		if line != "" {
+			r.localTags[line] = true
+		}
+	}
 }
 
 // loadRefs loads heads and tags references from the remote into the map r.refs.
@@ -190,11 +213,38 @@ func unshallow(gitDir string) []string {
 // (most do not, but maybe that will change), to let us minimize
 // the amount of code downloaded.
 func (r *repo) statOrArchive(rev string, archiveArgs ...string) (info *codehost.RevInfo, archive []byte, err error) {
-	// Do we have this rev?
+	var (
+		hash      string
+		tag       string
+		out       []byte
+		triedHash string
+	)
+
+	// Maybe rev is a hash we already have locally.
+	if len(rev) >= 12 && codehost.AllHex(rev) {
+		out, err = codehost.Run(r.dir, "git", "log", "-n1", "--format=format:%H", rev)
+		if err == nil {
+			hash = strings.TrimSpace(string(out))
+			goto Found
+		}
+		triedHash = rev
+	}
+
+	// Maybe rev is a tag we already have locally.
+	r.localTagsOnce.Do(r.loadLocalTags)
+	if r.localTags["refs/tags/"+rev] {
+		out, err = codehost.Run(r.dir, "git", "log", "-n1", "--format=format:%H", "refs/tags/"+rev)
+		if err == nil {
+			hash = strings.TrimSpace(string(out))
+			goto Found
+		}
+	}
+
+	// Maybe rev is a ref from the server.
 	r.refsOnce.Do(r.loadRefs)
-	var hash string
 	if k := "refs/tags/" + rev; r.refs[k] != "" {
 		hash = r.refs[k]
+		tag = k
 	} else if k := "refs/heads/" + rev; r.refs[k] != "" {
 		hash = r.refs[k]
 		rev = hash
@@ -207,10 +257,12 @@ func (r *repo) statOrArchive(rev string, archiveArgs ...string) (info *codehost.
 		return nil, nil, fmt.Errorf("unknown revision %q", rev)
 	}
 
-	out, err := codehost.Run(r.dir, "git", "log", "-n1", "--format=format:%H", hash)
-	if err == nil {
-		hash = strings.TrimSpace(string(out))
-		goto Found
+	if hash != triedHash {
+		out, err = codehost.Run(r.dir, "git", "log", "-n1", "--format=format:%H", hash)
+		if err == nil {
+			hash = strings.TrimSpace(string(out))
+			goto Found
+		}
 	}
 
 	// We don't have the rev. Can we fetch it?
@@ -265,7 +317,12 @@ func (r *repo) statOrArchive(rev string, archiveArgs ...string) (info *codehost.
 		if ref, ok := r.findRef(hash); ok {
 			name = ref
 		}
-		if _, err = codehost.Run(r.dir, "git", "fetch", "--depth=1", r.remote, name); err == nil {
+		if tag != "" {
+			_, err = codehost.Run(r.dir, "git", "fetch", "--depth=1", r.remote, tag+":"+tag)
+		} else {
+			_, err = codehost.Run(r.dir, "git", "fetch", "--depth=1", r.remote, name)
+		}
+		if err == nil {
 			goto Found
 		}
 		if !strings.Contains(err.Error(), "unadvertised object") && !strings.Contains(err.Error(), "no such remote ref") && !strings.Contains(err.Error(), "does not support shallow") {
