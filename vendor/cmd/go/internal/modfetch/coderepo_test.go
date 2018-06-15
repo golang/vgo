@@ -86,7 +86,7 @@ var codeRepoTests = []struct {
 		name:    "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:   "80d85c5d4d17",
 		time:    time.Date(2018, 2, 19, 23, 10, 6, 0, time.UTC),
-		ziperr:  "missing go.mod",
+		ziperr:  "missing or invalid go.mod",
 	},
 	{
 		path:    "github.com/rsc/vgotest1",
@@ -121,8 +121,8 @@ var codeRepoTests = []struct {
 		name:     "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:    "80d85c5d4d17",
 		time:     time.Date(2018, 2, 19, 23, 10, 6, 0, time.UTC),
-		gomoderr: "missing go.mod",
-		ziperr:   "missing go.mod",
+		gomoderr: "missing or invalid go.mod",
+		ziperr:   "missing or invalid go.mod",
 	},
 	{
 		path:    "github.com/rsc/vgotest1/v54321",
@@ -131,7 +131,7 @@ var codeRepoTests = []struct {
 		name:    "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:   "80d85c5d4d17",
 		time:    time.Date(2018, 2, 19, 23, 10, 6, 0, time.UTC),
-		ziperr:  "missing go.mod",
+		ziperr:  "missing or invalid go.mod",
 	},
 	{
 		path: "github.com/rsc/vgotest1/submod",
@@ -528,7 +528,7 @@ var codeRepoVersionsTests = []struct {
 	},
 	{
 		path:     "gopkg.in/natefinch/lumberjack.v2",
-		versions: []string{},
+		versions: nil,
 	},
 }
 
