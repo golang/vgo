@@ -23,6 +23,7 @@ import (
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
 	"cmd/go/internal/mvs"
+	"cmd/go/internal/par"
 	"cmd/go/internal/search"
 	"cmd/go/internal/semver"
 )
@@ -401,6 +402,7 @@ func findMissing(m missing) {
 
 type mvsReqs struct {
 	extra []module.Version
+	cache par.Cache
 }
 
 func newReqs(extra ...module.Version) *mvsReqs {
@@ -411,30 +413,40 @@ func newReqs(extra ...module.Version) *mvsReqs {
 }
 
 func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
-	list, err := r.required(mod)
-	if err != nil {
-		return nil, err
+	type cached struct {
+		list []module.Version
+		err  error
 	}
-	if *getU {
-		for i := range list {
-			list[i].Version = "none"
+
+	c := r.cache.Do(mod, func() interface{} {
+		list, err := r.required(mod)
+		if err != nil {
+			return cached{nil, err}
 		}
-		return list, nil
-	}
-	for i, mv := range list {
-		for excluded[mv] {
-			mv1, err := r.Next(mv)
-			if err != nil {
-				return nil, err
+		if *getU {
+			for i := range list {
+				list[i].Version = "none"
 			}
-			if mv1.Version == "" {
-				return nil, fmt.Errorf("%s(%s) depends on excluded %s(%s) with no newer version available", mod.Path, mod.Version, mv.Path, mv.Version)
-			}
-			mv = mv1
+			return cached{list, nil}
 		}
-		list[i] = mv
-	}
-	return list, nil
+		for i, mv := range list {
+			for excluded[mv] {
+				mv1, err := r.next(mv)
+				if err != nil {
+					return cached{nil, err}
+				}
+				if mv1.Version == "" {
+					return cached{nil, fmt.Errorf("%s(%s) depends on excluded %s(%s) with no newer version available", mod.Path, mod.Version, mv.Path, mv.Version)}
+				}
+				mv = mv1
+			}
+			list[i] = mv
+		}
+
+		return cached{list, nil}
+	}).(cached)
+
+	return c.list, c.err
 }
 
 var vgoVersion = []byte(modconv.Prefix)
@@ -595,23 +607,14 @@ func (*mvsReqs) Latest(path string) (module.Version, error) {
 	return module.Version{Path: path, Version: info.Version}, nil
 }
 
-var versionCache = make(map[string][]string)
-
 func versions(path string) ([]string, error) {
-	list, ok := versionCache[path]
-	if !ok {
-		var err error
-		repo, err := modfetch.Lookup(path)
-		if err != nil {
-			return nil, err
-		}
-		list, err = repo.Versions("")
-		if err != nil {
-			return nil, err
-		}
-		versionCache[path] = list
+	// Note: modfetch.Lookup and repo.Versions are cached,
+	// so there's no need for us to add extra caching here.
+	repo, err := modfetch.Lookup(path)
+	if err != nil {
+		return nil, err
 	}
-	return list, nil
+	return repo.Versions("")
 }
 
 func (*mvsReqs) Previous(m module.Version) (module.Version, error) {
@@ -626,7 +629,10 @@ func (*mvsReqs) Previous(m module.Version) (module.Version, error) {
 	return module.Version{Path: m.Path, Version: "none"}, nil
 }
 
-func (*mvsReqs) Next(m module.Version) (module.Version, error) {
+// next returns the next version of m.Path after m.Version.
+// It is only used by the exclusion processing in the Required method,
+// not called directly by MVS.
+func (*mvsReqs) next(m module.Version) (module.Version, error) {
 	list, err := versions(m.Path)
 	if err != nil {
 		return module.Version{}, err

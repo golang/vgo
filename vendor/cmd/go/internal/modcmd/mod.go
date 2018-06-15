@@ -178,6 +178,8 @@ func init() {
 	CmdMod.Flag.Var(flagFunc(flagDropReplace), "dropreplace", "")
 	CmdMod.Flag.Var(flagFunc(flagAddReplace), "addreplace", "")
 	CmdMod.Flag.Var(flagFunc(flagDropExclude), "dropexclude", "")
+
+	base.AddBuildFlagsNX(&CmdMod.Flag)
 }
 
 func runMod(cmd *base.Command, args []string) {

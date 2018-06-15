@@ -7,6 +7,7 @@ package modfetch
 import (
 	"errors"
 	"fmt"
+	"os"
 	pathpkg "path"
 	"sort"
 	"strings"
@@ -18,8 +19,11 @@ import (
 	"cmd/go/internal/modfetch/github"
 	"cmd/go/internal/modfetch/googlesource"
 	"cmd/go/internal/module"
+	"cmd/go/internal/par"
 	"cmd/go/internal/semver"
 )
+
+const traceRepo = false // trace all repo actions, for debugging
 
 // A Repo represents a repository storing all versions of a single module.
 type Repo interface {
@@ -60,8 +64,34 @@ type RevInfo struct {
 	Time    time.Time // commit time
 }
 
+var lookupCache par.Cache
+
 // Lookup returns the module with the given module path.
 func Lookup(path string) (Repo, error) {
+	if traceRepo {
+		defer logCall("Lookup(%q)", path)()
+	}
+
+	type cached struct {
+		r   Repo
+		err error
+	}
+	c := lookupCache.Do(path, func() interface{} {
+		r, err := lookup(path)
+		if err == nil {
+			if traceRepo {
+				r = newLoggingRepo(r)
+			}
+			r = newCachingRepo(r)
+		}
+		return cached{r, err}
+	}).(cached)
+
+	return c.r, c.err
+}
+
+// lookup returns the module with the given module path.
+func lookup(path string) (r Repo, err error) {
 	if cfg.BuildGetmode != "" {
 		return nil, fmt.Errorf("module lookup disabled by -getmode=%s", cfg.BuildGetmode)
 	}
@@ -78,6 +108,9 @@ func Lookup(path string) (Repo, error) {
 }
 
 func Import(path string, allowed func(module.Version) bool) (Repo, *RevInfo, error) {
+	if traceRepo {
+		defer logCall("Import(%q, ...)", path)()
+	}
 	try := func(path string) (Repo, *RevInfo, error) {
 		r, err := Lookup(path)
 		if err != nil {
@@ -139,4 +172,60 @@ func SortVersions(list []string) {
 		}
 		return list[i] < list[j]
 	})
+}
+
+// A loggingRepo is a wrapper around an underlying Repo
+// that prints a log message at the start and end of each call.
+// It can be inserted when debugging.
+type loggingRepo struct {
+	r Repo
+}
+
+func newLoggingRepo(r Repo) *loggingRepo {
+	return &loggingRepo{r}
+}
+
+// logCall prints a log message using format and args and then
+// also returns a function that will print the same message again,
+// along with the elapsed time.
+// Typical usage is:
+//
+//	defer logCall("hello %s", arg)()
+//
+// Note the final ().
+func logCall(format string, args ...interface{}) func() {
+	start := time.Now()
+	fmt.Fprintf(os.Stderr, "+++ %s\n", fmt.Sprintf(format, args...))
+	return func() {
+		fmt.Fprintf(os.Stderr, "%.3fs %s\n", time.Since(start).Seconds(), fmt.Sprintf(format, args...))
+	}
+}
+
+func (l *loggingRepo) ModulePath() string {
+	return l.r.ModulePath()
+}
+
+func (l *loggingRepo) Versions(prefix string) (tags []string, err error) {
+	defer logCall("Repo[%s]: Versions(%q)", l.r.ModulePath(), prefix)()
+	return l.r.Versions(prefix)
+}
+
+func (l *loggingRepo) Stat(rev string) (*RevInfo, error) {
+	defer logCall("Repo[%s]: Stat(%q)", l.r.ModulePath(), rev)()
+	return l.r.Stat(rev)
+}
+
+func (l *loggingRepo) Latest() (*RevInfo, error) {
+	defer logCall("Repo[%s]: Latest()", l.r.ModulePath())()
+	return l.r.Latest()
+}
+
+func (l *loggingRepo) GoMod(version string) ([]byte, error) {
+	defer logCall("Repo[%s]: GoMod(%q)", l.r.ModulePath(), version)()
+	return l.r.GoMod(version)
+}
+
+func (l *loggingRepo) Zip(version, tmpdir string) (string, error) {
+	defer logCall("Repo[%s]: Zip(%q, %q)", l.r.ModulePath(), version, tmpdir)()
+	return l.r.Zip(version, tmpdir)
 }
