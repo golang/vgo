@@ -624,3 +624,12 @@ func TestVendorWithoutDeps(t *testing.T) {
 	tg.run("-vgo", "mod", "-vendor")
 	tg.grepStderr("vgo: no dependencies to vendor", "print vendor info")
 }
+
+func TestVersionWithoutModule(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.cd(tg.path("."))
+	tg.run("-vgo", "version")
+}

@@ -128,6 +128,9 @@ func Main() {
 	case "mod":
 		// Skip vgo.Init (which may insist on go.mod existing)
 		// so that go mod -init has a chance to write the file.
+	case "version":
+		// Skip vgo.Init so that users can report bugs against
+		// go mod -init.
 	case "vendor":
 		fmt.Fprintf(os.Stderr, "go vendor is now go mod -vendor\n")
 		os.Exit(2)
