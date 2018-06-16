@@ -95,7 +95,7 @@ func (r *cachingRepo) GoMod(rev string) ([]byte, error) {
 		text []byte
 		err  error
 	}
-	c := r.cache.Do("gomod:", func() interface{} {
+	c := r.cache.Do("gomod:"+rev, func() interface{} {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		text, err := r.r.GoMod(rev)
