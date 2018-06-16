@@ -26,7 +26,6 @@ type Work struct {
 func (w *Work) init() {
 	if w.added == nil {
 		w.added = make(map[interface{}]bool)
-		w.wait.L = &w.mu
 	}
 }
 
@@ -61,6 +60,7 @@ func (w *Work) Do(n int, f func(item interface{})) {
 
 	w.running = n
 	w.f = f
+	w.wait.L = &w.mu
 
 	for i := 0; i < n-1; i++ {
 		go w.runner()
