@@ -121,13 +121,13 @@ func TestModEdit(t *testing.T) {
 
 	tg.run("-vgo", "mod",
 		"-droprequire=x.1",
-		"-addrequire=x.1@v1.0.0",
-		"-addrequire=x.2@v1.1.0",
+		"-require=x.1@v1.0.0",
+		"-require=x.2@v1.1.0",
 		"-droprequire=x.2",
-		"-addexclude=x.1 @ v1.2.0",
-		"-addexclude=x.1@v1.2.1",
-		"-addreplace=x.1@v1.3.0=>y.1@v1.4.0",
-		"-addreplace=x.1@v1.4.0 => ../z",
+		"-exclude=x.1 @ v1.2.0",
+		"-exclude=x.1@v1.2.1",
+		"-replace=x.1@v1.3.0=>y.1@v1.4.0",
+		"-replace=x.1@v1.4.0 => ../z",
 	)
 	mustHaveGoMod(`module x.x/y/z
 
@@ -148,7 +148,7 @@ replace (
 		"-droprequire=x.1",
 		"-dropexclude=x.1@v1.2.1",
 		"-dropreplace=x.1@v1.3.0",
-		"-addrequire=x.3@v1.99.0",
+		"-require=x.3@v1.99.0",
 	)
 	mustHaveGoMod(`module x.x/y/z
 
