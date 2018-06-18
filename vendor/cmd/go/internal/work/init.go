@@ -9,7 +9,7 @@ package work
 import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
-	"cmd/go/internal/vgo"
+	"cmd/go/internal/load"
 	"flag"
 	"fmt"
 	"os"
@@ -231,7 +231,7 @@ func buildModeInit() {
 		// ok
 	case "local", "vendor":
 		// ok but check for vgo
-		if !vgo.Enabled() {
+		if load.VgoLookup == nil {
 			base.Fatalf("build flag -getmode=%s only valid when using modules", cfg.BuildGetmode)
 		}
 	default:

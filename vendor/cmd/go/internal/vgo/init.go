@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
+	"cmd/go/internal/load"
 	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modfetch/codehost"
@@ -147,6 +148,14 @@ func Init() {
 	}
 
 	enabled = true
+	load.VgoBinDir = BinDir
+	load.VgoLookup = Lookup
+	load.VgoPackageModuleInfo = PackageModuleInfo
+	load.VgoImportPaths = ImportPaths
+	load.VgoPackageBuildInfo = PackageBuildInfo
+	load.VgoModInfoProg = ModInfoProg
+	load.VgoAddImports = AddImports
+
 	search.SetModRoot(ModRoot)
 }
 

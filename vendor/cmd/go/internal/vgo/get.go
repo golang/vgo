@@ -12,6 +12,7 @@ import (
 	"cmd/go/internal/module"
 	"cmd/go/internal/mvs"
 	"cmd/go/internal/semver"
+	"cmd/go/internal/work"
 )
 
 var CmdGet = &base.Command{
@@ -39,6 +40,7 @@ var getU = CmdGet.Flag.Bool("u", false, "")
 
 func init() {
 	CmdGet.Run = runGet // break init loop
+	work.AddBuildFlags(CmdGet)
 }
 
 func runGet(cmd *base.Command, args []string) {
@@ -143,9 +145,6 @@ func runGet(cmd *base.Command, args []string) {
 	WriteGoMod()
 
 	if len(args) > 0 {
-		InstallHook(args)
+		work.CmdInstall.Run(work.CmdInstall, args)
 	}
 }
-
-// Call into "go install". Set by internal/work, which imports us.
-var InstallHook func([]string)

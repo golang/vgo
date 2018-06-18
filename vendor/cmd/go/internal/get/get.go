@@ -18,7 +18,6 @@ import (
 	"cmd/go/internal/load"
 	"cmd/go/internal/search"
 	"cmd/go/internal/str"
-	"cmd/go/internal/vgo"
 	"cmd/go/internal/web"
 	"cmd/go/internal/work"
 )
@@ -92,7 +91,8 @@ func init() {
 }
 
 func runGet(cmd *base.Command, args []string) {
-	if vgo.Enabled() {
+	if load.VgoLookup != nil {
+		// Should not happen: main.go should install the separate vgo-enabled get code.
 		base.Fatalf("go get: vgo not implemented")
 	}
 
@@ -402,16 +402,16 @@ func downloadPackage(p *load.Package) error {
 			}
 			repo = remote
 			if !*getF && err == nil {
-				if rr, err := repoRootForImportPath(p.ImportPath, security); err == nil {
-					repo := rr.repo
+				if rr, err := RepoRootForImportPath(p.ImportPath, IgnoreMod, security); err == nil {
+					repo := rr.Repo
 					if rr.vcs.resolveRepo != nil {
 						resolved, err := rr.vcs.resolveRepo(rr.vcs, dir, repo)
 						if err == nil {
 							repo = resolved
 						}
 					}
-					if remote != repo && rr.isCustom {
-						return fmt.Errorf("%s is a custom import path for %s, but %s is checked out from %s", rr.root, repo, dir, remote)
+					if remote != repo && rr.IsCustom {
+						return fmt.Errorf("%s is a custom import path for %s, but %s is checked out from %s", rr.Root, repo, dir, remote)
 					}
 				}
 			}
@@ -419,11 +419,11 @@ func downloadPackage(p *load.Package) error {
 	} else {
 		// Analyze the import path to determine the version control system,
 		// repository, and the import path for the root of the repository.
-		rr, err := repoRootForImportPath(p.ImportPath, security)
+		rr, err := RepoRootForImportPath(p.ImportPath, IgnoreMod, security)
 		if err != nil {
 			return err
 		}
-		vcs, repo, rootPath = rr.vcs, rr.repo, rr.root
+		vcs, repo, rootPath = rr.vcs, rr.Repo, rr.Root
 	}
 	if !blindRepo && !vcs.isSecure(repo) && !*getInsecure {
 		return fmt.Errorf("cannot download, %v uses insecure protocol", repo)

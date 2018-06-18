@@ -590,7 +590,7 @@ func TestRequireExcluded(t *testing.T) {
 		require github.com/gorilla/mux v1.6.1
 	`), 0666))
 	tg.run("-vgo", "build")
-	tg.grepStderr("finding github.com/gorilla/mux v1.6.2", "find version 1.6.2")
+	tg.grepStderr("github.com/gorilla/mux v1.6.2", "find version 1.6.2")
 
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
 		module x
@@ -598,7 +598,7 @@ func TestRequireExcluded(t *testing.T) {
 		require github.com/gorilla/mux v1.6.1
 	`), 0666))
 	tg.run("-vgo", "build")
-	tg.grepStderr("finding github.com/gorilla/mux v1.6.1", "find version 1.6.1")
+	tg.grepStderr("github.com/gorilla/mux v1.6.1", "find version 1.6.1")
 }
 
 func TestConvertLegacyConfig(t *testing.T) {

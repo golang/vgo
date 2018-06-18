@@ -84,7 +84,6 @@ func Main() {
 
 	if vgo.MustBeVgo {
 		// If running as vgo or with -vgo, change get now to change help message.
-		work.AddBuildFlags(vgo.CmdGet)
 		*get.CmdGet = *vgo.CmdGet
 	}
 
@@ -144,7 +143,6 @@ func Main() {
 		vgo.Init()
 		if !vgo.MustBeVgo && vgo.Enabled() {
 			// Didn't do this above, so do it now.
-			work.AddBuildFlags(vgo.CmdGet)
 			*get.CmdGet = *vgo.CmdGet
 		}
 	}
