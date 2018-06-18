@@ -40,7 +40,7 @@ var (
 	Target   module.Version
 
 	gopath string
-	SrcMod string // GOPATH/src/v directory where versioned cache lives
+	SrcMod string // GOPATH/src/mod directory where versioned cache lives
 
 	CmdModInit   bool   // go mod -init flag
 	CmdModModule string // go mod -module flag
