@@ -156,6 +156,16 @@ D1: E2
 E1: D2
 build A: A B C D2 E2
 
+# Upgrade from B1 to B2 should drop the transitive dep on D.
+name: drop
+A: B1 C1
+B1: D1
+B2:
+C2:
+D2:
+build A: A B1 C1 D1
+upgrade* A: A B2 C2
+
 name: down1
 A: B2
 B1: C1
@@ -199,6 +209,32 @@ B3:
 B2.hidden: 
 C2: 
 downgrade A B2.hidden: A B2.hidden C2
+
+# Cycles involving the target.
+
+# The target must be the newest version of itself.
+name: cycle1
+A: B1
+B1: A1
+B2: A2
+B3: A3
+build A: A B1
+upgrade A B2: A B2
+upgrade* A: A B3
+
+# Requirements of older versions of the target
+# must not be carried over.
+name: cycle2
+A: B1
+A1: C1
+A2: D1
+B1: A1
+B2: A2
+C1: A2
+C2:
+D2:
+build A: A B1
+upgrade* A: A B2
 `
 
 func Test(t *testing.T) {
@@ -330,10 +366,10 @@ func Test(t *testing.T) {
 type reqsMap map[module.Version][]module.Version
 
 func (r reqsMap) Max(v1, v2 string) string {
-	if v1 == "none" {
+	if v1 == "none" || v2 == "" {
 		return v2
 	}
-	if v2 == "none" {
+	if v2 == "none" || v1 == "" {
 		return v1
 	}
 	if v1 < v2 {

@@ -17,7 +17,7 @@ import (
 
 // A Reqs is the requirement graph on which Minimal Version Selection (MVS) operates.
 //
-// The version strings are opaque except for the special versions "" and "none"
+// The version strings are opaque except for the special version "none"
 // (see the documentation for module.Version). In particular, MVS does not
 // assume that the version strings are semantic versions; instead, the Max method
 // gives access to the comparison operation.
@@ -31,8 +31,10 @@ type Reqs interface {
 	Required(m module.Version) ([]module.Version, error)
 
 	// Max returns the maximum of v1 and v2 (it returns either v1 or v2).
-	// For all versions v, Max(v, "none") must be v.
-	// TODO(rsc,bcmills): For all versions v, Max(v, "") must be "" ? Maybe.
+	//
+	// For all versions v, Max(v, "none") must be v,
+	// and for the tanget passed as the first argument to MVS functions,
+	// Max(target, v) must be target.
 	//
 	// Note that v1 < v2 can be written Max(v1, v2) != v1
 	// and similarly v1 <= v2 can be written Max(v1, v2) == v2.
@@ -43,9 +45,6 @@ type Reqs interface {
 	//
 	// Latest never returns version "none": if no module exists at the given path,
 	// it returns a non-nil error instead.
-	//
-	// TODO(bcmills): If path is the current module, must Latest return version
-	// "", or the most recent prior version?
 	Latest(path string) (module.Version, error)
 
 	// Previous returns the version of m.Path immediately prior to m.Version,
@@ -63,66 +62,72 @@ func (e *MissingModuleError) Error() string {
 
 // BuildList returns the build list for the target module.
 func BuildList(target module.Version, reqs Reqs) ([]module.Version, error) {
-	return buildList(target, reqs, nil, nil)
+	return buildList(target, reqs, nil)
 }
 
-func buildList(target module.Version, reqs Reqs, uses map[module.Version][]module.Version, vers map[string]string) ([]module.Version, error) {
+func buildList(target module.Version, reqs Reqs, upgrade func(module.Version) module.Version) ([]module.Version, error) {
 	// Explore work graph in parallel in case reqs.Required
 	// does high-latency network operations.
 	var work par.Work
 	work.Add(target)
 	var (
-		mu  sync.Mutex
-		min = map[string]string{target.Path: target.Version}
+		mu       sync.Mutex
+		min      = map[string]string{target.Path: target.Version}
+		firstErr error
 	)
 	work.Do(10, func(item interface{}) {
 		m := item.(module.Version)
-		required, _ := reqs.Required(m)
+		required, err := reqs.Required(m)
+
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		if firstErr != nil {
+			mu.Unlock()
+			return
+		}
+		if v, ok := min[m.Path]; !ok || reqs.Max(v, m.Version) != v {
+			min[m.Path] = m.Version
+		}
+		mu.Unlock()
 
 		for _, r := range required {
 			work.Add(r)
 		}
 
-		mu.Lock()
-		defer mu.Unlock()
-		for _, r := range required {
-			if uses != nil {
-				uses[r] = append(uses[r], m)
-			}
-			if v, ok := min[r.Path]; !ok {
-				min[r.Path] = r.Version
-			} else if max := reqs.Max(v, r.Version); max != v {
-				min[r.Path] = max
-			}
+		if upgrade != nil {
+			work.Add(upgrade(m))
 		}
 	})
 
-	if min[target.Path] != target.Version {
-		panic("unbuildable") // TODO
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if v := min[target.Path]; v != target.Version {
+		panic(fmt.Sprintf("mistake: chose version %q instead of target %+v", v, target)) // TODO: Don't panic.
 	}
 
-	if vers == nil {
-		vers = make(map[string]string)
-	}
 	list := []module.Version{target}
+	listed := map[string]bool{target.Path: true}
 	for i := 0; i < len(list); i++ {
 		m := list[i]
 		required, err := reqs.Required(m)
 		if err != nil {
-			// TODO: Check error is decent.
 			return nil, err
 		}
 		for _, r := range required {
 			v := min[r.Path]
-			if reqs.Max(v, r.Version) != v {
-				panic("mistake") // TODO
+			if r.Path != target.Path && reqs.Max(v, r.Version) != v {
+				panic(fmt.Sprintf("mistake: version %q does not satisfy requirement %+v", v, r)) // TODO: Don't panic.
 			}
-			if _, ok := vers[r.Path]; !ok {
-				vers[r.Path] = v
+			if !listed[r.Path] {
 				list = append(list, module.Version{Path: r.Path, Version: v})
+				listed[r.Path] = true
 			}
 		}
 	}
+
 	tail := list[1:]
 	sort.Slice(tail, func(i, j int) bool {
 		return tail[i].Path < tail[j].Path
@@ -180,10 +185,10 @@ func Req(target module.Version, list []module.Version, reqs Reqs) ([]module.Vers
 	}
 	max := map[string]string{}
 	for _, m := range list {
-		if max[m.Path] == "" {
-			max[m.Path] = m.Version
+		if v, ok := max[m.Path]; ok {
+			max[m.Path] = reqs.Max(m.Version, v)
 		} else {
-			max[m.Path] = reqs.Max(m.Version, max[m.Path])
+			max[m.Path] = m.Version
 		}
 	}
 	var min []module.Version
@@ -207,61 +212,18 @@ func Req(target module.Version, list []module.Version, reqs Reqs) ([]module.Vers
 // UpgradeAll returns a build list for the target module
 // in which every module is upgraded to its latest version.
 func UpgradeAll(target module.Version, reqs Reqs) ([]module.Version, error) {
-	// Explore work graph in parallel, like in buildList,
-	// but here the work item is only a path, not a path+version pair,
-	// because we always take the latest of any path.
-	var work par.Work
-	work.Add(target.Path)
-	var (
-		mu   sync.Mutex
-		list []module.Version
-		min  = map[string]string{target.Path: ""}
-	)
-	work.Do(10, func(item interface{}) {
-		path := item.(string)
-		m := module.Version{Path: path}
-		if path != target.Path {
-			latest, err := reqs.Latest(path)
-			if err != nil {
-				panic(err) // TODO
-			}
-			m.Version = latest.Version
+	return buildList(target, reqs, func(m module.Version) module.Version {
+		if m.Path == target.Path {
+			return target
 		}
 
-		required, err := reqs.Required(m)
+		latest, err := reqs.Latest(m.Path)
 		if err != nil {
-			panic("TODO")
+			panic(err) // TODO
 		}
-
-		mu.Lock()
-		// Important: must append to list before calling work.Add (below).
-		// We expect the first work item (target) to be first in list.
-		list = append(list, m)
-		for _, r := range required {
-			if v, ok := min[r.Path]; !ok {
-				min[r.Path] = r.Version
-			} else {
-				min[r.Path] = reqs.Max(v, r.Version)
-			}
-		}
-		mu.Unlock()
-
-		for _, r := range required {
-			work.Add(r.Path)
-		}
+		m.Version = latest.Version
+		return m
 	})
-
-	for _, m := range list {
-		if reqs.Max(m.Version, min[m.Path]) != m.Version {
-			panic("mistake") // TODO
-		}
-	}
-
-	tail := list[1:]
-	sort.Slice(tail, func(i, j int) bool {
-		return tail[i].Path < tail[j].Path
-	})
-	return list, nil
 }
 
 // Upgrade returns a build list for the target module

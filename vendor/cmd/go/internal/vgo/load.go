@@ -528,7 +528,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 }
 
 func (*mvsReqs) Max(v1, v2 string) string {
-	if semver.Compare(v1, v2) == -1 {
+	if v1 != "" && semver.Compare(v1, v2) == -1 {
 		return v2
 	}
 	return v1
