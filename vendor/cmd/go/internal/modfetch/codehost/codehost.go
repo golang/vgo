@@ -32,6 +32,7 @@ const (
 // A Repo represents a code hosting source.
 // Typical implementations include local version control repositories,
 // remote version control servers, and code hosting sites.
+// A Repo must be safe for simultaneous use by multiple goroutines.
 type Repo interface {
 	// Root returns the import path of the root directory of the repository.
 	Root() string
