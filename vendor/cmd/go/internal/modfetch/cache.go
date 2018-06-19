@@ -324,7 +324,7 @@ func writeDiskCache(file string, data []byte) error {
 		return err
 	}
 	// Write data to temp file next to target file.
-	f, err := ioutil.TempFile(filepath.Dir(file), filepath.Base(file)+".tmp*")
+	f, err := ioutil.TempFile(filepath.Dir(file), filepath.Base(file)+".tmp-")
 	if err != nil {
 		return err
 	}
