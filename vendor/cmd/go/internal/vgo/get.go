@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"cmd/go/internal/base"
+	"cmd/go/internal/load"
 	"cmd/go/internal/modfetch"
 	"cmd/go/internal/module"
 	"cmd/go/internal/mvs"
@@ -16,7 +17,7 @@ import (
 )
 
 var CmdGet = &base.Command{
-	UsageLine: "get [build flags] [packages]",
+	UsageLine: "get [build flags] [modules or packages]",
 	Short:     "download and install versioned modules and dependencies",
 	Long: `
 Get downloads the latest versions of modules containing the named packages,
@@ -24,6 +25,15 @@ along with the versions of the dependencies required by those modules
 (not necessarily the latest ones).
 
 It then installs the named packages, like 'go install'.
+
+By default, get downloads the named packages, updates go.mod, and builds the packages.
+As a special case if a package is a module root and has no code, no error is reported.
+
+TODO make this better
+
+The -m flag causes get to update the module file but not build anything.
+
+The -d flag causes get to download the code and update the module file but not build anything.
 
 The -u flag causes get to download the latest version of dependencies as well.
 
@@ -36,7 +46,11 @@ TODO: Make this documentation better once the semantic dust settles.
 	`,
 }
 
-var getU = CmdGet.Flag.Bool("u", false, "")
+var (
+	getD = CmdGet.Flag.Bool("d", false, "")
+	getM = CmdGet.Flag.Bool("m", false, "")
+	getU = CmdGet.Flag.Bool("u", false, "")
+)
 
 func init() {
 	CmdGet.Run = runGet // break init loop
@@ -52,7 +66,7 @@ func runGet(cmd *base.Command, args []string) {
 	}
 
 	if *getU {
-		ImportPaths([]string{"."})
+		LoadBuildList()
 		return
 	}
 
@@ -105,7 +119,7 @@ func runGet(cmd *base.Command, args []string) {
 		base.Fatalf("vgo get: %v", err)
 	}
 
-	importPaths([]string{"."})
+	LoadBuildList()
 
 	// Downgrade anything that went too far.
 	version := make(map[string]string)
@@ -144,7 +158,25 @@ func runGet(cmd *base.Command, args []string) {
 	}
 	WriteGoMod()
 
+	if *getD {
+		// Download all needed code as side-effect.
+		ImportPaths([]string{"ALL"})
+	}
+
+	if *getM {
+		return
+	}
+
 	if len(args) > 0 {
-		work.CmdInstall.Run(work.CmdInstall, args)
+		work.BuildInit()
+		var list []string
+		for _, p := range load.PackagesAndErrors(args) {
+			if p.Error == nil || !strings.HasPrefix(p.Error.Err, "no Go files") {
+				list = append(list, p.ImportPath)
+			}
+		}
+		if len(list) > 0 {
+			work.InstallPackages(list, false)
+		}
 	}
 }

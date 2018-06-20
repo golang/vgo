@@ -268,7 +268,7 @@ func TestTags(t *testing.T) {
 	tg.cd(tg.path("x"))
 
 	tg.runFail("-vgo", "list", "-f={{.GoFiles}}")
-	tg.grepStderr("no Go source files", "no Go source files without tags")
+	tg.grepStderr("build constraints exclude all Go files", "no Go source files without tags")
 
 	tg.run("-vgo", "list", "-f={{.GoFiles}}", "-tags=tag1")
 	tg.grepStdout(`\[x.go\]`, "Go source files for tag1")
@@ -346,6 +346,31 @@ func TestGetModuleVersion(t *testing.T) {
 	tg.run("-vgo", "get", "github.com/gobuffalo/uuid@v1.2.0")
 	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout("github.com/gobuffalo/uuid.*v1.2.0", "did upgrade to v1.2.0")
+
+	// @7f39a6fea4fe9364 should resolve,
+	// and also there should be no build error about not having Go files in the root.
+	tg.run("-vgo", "get", "golang.org/x/crypto@7f39a6fea4fe9364")
+
+	// @7f39a6fea4fe9364 should resolve.
+	// Now there should be no build at all.
+	tg.run("-vgo", "get", "-m", "golang.org/x/crypto@7f39a6fea4fe9364")
+
+	// TODO(rsc): These should work, but "go get" needs more work
+	// regarding packages versus modules.
+
+	// @7f39a6fea4fe9364 should resolve.
+	// Now there should be no build at all.
+	// tg.run("-vgo", "get", "-m", "-x", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
+	// tg.grepStderrNot("compile", "should not see compile steps")
+
+	// @7f39a6fea4fe9364 should resolve.
+	// Now there should be a build
+	// tg.run("-vgo", "get", "-x", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
+	// tg.grepStderr("compile", "should see compile steps")
+
+	// .../pbkdf2@7f39a6fea4fe9364 should NOT resolve:
+	// we are using -m and .../pbkdf2 is not a module path.
+	tg.runFail("-vgo", "get", "-m", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
 }
 
 func TestVgoBadDomain(t *testing.T) {

@@ -272,6 +272,11 @@ func (ld *loader) importPkg(path string, level importLevel) {
 
 	imports, testImports, err := scanDir(dir, ld.tags)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "no Go ") {
+			// Don't print about directories with no Go source files.
+			// Let the eventual real package load do that.
+			return
+		}
 		base.Errorf("vgo: %s [%s]: %v", ld.stackText(), dir, err)
 		return
 	}
