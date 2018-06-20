@@ -188,8 +188,8 @@ func InitMod() {
 		os.Rename(srcV, SrcMod)
 	}
 
-	modfetch.CacheRoot = filepath.Join(SrcMod, "cache")
-	codehost.WorkRoot = filepath.Join(SrcMod, "cache/vcswork")
+	modfetch.CacheRoot = filepath.Join(SrcMod, "cache/download")
+	codehost.WorkRoot = filepath.Join(SrcMod, "cache/vcs")
 
 	if CmdModInit {
 		// Running go mod -init: do legacy module conversion

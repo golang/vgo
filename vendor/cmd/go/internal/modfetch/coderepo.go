@@ -293,7 +293,7 @@ func (r *codeRepo) legacyGoMod(rev, dir string) []byte {
 		if convert == nil {
 			continue
 		}
-		if err := ConvertLegacyConfig(mf, file, data); err != nil {
+		if err := ConvertLegacyConfig(mf, path.Join(r.codeRoot+"@"+rev, dir, file), data); err != nil {
 			continue
 		}
 		break

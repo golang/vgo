@@ -354,9 +354,9 @@ func TestVgoBadDomain(t *testing.T) {
 	tg.cd(filepath.Join(wd, "testdata/badmod"))
 
 	tg.runFail("-vgo", "get", "appengine")
-	tg.grepStderr("unknown module appengine: not a domain name", "expected domain error")
+	tg.grepStderr(`unrecognized import path \"appengine\"`, "expected appengine error ")
 	tg.runFail("-vgo", "get", "x/y.z")
-	tg.grepStderr("unknown module x/y.z: not a domain name", "expected domain error")
+	tg.grepStderr(`unrecognized import path \"x/y.z\" \(import path does not begin with hostname\)`, "expected domain error")
 
 	tg.runFail("-vgo", "build")
 	tg.grepStderrNot("unknown module appengine: not a domain name", "expected nothing about appengine")
@@ -485,7 +485,7 @@ func TestVgoVendor(t *testing.T) {
 	tg.grepStdout(`vendormod[/\\]w`, "expected w in vendormod/w")
 
 	tg.runFail("-vgo", "list", "-getmode=local", "-f={{.Dir}}", "newpkg")
-	tg.grepStderr(`module lookup disabled by -getmode=local`, "expected -getmode=local to avoid network")
+	tg.grepStderr(`disabled by -getmode=local`, "expected -getmode=local to avoid network")
 
 	if !testing.Short() {
 		tg.run("-vgo", "build")
@@ -625,7 +625,7 @@ func TestConvertLegacyConfig(t *testing.T) {
 	// it would choose a newer version (like v0.8.0 or maybe
 	// something even newer). Check for the older version to
 	// make sure Gopkg.lock was properly used.
-	tg.grepStderr("v0.6.0", "expected github.com/pkg/errors at v0.6.0")
+	tg.grepStdout("v0.6.0", "expected github.com/pkg/errors at v0.6.0")
 }
 
 func TestVerifyNotDownloaded(t *testing.T) {

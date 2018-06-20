@@ -243,8 +243,10 @@ var codeRepoTests = []struct {
 	},
 	{
 		// package in subdirectory - custom domain
-		path:    "golang.org/x/net/context",
-		lookerr: "module root is \"golang.org/x/net\"",
+		// In general we can't reject these definitively in Lookup,
+		// but gopkg.in is special.
+		path:    "gopkg.in/yaml.v2/abc",
+		lookerr: "invalid module path \"gopkg.in/yaml.v2/abc\"",
 	},
 	{
 		// package in subdirectory - github
@@ -329,13 +331,13 @@ func TestCodeRepo(t *testing.T) {
 	for _, tt := range codeRepoTests {
 		t.Run(strings.Replace(tt.path, "/", "_", -1)+"/"+tt.rev, func(t *testing.T) {
 			repo, err := Lookup(tt.path)
-			if err != nil {
-				if tt.lookerr != "" {
-					if err.Error() == tt.lookerr {
-						return
-					}
-					t.Errorf("Lookup(%q): %v, want error %q", tt.path, err, tt.lookerr)
+			if tt.lookerr != "" {
+				if err != nil && err.Error() == tt.lookerr {
+					return
 				}
+				t.Errorf("Lookup(%q): %v, want error %q", tt.path, err, tt.lookerr)
+			}
+			if err != nil {
 				t.Fatalf("Lookup(%q): %v", tt.path, err)
 			}
 			if tt.mpath == "" {
@@ -442,7 +444,8 @@ var importTests = []struct {
 	},
 	{
 		path: "golang.org/x/foo/bar",
-		err:  "unknown module golang.org/x/foo/bar: no go-import tags",
+		// TODO(rsc): This error comes from old go get and is terrible. Fix.
+		err: `unrecognized import path "golang.org/x/foo/bar" (parse https://golang.org/x/foo/bar?go-get=1: no go-import meta tags ())`,
 	},
 }
 
@@ -452,14 +455,14 @@ func TestImport(t *testing.T) {
 	for _, tt := range importTests {
 		t.Run(strings.Replace(tt.path, "/", "_", -1), func(t *testing.T) {
 			repo, info, err := Import(tt.path, nil)
-			if err != nil {
-				if tt.err != "" {
-					if err.Error() == tt.err {
-						return
-					}
-					t.Errorf("Import(%q): %v, want error %q", tt.path, err, tt.err)
+			if tt.err != "" {
+				if err != nil && err.Error() == tt.err {
+					return
 				}
-				t.Fatalf("Lookup(%q): %v", tt.path, err)
+				t.Fatalf("Import(%q): %v, want error %q", tt.path, err, tt.err)
+			}
+			if err != nil {
+				t.Fatalf("Import(%q): %v", tt.path, err)
 			}
 			if mpath := repo.ModulePath(); mpath != tt.mpath {
 				t.Errorf("repo.ModulePath() = %q (%v), want %q", mpath, info.Version, tt.mpath)
