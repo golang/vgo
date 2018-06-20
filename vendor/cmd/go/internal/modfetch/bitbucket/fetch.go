@@ -12,11 +12,12 @@ import (
 	"cmd/go/internal/modfetch/gitrepo"
 )
 
-func Lookup(path string) (codehost.Repo, error) {
+func Lookup(path string) (codehost.Repo, string, error) {
 	f := strings.Split(path, "/")
 	if len(f) < 3 || f[0] != "bitbucket.org" {
-		return nil, fmt.Errorf("bitbucket repo must be bitbucket.org/org/project")
+		return nil, "", fmt.Errorf("bitbucket repo must be bitbucket.org/org/project")
 	}
 	path = f[0] + "/" + f[1] + "/" + f[2]
-	return gitrepo.Repo("https://"+path, path)
+	repo, err := gitrepo.Repo("https://" + path)
+	return repo, path, err
 }

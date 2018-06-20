@@ -14,11 +14,12 @@ import (
 
 // Lookup returns the code repository enclosing the given module path,
 // which must begin with github.com/.
-func Lookup(path string) (codehost.Repo, error) {
+func Lookup(path string) (codehost.Repo, string, error) {
 	f := strings.Split(path, "/")
 	if len(f) < 3 || f[0] != "github.com" {
-		return nil, fmt.Errorf("github repo must be github.com/org/project")
+		return nil, "", fmt.Errorf("github repo must be github.com/org/project")
 	}
 	path = f[0] + "/" + f[1] + "/" + f[2]
-	return gitrepo.Repo("https://"+path, path)
+	repo, err := gitrepo.Repo("https://" + path)
+	return repo, path, err
 }

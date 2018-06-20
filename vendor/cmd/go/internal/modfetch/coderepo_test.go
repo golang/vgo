@@ -19,10 +19,6 @@ import (
 	"cmd/go/internal/modfetch/codehost"
 )
 
-func init() {
-	isTest = true
-}
-
 func TestMain(m *testing.M) {
 	os.Exit(testMain(m))
 }
@@ -90,7 +86,7 @@ var codeRepoTests = []struct {
 	},
 	{
 		path:    "github.com/rsc/vgotest1",
-		rev:     "80d85",
+		rev:     "80d85c5",
 		version: "v0.0.0-20180219231006-80d85c5d4d17",
 		name:    "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:   "80d85c5d4d17",
@@ -116,7 +112,7 @@ var codeRepoTests = []struct {
 	},
 	{
 		path:     "github.com/rsc/vgotest1/v2",
-		rev:      "80d85",
+		rev:      "80d85c5",
 		version:  "v2.0.0-20180219231006-80d85c5d4d17",
 		name:     "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:    "80d85c5d4d17",
@@ -126,7 +122,7 @@ var codeRepoTests = []struct {
 	},
 	{
 		path:    "github.com/rsc/vgotest1/v54321",
-		rev:     "80d85",
+		rev:     "80d85c5",
 		version: "v54321.0.0-20180219231006-80d85c5d4d17",
 		name:    "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:   "80d85c5d4d17",
@@ -136,12 +132,12 @@ var codeRepoTests = []struct {
 	{
 		path: "github.com/rsc/vgotest1/submod",
 		rev:  "v1.0.0",
-		err:  "unknown revision \"submod/v1.0.0\"",
+		err:  "unknown revision submod/v1.0.0",
 	},
 	{
 		path: "github.com/rsc/vgotest1/submod",
 		rev:  "v1.0.3",
-		err:  "unknown revision \"submod/v1.0.3\"",
+		err:  "unknown revision submod/v1.0.3",
 	},
 	{
 		path:    "github.com/rsc/vgotest1/submod",
@@ -207,33 +203,6 @@ var codeRepoTests = []struct {
 		short:   "2f615117ce48",
 		time:    time.Date(2018, 2, 20, 0, 3, 59, 0, time.UTC),
 		gomod:   "module \"github.com/rsc/vgotest1/v2\" // v2/go.mod\n",
-	},
-	{
-		path:    "go.googlesource.com/scratch",
-		rev:     "0f302529858",
-		version: "v0.0.0-20180220024720-0f3025298580",
-		name:    "0f30252985809011f026b5a2d5cf456e021623da",
-		short:   "0f3025298580",
-		time:    time.Date(2018, 2, 20, 2, 47, 20, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule go.googlesource.com/scratch\n",
-	},
-	{
-		path:    "go.googlesource.com/scratch/rsc",
-		rev:     "0f302529858",
-		version: "v0.0.0-20180220024720-0f3025298580",
-		name:    "0f30252985809011f026b5a2d5cf456e021623da",
-		short:   "0f3025298580",
-		time:    time.Date(2018, 2, 20, 2, 47, 20, 0, time.UTC),
-		gomod:   "",
-	},
-	{
-		path:     "go.googlesource.com/scratch/cbro",
-		rev:      "0f302529858",
-		version:  "v0.0.0-20180220024720-0f3025298580",
-		name:     "0f30252985809011f026b5a2d5cf456e021623da",
-		short:    "0f3025298580",
-		time:     time.Date(2018, 2, 20, 2, 47, 20, 0, time.UTC),
-		gomoderr: "missing go.mod",
 	},
 	{
 		// redirect to github
@@ -610,12 +579,10 @@ func TestLatest(t *testing.T) {
 
 // fixedTagsRepo is a fake codehost.Repo that returns a fixed list of tags
 type fixedTagsRepo struct {
-	root string
 	tags []string
 }
 
 func (ch *fixedTagsRepo) Tags(string) ([]string, error)                  { return ch.tags, nil }
-func (ch *fixedTagsRepo) Root() string                                   { return ch.root }
 func (ch *fixedTagsRepo) Latest() (*codehost.RevInfo, error)             { panic("not impl") }
 func (ch *fixedTagsRepo) ReadFile(string, string, int64) ([]byte, error) { panic("not impl") }
 func (ch *fixedTagsRepo) ReadZip(string, string, int64) (io.ReadCloser, string, error) {
@@ -626,7 +593,6 @@ func (ch *fixedTagsRepo) Stat(string) (*codehost.RevInfo, error) { panic("not im
 func TestNonCanonicalSemver(t *testing.T) {
 	root := "golang.org/x/issue24476"
 	ch := &fixedTagsRepo{
-		root: root,
 		tags: []string{
 			"", "huh?", "1.0.1",
 			// what about "version 1 dot dogcow"?
@@ -637,7 +603,7 @@ func TestNonCanonicalSemver(t *testing.T) {
 		},
 	}
 
-	cr, err := newCodeRepo(ch, root)
+	cr, err := newCodeRepo(ch, root, root)
 	if err != nil {
 		t.Fatal(err)
 	}

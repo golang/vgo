@@ -13,10 +13,11 @@ import (
 	"fmt"
 )
 
-func gopkginLookup(path string) (codehost.Repo, error) {
+func gopkginLookup(path string) (codehost.Repo, string, error) {
 	root, _, _, _, ok := modfile.ParseGopkgIn(path)
 	if !ok {
-		return nil, fmt.Errorf("invalid gopkg.in/ path: %q", path)
+		return nil, "", fmt.Errorf("invalid gopkg.in/ path: %q", path)
 	}
-	return gitrepo.Repo("https://"+root, root)
+	repo, err := gitrepo.Repo("https://" + root)
+	return repo, root, err
 }

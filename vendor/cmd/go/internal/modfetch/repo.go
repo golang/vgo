@@ -99,11 +99,11 @@ func lookup(path string) (r Repo, err error) {
 	if proxyURL != "" {
 		return lookupProxy(path)
 	}
-	if code, err := lookupCodeHost(path, false); err != errNotHosted {
+	if code, root, err := lookupCodeHost(path, false); err != errNotHosted {
 		if err != nil {
 			return nil, err
 		}
-		return newCodeRepo(code, path)
+		return newCodeRepo(code, root, path)
 	}
 	return lookupCustomDomain(path)
 }
@@ -148,21 +148,18 @@ func Import(path string, allowed func(module.Version) bool) (Repo, *RevInfo, err
 
 var errNotHosted = errors.New("not hosted")
 
-var isTest bool
-
-func lookupCodeHost(path string, customDomain bool) (codehost.Repo, error) {
+func lookupCodeHost(path string, customDomain bool) (codehost.Repo, string, error) {
 	switch {
 	case strings.HasPrefix(path, "github.com/"):
 		return github.Lookup(path)
 	case strings.HasPrefix(path, "bitbucket.org/"):
 		return bitbucket.Lookup(path)
-	case customDomain && strings.HasSuffix(path[:strings.Index(path, "/")+1], ".googlesource.com/") ||
-		isTest && strings.HasPrefix(path, "go.googlesource.com/scratch"):
+	case customDomain && strings.HasSuffix(path[:strings.Index(path, "/")+1], ".googlesource.com/"):
 		return googlesource.Lookup(path)
 	case strings.HasPrefix(path, "gopkg.in/"):
 		return gopkginLookup(path)
 	}
-	return nil, errNotHosted
+	return nil, "", errNotHosted
 }
 
 func SortVersions(list []string) {

@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"cmd/go/internal/cfg"
@@ -34,9 +35,6 @@ const (
 // remote version control servers, and code hosting sites.
 // A Repo must be safe for simultaneous use by multiple goroutines.
 type Repo interface {
-	// Root returns the import path of the root directory of the repository.
-	Root() string
-
 	// List lists all tags with the given prefix.
 	Tags(prefix string) (tags []string, err error)
 
@@ -161,19 +159,36 @@ func (e *RunError) Error() string {
 	return text
 }
 
+var dirLock sync.Map
+
 // Run runs the command line in the given directory
 // (an empty dir means the current directory).
 // It returns the standard output and, for a non-zero exit,
 // a *RunError indicating the command, exit status, and standard error.
 // Standard error is unavailable for commands that exit successfully.
 func Run(dir string, cmdline ...interface{}) ([]byte, error) {
+	if dir != "" {
+		muIface, ok := dirLock.Load(dir)
+		if !ok {
+			muIface, _ = dirLock.LoadOrStore(dir, new(sync.Mutex))
+		}
+		mu := muIface.(*sync.Mutex)
+		mu.Lock()
+		defer mu.Unlock()
+	}
+
 	cmd := str.StringList(cmdline...)
 	if cfg.BuildX {
-		var cd string
+		var text string
 		if dir != "" {
-			cd = "cd " + dir + "; "
+			text = "cd " + dir + "; "
 		}
-		fmt.Fprintf(os.Stderr, "%s%s\n", cd, strings.Join(cmd, " "))
+		text += strings.Join(cmd, " ")
+		fmt.Fprintf(os.Stderr, "%s\n", text)
+		start := time.Now()
+		defer func() {
+			fmt.Fprintf(os.Stderr, "%.3fs # %s\n", time.Since(start).Seconds(), text)
+		}()
 	}
 	// TODO: Impose limits on command output size.
 	// TODO: Set environment to get English error messages.

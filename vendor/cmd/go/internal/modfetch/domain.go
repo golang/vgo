@@ -76,11 +76,11 @@ func lookupCustomDomain(path string) (Repo, error) {
 				return nil, fmt.Errorf("invalid server URL %q: must be HTTPS", imp.RepoRoot)
 			}
 			if imp.VCS == "git" {
-				code, err := gitrepo.Repo(imp.RepoRoot, imp.Prefix)
+				code, err := gitrepo.Repo(imp.RepoRoot)
 				if err != nil {
 					return nil, err
 				}
-				return newCodeRepo(code, path)
+				return newCodeRepo(code, imp.Prefix, path)
 			}
 			return nil, fmt.Errorf("unknown VCS, Repo: %s, %s", imp.VCS, imp.RepoRoot)
 		}

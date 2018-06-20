@@ -66,9 +66,7 @@ func testRepo(remote string) (codehost.Repo, error) {
 	if remote == "localGitRepo" {
 		remote = "file://" + filepath.ToSlash(localGitRepo)
 	}
-	// Re ?root: nothing should care about the second argument,
-	// so use a string that will be distinctive if it does show up.
-	return LocalRepo(remote, "?root")
+	return LocalRepo(remote)
 }
 
 var tagsTests = []struct {
@@ -286,7 +284,7 @@ var readZipTests = []struct {
 		repo:   gitrepo1,
 		rev:    "aaaaaaaaab",
 		subdir: "",
-		err:    "cannot find hash",
+		err:    "unknown hash",
 	},
 	{
 		repo:   "https://github.com/rsc/vgotest1",
@@ -460,7 +458,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "aaaaaaaaab",
-		err:  "cannot find hash",
+		err:  "unknown hash",
 	},
 }
 

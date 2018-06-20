@@ -38,10 +38,9 @@ type codeRepo struct {
 	pseudoMajor string
 }
 
-func newCodeRepo(code codehost.Repo, path string) (Repo, error) {
-	codeRoot := code.Root()
-	if !hasPathPrefix(path, codeRoot) {
-		return nil, fmt.Errorf("mismatched repo: found %s for %s", codeRoot, path)
+func newCodeRepo(code codehost.Repo, root, path string) (Repo, error) {
+	if !hasPathPrefix(path, root) {
+		return nil, fmt.Errorf("mismatched repo: found %s for %s", root, path)
 	}
 	pathPrefix, pathMajor, ok := module.SplitPathVersion(path)
 	if !ok {
@@ -61,7 +60,7 @@ func newCodeRepo(code codehost.Repo, path string) (Repo, error) {
 	//
 	// Compute codeDir = bar, the subdirectory within the repo
 	// corresponding to the module root.
-	codeDir := strings.Trim(strings.TrimPrefix(pathPrefix, codeRoot), "/")
+	codeDir := strings.Trim(strings.TrimPrefix(pathPrefix, root), "/")
 	if strings.HasPrefix(path, "gopkg.in/") {
 		// But gopkg.in is a special legacy case, in which pathPrefix does not start with codeRoot.
 		// For example we might have:
@@ -77,7 +76,7 @@ func newCodeRepo(code codehost.Repo, path string) (Repo, error) {
 	r := &codeRepo{
 		modPath:     path,
 		code:        code,
-		codeRoot:    codeRoot,
+		codeRoot:    root,
 		codeDir:     codeDir,
 		pathPrefix:  pathPrefix,
 		pathMajor:   pathMajor,

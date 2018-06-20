@@ -12,14 +12,15 @@ import (
 	"cmd/go/internal/modfetch/gitrepo"
 )
 
-func Lookup(path string) (codehost.Repo, error) {
+func Lookup(path string) (codehost.Repo, string, error) {
 	i := strings.Index(path, "/")
 	if i+1 == len(path) || !strings.HasSuffix(path[:i+1], ".googlesource.com/") {
-		return nil, fmt.Errorf("not *.googlesource.com/*")
+		return nil, "", fmt.Errorf("not *.googlesource.com/*")
 	}
 	j := strings.Index(path[i+1:], "/")
 	if j >= 0 {
 		path = path[:i+1+j]
 	}
-	return gitrepo.Repo("https://"+path, path)
+	repo, err := gitrepo.Repo("https://" + path)
+	return repo, path, err
 }
