@@ -6,14 +6,17 @@
 package modcmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
+	"cmd/go/internal/par"
 	"cmd/go/internal/vgo"
 )
 
@@ -65,6 +68,11 @@ The -fmt flag reformats the go.mod file without making other changes.
 This reformatting is also implied by any other modifications that use or
 rewrite the go.mod file. The only time this flag is needed is if no other
 flags are specified, as in 'go mod -fmt'.
+
+The -graph flag prints the module requirement graph (with replacements applied)
+in text form. Each line in the output has two space-separated fields: a module
+and one of its requirements. Each module is identified as a string of the form
+path@version, except for the main module, which has no @version suffix.
 
 The -json flag prints the go.mod file in JSON format corresponding to these
 Go types:
@@ -152,6 +160,7 @@ var (
 
 	modFmt      = CmdMod.Flag.Bool("fmt", false, "")
 	modFix      = CmdMod.Flag.Bool("fix", false, "")
+	modGraph    = CmdMod.Flag.Bool("graph", false, "")
 	modJSON     = CmdMod.Flag.Bool("json", false, "")
 	modPackages = CmdMod.Flag.Bool("packages", false, "")
 	modSync     = CmdMod.Flag.Bool("sync", false, "")
@@ -198,6 +207,7 @@ func runMod(cmd *base.Command, args []string) {
 			*modJSON ||
 			*modFmt ||
 			*modFix ||
+			*modGraph ||
 			*modPackages ||
 			*modSync ||
 			len(modEdits) > 0
@@ -277,6 +287,10 @@ func runMod(cmd *base.Command, args []string) {
 
 	if *modJSON {
 		modPrintJSON()
+	}
+
+	if *modGraph {
+		modPrintGraph()
 	}
 
 	if *modPackages {
@@ -449,4 +463,44 @@ func modPrintJSON() {
 	}
 	data = append(data, '\n')
 	os.Stdout.Write(data)
+}
+
+// modPrintGraph prints the -graph output.
+func modPrintGraph() {
+	reqs := vgo.Reqs()
+
+	format := func(m module.Version) string {
+		if m.Version == "" {
+			return m.Path
+		}
+		return m.Path + "@" + m.Version
+	}
+
+	// Note: using par.Work only to manage work queue.
+	// No parallelism here, so no locking.
+	var out []string
+	var deps int // index in out where deps start
+	var work par.Work
+	work.Add(vgo.Target)
+	work.Do(1, func(item interface{}) {
+		m := item.(module.Version)
+		list, _ := reqs.Required(m)
+		for _, r := range list {
+			work.Add(r)
+			out = append(out, format(m)+" "+format(r)+"\n")
+		}
+		if m == vgo.Target {
+			deps = len(out)
+		}
+	})
+
+	sort.Slice(out[deps:], func(i, j int) bool {
+		return out[deps+j][0] < out[deps+j][0]
+	})
+
+	w := bufio.NewWriter(os.Stdout)
+	for _, line := range out {
+		w.WriteString(line)
+	}
+	w.Flush()
 }

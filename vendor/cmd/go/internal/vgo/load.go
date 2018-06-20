@@ -411,6 +411,11 @@ func newReqs(extra ...module.Version) *mvsReqs {
 	return r
 }
 
+// Reqs returns the module requirement graph.
+func Reqs() mvs.Reqs {
+	return newReqs()
+}
+
 func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 	type cached struct {
 		list []module.Version
