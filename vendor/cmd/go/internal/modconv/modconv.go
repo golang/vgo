@@ -4,9 +4,9 @@
 
 package modconv
 
-import "cmd/go/internal/module"
+import "cmd/go/internal/modfile"
 
-var Converters = map[string]func(string, []byte) ([]module.Version, error){
+var Converters = map[string]func(string, []byte) (*modfile.File, error){
 	"GLOCKFILE":          ParseGLOCKFILE,
 	"Godeps/Godeps.json": ParseGodepsJSON,
 	"Gopkg.lock":         ParseGopkgLock,

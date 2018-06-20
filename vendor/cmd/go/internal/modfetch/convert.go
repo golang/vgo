@@ -33,7 +33,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	if convert == nil {
 		return fmt.Errorf("unknown legacy config file %s", file)
 	}
-	require, err := convert(file, data)
+	result, err := convert(file, data)
 	if err != nil {
 		return fmt.Errorf("parsing %s: %v", file, err)
 	}
@@ -41,19 +41,20 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	// Convert requirements block, which may use raw SHA1 hashes as versions,
 	// to valid semver requirement list, respecting major versions.
 	var work par.Work
-	for _, r := range require {
-		if r.Path == "" {
+	for _, r := range result.Require {
+		m := r.Mod
+		if m.Path == "" {
 			continue
 		}
 
 		// TODO: Something better here.
-		if strings.HasPrefix(r.Path, "github.com/") || strings.HasPrefix(r.Path, "golang.org/x/") {
-			f := strings.Split(r.Path, "/")
+		if strings.HasPrefix(m.Path, "github.com/") || strings.HasPrefix(m.Path, "golang.org/x/") {
+			f := strings.Split(m.Path, "/")
 			if len(f) > 3 {
-				r.Path = strings.Join(f[:3], "/")
+				m.Path = strings.Join(f[:3], "/")
 			}
 		}
-		work.Add(r)
+		work.Add(m)
 	}
 
 	var (
@@ -81,5 +82,12 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 		f.AddNewRequire(path, need[path])
 	}
 
+	for _, r := range result.Replace {
+		err := f.AddReplace(r.Old.Path, r.Old.Version, r.New.Path, r.New.Version)
+		if err != nil {
+			return fmt.Errorf("add replace: %v", err)
+		}
+	}
+	f.Cleanup()
 	return nil
 }

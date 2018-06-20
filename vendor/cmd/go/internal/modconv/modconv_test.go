@@ -55,8 +55,8 @@ func Test(t *testing.T) {
 				t.Error(err)
 			}
 			var buf bytes.Buffer
-			for _, r := range out {
-				fmt.Fprintf(&buf, "%s %s\n", r.Path, r.Version)
+			for _, r := range out.Require {
+				fmt.Fprintf(&buf, "%s %s\n", r.Mod.Path, r.Mod.Version)
 			}
 			if !bytes.Equal(buf.Bytes(), want) {
 				t.Errorf("have:\n%s\nwant:\n%s", buf.Bytes(), want)
