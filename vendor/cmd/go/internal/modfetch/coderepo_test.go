@@ -34,6 +34,15 @@ func testMain(m *testing.M) int {
 	return m.Run()
 }
 
+const (
+	vgotest1git = "github.com/rsc/vgotest1"
+	vgotest1hg  = "vcs-test.golang.org/hg/vgotest1.hg"
+)
+
+var altVgotests = []string{
+	vgotest1hg,
+}
+
 var codeRepoTests = []struct {
 	path     string
 	lookerr  string
@@ -329,7 +338,7 @@ func TestCodeRepo(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpdir)
 	for _, tt := range codeRepoTests {
-		t.Run(strings.Replace(tt.path, "/", "_", -1)+"/"+tt.rev, func(t *testing.T) {
+		f := func(t *testing.T) {
 			repo, err := Lookup(tt.path)
 			if tt.lookerr != "" {
 				if err != nil && err.Error() == tt.lookerr {
@@ -417,8 +426,56 @@ func TestCodeRepo(t *testing.T) {
 					t.Fatalf("zip = %v\nwant %v\n", names, tt.zip)
 				}
 			}
-		})
+		}
+		t.Run(strings.Replace(tt.path, "/", "_", -1)+"/"+tt.rev, f)
+		if strings.HasPrefix(tt.path, vgotest1git) {
+			for _, alt := range altVgotests {
+				// Note: Communicating with f through tt; should be cleaned up.
+				old := tt
+				tt.path = alt + strings.TrimPrefix(tt.path, vgotest1git)
+				if strings.HasPrefix(tt.mpath, vgotest1git) {
+					tt.mpath = alt + strings.TrimPrefix(tt.mpath, vgotest1git)
+				}
+				var m map[string]string
+				if alt == vgotest1hg {
+					m = hgmap
+				}
+				tt.version = remap(tt.version, m)
+				tt.name = remap(tt.name, m)
+				tt.short = remap(tt.short, m)
+				tt.rev = remap(tt.rev, m)
+				t.Run(strings.Replace(tt.path, "/", "_", -1)+"/"+tt.rev, f)
+				tt = old
+			}
+		}
 	}
+}
+
+var hgmap = map[string]string{
+	"f18795870fb14388a21ef3ebc1d75911c8694f31": "a9ad6d1d14eb544f459f446210c7eb3b009807c6",
+	"ea65f87c8f52c15ea68f3bdd9925ef17e20d91e9": "f1fc0f22021b638d073d31c752847e7bf385def7",
+	"b769f2de407a4db81af9c5de0a06016d60d2ea09": "92c7eb888b4fac17f1c6bd2e1060a1b881a3b832",
+	"8afe2b2efed96e0880ecd2a69b98a53b8c2738b6": "4e58084d459ae7e79c8c2264d0e8e9a92eb5cd44",
+	"2f615117ce481c8efef46e0cc0b4b4dccfac8fea": "879ea98f7743c8eff54f59a918f3a24123d1cf46",
+	"80d85c5d4d17598a0e9055e7c175a32b415d6128": "e125018e286a4b09061079a81e7b537070b7ff71",
+	"1f863feb76bc7029b78b21c5375644838962f88d": "bf63880162304a9337477f3858f5b7e255c75459",
+}
+
+func remap(name string, m map[string]string) string {
+	if m[name] != "" {
+		return m[name]
+	}
+	if codehost.AllHex(name) {
+		for k, v := range m {
+			if strings.HasPrefix(k, name) {
+				return v[:len(name)]
+			}
+		}
+	}
+	if i := strings.LastIndex(name, "-"); i >= 0 { // remap tail of pseudo-version
+		return name[:i+1] + remap(name[i+1:], m)
+	}
+	return name
 }
 
 var importTests = []struct {

@@ -417,6 +417,11 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 		if !strings.HasPrefix(name, subdir) {
 			continue
 		}
+		if name == ".hg_archival.txt" {
+			// Inserted by hg archive.
+			// Not correct to drop from other version control systems, but too bad.
+			continue
+		}
 		name = strings.TrimPrefix(name, subdir)
 		if isVendoredPackage(name) {
 			continue

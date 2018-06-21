@@ -115,14 +115,12 @@ func WorkDir(typ, name string) (string, error) {
 	key := typ + ":" + name
 	dir := filepath.Join(WorkRoot, fmt.Sprintf("%x", sha256.Sum256([]byte(key))))
 	data, err := ioutil.ReadFile(dir + ".info")
-	if err == nil {
+	info, err2 := os.Stat(dir)
+	if err == nil && err2 == nil && info.IsDir() {
+		// Info file and directory both already exist: reuse.
 		have := strings.TrimSuffix(string(data), "\n")
 		if have != key {
 			return "", fmt.Errorf("%s exists with wrong content (have %q want %q)", dir+".info", have, key)
-		}
-		_, err := os.Stat(dir)
-		if err != nil {
-			return "", fmt.Errorf("%s exists but %s does not", dir+".info", dir)
 		}
 		if cfg.BuildX {
 			fmt.Fprintf(os.Stderr, "# %s for %s %s\n", dir, typ, name)
@@ -130,6 +128,7 @@ func WorkDir(typ, name string) (string, error) {
 		return dir, nil
 	}
 
+	// Info file or directory missing. Start from scratch.
 	if cfg.BuildX {
 		fmt.Fprintf(os.Stderr, "mkdir -p %s # %s %s\n", dir, typ, name)
 	}

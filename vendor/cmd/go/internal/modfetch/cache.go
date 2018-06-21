@@ -100,10 +100,6 @@ func (r *cachingRepo) Stat(rev string) (*RevInfo, error) {
 }
 
 func (r *cachingRepo) Latest() (*RevInfo, error) {
-	type cachedInfo struct {
-		info *RevInfo
-		err  error
-	}
 	c := r.cache.Do("latest:", func() interface{} {
 		if !QuietLookup {
 			fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", r.path)

@@ -359,9 +359,6 @@ func (r *gitRepo) stat(rev string) (*RevInfo, error) {
 func (r *gitRepo) statLocal(version, rev string) (*RevInfo, error) {
 	out, err := Run(r.dir, "git", "log", "-n1", "--format=format:%H %ct", rev)
 	if err != nil {
-		if AllHex(rev) {
-			return nil, fmt.Errorf("unknown hash %s", rev)
-		}
 		return nil, fmt.Errorf("unknown revision %s", rev)
 	}
 	f := strings.Fields(string(out))
@@ -387,6 +384,9 @@ func (r *gitRepo) statLocal(version, rev string) (*RevInfo, error) {
 }
 
 func (r *gitRepo) Stat(rev string) (*RevInfo, error) {
+	if rev == "latest" {
+		return r.Latest()
+	}
 	type cached struct {
 		info *RevInfo
 		err  error

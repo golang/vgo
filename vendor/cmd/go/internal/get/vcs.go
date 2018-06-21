@@ -735,11 +735,14 @@ func repoRootFromVCSPaths(importPath, scheme string, security web.SecurityMode, 
 					if security == web.Secure && !vcs.isSecureScheme(scheme) {
 						continue
 					}
-					if vcs.ping(scheme, match["repo"]) == nil {
+					if vcs.pingCmd != "" && vcs.ping(scheme, match["repo"]) == nil {
 						match["repo"] = scheme + "://" + match["repo"]
-						break
+						goto Found
 					}
 				}
+				// No scheme found. Fall back to the first one.
+				match["repo"] = vcs.scheme[0] + "://" + match["repo"]
+			Found:
 			}
 		}
 		rr := &RepoRoot{

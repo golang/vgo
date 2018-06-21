@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -24,7 +25,18 @@ func TestMain(m *testing.M) {
 	os.Exit(testMain(m))
 }
 
-const gitrepo1 = "https://vcs-test.golang.org/git/gitrepo1"
+const (
+	gitrepo1 = "https://vcs-test.golang.org/git/gitrepo1"
+	hgrepo1  = "https://vcs-test.golang.org/hg/hgrepo1"
+)
+
+var altRepos = []string{
+	"localGitRepo",
+	hgrepo1,
+}
+
+// TODO: Convert gitrepo1 to svn, bzr, fossil and add tests.
+// For now, at least the hgrepo1 tests check the general vcs.go logic.
 
 // localGitRepo is like gitrepo1 but allows archive access.
 var localGitRepo string
@@ -60,11 +72,17 @@ func testMain(m *testing.M) int {
 	return m.Run()
 }
 
-func testGitRepo(remote string) (Repo, error) {
+func testRepo(remote string) (Repo, error) {
 	if remote == "localGitRepo" {
-		remote = "file://" + filepath.ToSlash(localGitRepo)
+		return LocalGitRepo("file://" + filepath.ToSlash(localGitRepo))
 	}
-	return LocalGitRepo(remote)
+	kind := "git"
+	for _, k := range []string{"hg"} {
+		if strings.Contains(remote, "/"+k+"/") {
+			kind = k
+		}
+	}
+	return NewRepo(kind, remote)
 }
 
 var tagsTests = []struct {
@@ -79,13 +97,13 @@ var tagsTests = []struct {
 	{gitrepo1, "2", []string{}},
 }
 
-func TestGitTags(t *testing.T) {
+func TestTags(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range tagsTests {
 		f := func(t *testing.T) {
-			r, err := testGitRepo(tt.repo)
+			r, err := testRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -97,10 +115,11 @@ func TestGitTags(t *testing.T) {
 				t.Errorf("Tags: incorrect tags\nhave %v\nwant %v", tags, tt.tags)
 			}
 		}
-		t.Run(tt.repo+"/"+tt.prefix, f)
+		t.Run(path.Base(tt.repo)+"/"+tt.prefix, f)
 		if tt.repo == gitrepo1 {
-			tt.repo = "localGitRepo"
-			t.Run(tt.repo+"/"+tt.prefix, f)
+			for _, tt.repo = range altRepos {
+				t.Run(path.Base(tt.repo)+"/"+tt.prefix, f)
+			}
 		}
 	}
 }
@@ -118,15 +137,24 @@ var latestTests = []struct {
 			Time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
 		},
 	},
+	{
+		hgrepo1,
+		&RevInfo{
+			Name:    "18518c07eb8ed5c80221e997e518cccaa8c0c287",
+			Short:   "18518c07eb8e",
+			Version: "18518c07eb8ed5c80221e997e518cccaa8c0c287",
+			Time:    time.Date(2018, 6, 27, 16, 16, 30, 0, time.UTC),
+		},
+	},
 }
 
-func TestGitLatest(t *testing.T) {
+func TestLatest(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range latestTests {
 		f := func(t *testing.T) {
-			r, err := testGitRepo(tt.repo)
+			r, err := testRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,10 +166,10 @@ func TestGitLatest(t *testing.T) {
 				t.Errorf("Latest: incorrect info\nhave %+v\nwant %+v", *info, *tt.info)
 			}
 		}
-		t.Run(tt.repo, f)
+		t.Run(path.Base(tt.repo), f)
 		if tt.repo == gitrepo1 {
 			tt.repo = "localGitRepo"
-			t.Run(tt.repo, f)
+			t.Run(path.Base(tt.repo), f)
 		}
 	}
 }
@@ -155,7 +183,7 @@ var readFileTests = []struct {
 }{
 	{
 		repo: gitrepo1,
-		rev:  "HEAD",
+		rev:  "latest",
 		file: "README",
 		data: "",
 	},
@@ -173,13 +201,13 @@ var readFileTests = []struct {
 	},
 }
 
-func TestGitReadFile(t *testing.T) {
+func TestReadFile(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range readFileTests {
 		f := func(t *testing.T) {
-			r, err := testGitRepo(tt.repo)
+			r, err := testRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -203,10 +231,11 @@ func TestGitReadFile(t *testing.T) {
 				t.Errorf("ReadFile: incorrect data\nhave %q\nwant %q", data, tt.data)
 			}
 		}
-		t.Run(tt.repo+"/"+tt.rev+"/"+tt.file, f)
+		t.Run(path.Base(tt.repo)+"/"+tt.rev+"/"+tt.file, f)
 		if tt.repo == gitrepo1 {
-			tt.repo = "localGitRepo"
-			t.Run(tt.repo+"/"+tt.rev+"/"+tt.file, f)
+			for _, tt.repo = range altRepos {
+				t.Run(path.Base(tt.repo)+"/"+tt.rev+"/"+tt.file, f)
+			}
 		}
 	}
 }
@@ -230,6 +259,17 @@ var readZipTests = []struct {
 		},
 	},
 	{
+		repo:   hgrepo1,
+		rev:    "v2.3.4",
+		subdir: "",
+		files: map[string]uint64{
+			"prefix/.hg_archival.txt": ^uint64(0),
+			"prefix/README":           0,
+			"prefix/v2":               3,
+		},
+	},
+
+	{
 		repo:   gitrepo1,
 		rev:    "v2",
 		subdir: "",
@@ -241,6 +281,19 @@ var readZipTests = []struct {
 			"prefix/foo.txt":     13,
 		},
 	},
+	{
+		repo:   hgrepo1,
+		rev:    "v2",
+		subdir: "",
+		files: map[string]uint64{
+			"prefix/.hg_archival.txt": ^uint64(0),
+			"prefix/README":           0,
+			"prefix/v2":               3,
+			"prefix/another.txt":      8,
+			"prefix/foo.txt":          13,
+		},
+	},
+
 	{
 		repo:   gitrepo1,
 		rev:    "v3",
@@ -255,6 +308,18 @@ var readZipTests = []struct {
 		},
 	},
 	{
+		repo:   hgrepo1,
+		rev:    "v3",
+		subdir: "",
+		files: map[string]uint64{
+			"prefix/.hg_archival.txt":    ^uint64(0),
+			"prefix/.hgtags":             405,
+			"prefix/v3/sub/dir/file.txt": 16,
+			"prefix/README":              0,
+		},
+	},
+
+	{
 		repo:   gitrepo1,
 		rev:    "v3",
 		subdir: "v3/sub/dir",
@@ -266,6 +331,15 @@ var readZipTests = []struct {
 			"prefix/v3/sub/dir/file.txt": 16,
 		},
 	},
+	{
+		repo:   hgrepo1,
+		rev:    "v3",
+		subdir: "v3/sub/dir",
+		files: map[string]uint64{
+			"prefix/v3/sub/dir/file.txt": 16,
+		},
+	},
+
 	{
 		repo:   gitrepo1,
 		rev:    "v3",
@@ -279,11 +353,27 @@ var readZipTests = []struct {
 		},
 	},
 	{
+		repo:   hgrepo1,
+		rev:    "v3",
+		subdir: "v3/sub",
+		files: map[string]uint64{
+			"prefix/v3/sub/dir/file.txt": 16,
+		},
+	},
+
+	{
 		repo:   gitrepo1,
 		rev:    "aaaaaaaaab",
 		subdir: "",
-		err:    "unknown hash",
+		err:    "unknown revision",
 	},
+	{
+		repo:   hgrepo1,
+		rev:    "aaaaaaaaab",
+		subdir: "",
+		err:    "unknown revision",
+	},
+
 	{
 		repo:   "https://github.com/rsc/vgotest1",
 		rev:    "submod/v1.0.4",
@@ -303,13 +393,13 @@ type zipFile struct {
 	size int64
 }
 
-func TestGitReadZip(t *testing.T) {
+func TestReadZip(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range readZipTests {
 		f := func(t *testing.T) {
-			r, err := testGitRepo(tt.repo)
+			r, err := testRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -349,7 +439,7 @@ func TestGitReadZip(t *testing.T) {
 					continue
 				}
 				have[f.Name] = true
-				if f.UncompressedSize64 != size {
+				if size != ^uint64(0) && f.UncompressedSize64 != size {
 					t.Errorf("ReadZip: file %s has unexpected size %d != %d", f.Name, f.UncompressedSize64, size)
 				}
 			}
@@ -359,12 +449,20 @@ func TestGitReadZip(t *testing.T) {
 				}
 			}
 		}
-		t.Run(tt.repo+"/"+tt.rev+"/"+tt.subdir, f)
+		t.Run(path.Base(tt.repo)+"/"+tt.rev+"/"+tt.subdir, f)
 		if tt.repo == gitrepo1 {
 			tt.repo = "localGitRepo"
-			t.Run(tt.repo+"/"+tt.rev+"/"+tt.subdir, f)
+			t.Run(path.Base(tt.repo)+"/"+tt.rev+"/"+tt.subdir, f)
 		}
 	}
+}
+
+var hgmap = map[string]string{
+	"HEAD": "41964ddce1180313bdc01d0a39a2813344d6261d", // not tip due to bad hgrepo1 conversion
+	"9d02800338b8a55be062c838d1f02e0c5780b9eb": "8f49ee7a6ddcdec6f0112d9dca48d4a2e4c3c09e",
+	"76a00fb249b7f93091bc2c89a789dab1fc1bc26f": "88fde824ec8b41a76baa16b7e84212cee9f3edd0",
+	"ede458df7cd0fdca520df19a33158086a8a68e81": "41964ddce1180313bdc01d0a39a2813344d6261d",
+	"97f6aa59c81c623494825b43d39e445566e429a4": "c0cbbfb24c7c3c50c35c7b88e7db777da4ff625d",
 }
 
 var statTests = []struct {
@@ -456,17 +554,17 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "aaaaaaaaab",
-		err:  "unknown hash",
+		err:  "unknown revision",
 	},
 }
 
-func TestGitStat(t *testing.T) {
+func TestStat(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range statTests {
 		f := func(t *testing.T) {
-			r, err := testGitRepo(tt.repo)
+			r, err := testRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -487,10 +585,39 @@ func TestGitStat(t *testing.T) {
 				t.Errorf("Stat: incorrect info\nhave %+v\nwant %+v", *info, *tt.info)
 			}
 		}
-		t.Run(filepath.Base(tt.repo)+"/"+tt.rev, f)
+		t.Run(path.Base(tt.repo)+"/"+tt.rev, f)
 		if tt.repo == gitrepo1 {
-			tt.repo = "localGitRepo"
-			t.Run(filepath.Base(tt.repo)+"/"+tt.rev, f)
+			for _, tt.repo = range altRepos {
+				old := tt
+				var m map[string]string
+				if tt.repo == hgrepo1 {
+					m = hgmap
+				}
+				if tt.info != nil {
+					info := *tt.info
+					tt.info = &info
+					tt.info.Name = remap(tt.info.Name, m)
+					tt.info.Version = remap(tt.info.Version, m)
+					tt.info.Short = remap(tt.info.Short, m)
+				}
+				tt.rev = remap(tt.rev, m)
+				t.Run(path.Base(tt.repo)+"/"+tt.rev, f)
+				tt = old
+			}
 		}
 	}
+}
+
+func remap(name string, m map[string]string) string {
+	if m[name] != "" {
+		return m[name]
+	}
+	if AllHex(name) {
+		for k, v := range m {
+			if strings.HasPrefix(k, name) {
+				return v[:len(name)]
+			}
+		}
+	}
+	return name
 }

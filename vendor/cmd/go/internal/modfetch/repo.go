@@ -231,13 +231,11 @@ func lookup(path string) (r Repo, err error) {
 }
 
 func lookupCodeRepo(rr *get.RepoRoot) (codehost.Repo, error) {
-	switch rr.VCS {
-	default:
-		return nil, fmt.Errorf("lookup %s: unknown VCS %s %s", rr.Root, rr.VCS, rr.Repo)
-	case "git":
-		return codehost.GitRepo(rr.Repo)
-		// TODO: "hg", "svn", "bzr", "fossil"
+	code, err := codehost.NewRepo(rr.VCS, rr.Repo)
+	if err != nil {
+		return nil, fmt.Errorf("lookup %s: %v", rr.Root, err)
 	}
+	return code, nil
 }
 
 // Import returns the module repo and version to use to satisfy the given import path.
