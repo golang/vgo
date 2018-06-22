@@ -495,7 +495,7 @@ func modPrintGraph() {
 	})
 
 	sort.Slice(out[deps:], func(i, j int) bool {
-		return out[deps+j][0] < out[deps+j][0]
+		return out[deps+i][0] < out[deps+j][0]
 	})
 
 	w := bufio.NewWriter(os.Stdout)
