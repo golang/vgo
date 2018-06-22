@@ -19,37 +19,50 @@ import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/dirhash"
 	"cmd/go/internal/module"
+	"cmd/go/internal/par"
 )
+
+var downloadCache par.Cache
 
 // Download downloads the specific module version to the
 // local download cache and returns the name of the directory
 // corresponding to the root of the module's file tree.
 func Download(mod module.Version) (dir string, err error) {
-	modpath := mod.Path + "@" + mod.Version
-	dir = filepath.Join(SrcMod, modpath)
-	if files, _ := ioutil.ReadDir(dir); len(files) == 0 {
-		zipfile := filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".zip")
-		if _, err := os.Stat(zipfile); err == nil {
-			// Use it.
-			// This should only happen if the mod/cache directory is preinitialized
-			// or if src/mod/path was removed but not src/mod/cache/download.
-			fmt.Fprintf(os.Stderr, "vgo: extracting %s %s\n", mod.Path, mod.Version)
-		} else {
-			if err := os.MkdirAll(filepath.Join(SrcMod, "cache/download", mod.Path, "@v"), 0777); err != nil {
-				return "", err
-			}
-			fmt.Fprintf(os.Stderr, "vgo: downloading %s %s\n", mod.Path, mod.Version)
-			if err := downloadZip(mod, zipfile); err != nil {
-				return "", err
-			}
-		}
-		if err := Unzip(dir, zipfile, modpath, 0); err != nil {
-			fmt.Fprintf(os.Stderr, "-> %s\n", err)
-			return "", err
-		}
+	// The par.Cache here avoids duplicate work but also
+	// avoids conflicts from simultaneous calls by multiple goroutines
+	// for the same version.
+	type cached struct {
+		dir string
+		err error
 	}
-	checkSum(mod)
-	return dir, nil
+	c := downloadCache.Do(mod, func() interface{} {
+		modpath := mod.Path + "@" + mod.Version
+		dir = filepath.Join(SrcMod, modpath)
+		if files, _ := ioutil.ReadDir(dir); len(files) == 0 {
+			zipfile := filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".zip")
+			if _, err := os.Stat(zipfile); err == nil {
+				// Use it.
+				// This should only happen if the mod/cache directory is preinitialized
+				// or if src/mod/path was removed but not src/mod/cache/download.
+				fmt.Fprintf(os.Stderr, "vgo: extracting %s %s\n", mod.Path, mod.Version)
+			} else {
+				if err := os.MkdirAll(filepath.Join(SrcMod, "cache/download", mod.Path, "@v"), 0777); err != nil {
+					return cached{"", err}
+				}
+				fmt.Fprintf(os.Stderr, "vgo: downloading %s %s\n", mod.Path, mod.Version)
+				if err := downloadZip(mod, zipfile); err != nil {
+					return cached{"", err}
+				}
+			}
+			if err := Unzip(dir, zipfile, modpath, 0); err != nil {
+				fmt.Fprintf(os.Stderr, "-> %s\n", err)
+				return cached{"", err}
+			}
+		}
+		checkSum(mod)
+		return cached{dir, nil}
+	}).(cached)
+	return c.dir, c.err
 }
 
 func downloadZip(mod module.Version, target string) error {

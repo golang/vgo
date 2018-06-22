@@ -568,10 +568,9 @@ func TestVgoVendor(t *testing.T) {
 	if !testing.Short() {
 		tg.run("-vgo", "build")
 		tg.run("-vgo", "build", "-getmode=vendor")
+		tg.cd(filepath.Join(wd, "testdata/vendormod/vendor"))
+		tg.run("-vgo", "test", "-getmode=vendor", "./...")
 	}
-	//test testdata copy
-	tg.cd(filepath.Join(wd, "testdata/vendormod/vendor"))
-	tg.run("-vgo", "test", "./...")
 }
 
 func TestFillGoMod(t *testing.T) {

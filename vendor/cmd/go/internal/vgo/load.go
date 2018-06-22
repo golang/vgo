@@ -6,6 +6,7 @@ package vgo
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/build"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
@@ -26,37 +28,145 @@ import (
 	"cmd/go/internal/semver"
 )
 
-type importLevel int
+// buildList is the list of modules to use for building packages.
+// It is initialized by calling ImportPaths, ImportFromFiles,
+// LoadALL, or LoadBuildList, each of which uses loaded.load.
+//
+// Ideally, exactly ONE of those functions would be called,
+// and exactly once. Most of the time, that's true.
+// During "go get" it may not be. TODO(rsc): Figure out if
+// that restriction can be established, or else document why not.
+//
+var buildList []module.Version
 
-const (
-	levelNone          importLevel = 0
-	levelBuild         importLevel = 1
-	levelTest          importLevel = 2
-	levelTestRecursive importLevel = 3
-)
+// loaded is the most recently-used package loader.
+// It holds details about individual packages.
+//
+// Note that loaded.buildList is only valid during a load operation;
+// afterward, it is copied back into the global buildList,
+// which should be used instead.
+var loaded *loader
 
-var (
-	buildList []module.Version
-	tags      map[string]bool
-	importmap map[string]string
-	pkgdir    map[string]string
-	pkgmod    map[string]module.Version
-)
+// ImportPaths returns the set of packages matching the args (patterns),
+// adding modules to the build list as needed to satisfy new imports.
+func ImportPaths(args []string) []string {
+	if Init(); !Enabled() {
+		return search.ImportPaths(args)
+	}
+	InitMod()
 
-func AddImports(gofiles []string) {
+	cleaned := search.CleanImportPaths(args)
+	loaded = newLoader()
+	var paths []string
+	loaded.load(func() []string {
+		var roots []string
+		paths = nil
+		for _, pkg := range cleaned {
+			switch {
+			case build.IsLocalImport(pkg):
+				list := []string{pkg}
+				if strings.Contains(pkg, "...") {
+					// TODO: Where is the go.mod cutoff?
+					list = warnPattern(pkg, search.AllPackagesInFS(pkg))
+				}
+				for _, pkg := range list {
+					dir := filepath.Join(cwd, pkg)
+					if dir == ModRoot {
+						pkg = Target.Path
+					} else if strings.HasPrefix(dir, ModRoot+string(filepath.Separator)) {
+						suffix := filepath.ToSlash(dir[len(ModRoot):])
+						if strings.HasPrefix(suffix, "/vendor/") {
+							// TODO getmode vendor check
+							pkg = strings.TrimPrefix(suffix, "/vendor/")
+						} else {
+							pkg = Target.Path + suffix
+						}
+					} else {
+						base.Errorf("vgo: package %s outside module root", pkg)
+						continue
+					}
+					roots = append(roots, pkg)
+					paths = append(paths, pkg)
+				}
+
+			case pkg == "all":
+				if loaded.testRoots {
+					loaded.testAll = true
+				}
+				// TODO: Don't print warnings multiple times.
+				roots = append(roots, warnPattern("all", matchPackages("...", loaded.tags, []module.Version{Target}))...)
+				paths = append(paths, "all") // will expand after load completes
+
+			case search.IsMetaPackage(pkg): // std, cmd
+				fmt.Fprintf(os.Stderr, "vgo: warning: %q matches no packages when using modules\n", pkg)
+
+			case strings.Contains(pkg, "..."):
+				// TODO: Don't we need to reevaluate this one last time once the build list stops changing?
+				list := warnPattern(pkg, matchPackages(pkg, loaded.tags, loaded.buildList))
+				roots = append(roots, list...)
+				paths = append(paths, list...)
+
+			default:
+				roots = append(roots, pkg)
+				paths = append(paths, pkg)
+			}
+		}
+		return roots
+	})
+	WriteGoMod()
+
+	// Process paths to produce final paths list.
+	// Remove duplicates and expand "all".
+	have := make(map[string]bool)
+	var final []string
+	for _, path := range paths {
+		if have[path] {
+			continue
+		}
+		have[path] = true
+		if path == "all" {
+			for _, pkg := range loaded.pkgs {
+				if !have[pkg.path] {
+					have[pkg.path] = true
+					final = append(final, pkg.path)
+				}
+			}
+			continue
+		}
+		final = append(final, path)
+	}
+	return final
+}
+
+// warnPattern returns list, the result of matching pattern,
+// but if list is empty then first it prints a warning about
+// the pattern not matching any packages.
+func warnPattern(pattern string, list []string) []string {
+	if len(list) == 0 {
+		fmt.Fprintf(os.Stderr, "warning: %q matched no packages\n", pattern)
+	}
+	return list
+}
+
+// ImportFromFiles adds modules to the build list as needed
+// to satisfy the imports in the named Go source files.
+func ImportFromFiles(gofiles []string) {
 	if Init(); !Enabled() {
 		return
 	}
 	InitMod()
 
-	imports, testImports, err := imports.ScanFiles(gofiles, tags)
+	imports, testImports, err := imports.ScanFiles(gofiles, imports.Tags())
 	if err != nil {
 		base.Fatalf("vgo: %v", err)
 	}
 
-	iterate(func(ld *loader) {
-		ld.importList(imports, levelBuild)
-		ld.importList(testImports, levelBuild)
+	loaded = newLoader()
+	loaded.load(func() []string {
+		var roots []string
+		roots = append(roots, imports...)
+		roots = append(roots, testImports...)
+		return roots
 	})
 	WriteGoMod()
 }
@@ -71,9 +181,46 @@ func LoadBuildList() []module.Version {
 		base.Fatalf("vgo: LoadBuildList called but vgo not enabled")
 	}
 	InitMod()
-	iterate(func(*loader) {})
+	loaded = newLoader()
+	loaded.load(func() []string { return nil })
 	WriteGoMod()
 	return buildList
+}
+
+// LoadALL returns the set of all packages in the current module
+// and their dependencies in any other modules, without filtering
+// due to build tags, except "+build ignore".
+// It adds modules to the build list as needed to satisfy new imports.
+// This set is useful for identifying which packages to include in a vendor directory
+// or deciding whether a particular import appears anywhere in a module.
+func LoadALL() []string {
+	if Init(); !Enabled() {
+		panic("vgo: misuse of LoadALL")
+	}
+	InitMod()
+
+	loaded = newLoader()
+	loaded.tags = anyTags
+	loaded.testAll = true
+	all := TargetPackages()
+	loaded.load(func() []string { return all })
+	WriteGoMod()
+
+	var paths []string
+	for _, pkg := range loaded.pkgs {
+		paths = append(paths, pkg.path)
+	}
+	return paths
+}
+
+// anyTags is a special tags map that satisfies nearly all build tag expressions.
+// Only "ignore" and malformed build tag requirements are considered false.
+var anyTags = map[string]bool{"*": true}
+
+// TargetPackages returns the list of packages in the target (top-level) module,
+// under all build tag settings.
+func TargetPackages() []string {
+	return matchPackages("...", anyTags, []module.Version{Target})
 }
 
 // BuildList returns the module build list,
@@ -94,65 +241,34 @@ func SetBuildList(list []module.Version) {
 // If the given import path does not appear in the source code
 // for the packages that have been loaded, ImportMap returns the empty string.
 func ImportMap(path string) string {
-	return importmap[path]
+	pkg, ok := loaded.pkgCache.Get(path).(*loadPkg)
+	if !ok {
+		return ""
+	}
+	return pkg.path
 }
 
 // PackageDir returns the directory containing the source code
 // for the package named by the import path.
 func PackageDir(path string) string {
-	return pkgdir[path]
+	pkg, ok := loaded.pkgCache.Get(path).(*loadPkg)
+	if !ok {
+		return ""
+	}
+	return pkg.dir
 }
 
 // PackageModule returns the module providing the package named by the import path.
 func PackageModule(path string) module.Version {
-	return pkgmod[path]
-}
-
-func ImportPaths(args []string) []string {
-	if Init(); !Enabled() {
-		return search.ImportPaths(args)
+	pkg, ok := loaded.pkgCache.Get(path).(*loadPkg)
+	if !ok {
+		return module.Version{}
 	}
-	InitMod()
-
-	paths := importPaths(args)
-	WriteGoMod()
-	return paths
-}
-
-func importPaths(args []string) []string {
-	level := levelBuild
-	switch cfg.CmdName {
-	case "test", "vet":
-		level = levelTest
-	}
-	isALL := len(args) == 1 && args[0] == "ALL"
-	cleaned := search.CleanImportPaths(args)
-	iterate(func(ld *loader) {
-		if isALL {
-			ld.tags = map[string]bool{"*": true}
-		}
-		args = expandImportPaths(cleaned)
-		for i, pkg := range args {
-			if pkg == "." || pkg == ".." || strings.HasPrefix(pkg, "./") || strings.HasPrefix(pkg, "../") {
-				dir := filepath.Join(cwd, pkg)
-				if dir == ModRoot {
-					pkg = Target.Path
-				} else if strings.HasPrefix(dir, ModRoot+string(filepath.Separator)) {
-					pkg = Target.Path + filepath.ToSlash(dir[len(ModRoot):])
-				} else {
-					base.Errorf("vgo: package %s outside module root", pkg)
-					continue
-				}
-				args[i] = pkg
-			}
-			ld.importPkg(pkg, level)
-		}
-	})
-	return args
+	return pkg.mod
 }
 
 func Lookup(parentPath, path string) (dir, realPath string, err error) {
-	realPath = importmap[path]
+	realPath = ImportMap(path)
 	if realPath == "" {
 		if isStandardImportPath(path) {
 			dir := filepath.Join(cfg.GOROOT, "src", path)
@@ -162,192 +278,426 @@ func Lookup(parentPath, path string) (dir, realPath string, err error) {
 		}
 		return "", "", fmt.Errorf("no such package in module")
 	}
-	return pkgdir[realPath], realPath, nil
+	return PackageDir(realPath), realPath, nil
 }
 
-func iterate(doImports func(*loader)) {
+// A loader manages the process of loading information about
+// the required packages for a particular build,
+// checking that the packages are available in the module set,
+// and updating the module set if needed.
+// Loading is an iterative process: try to load all the needed packages,
+// but if imports are missing, try to resolve those imports, and repeat.
+//
+// Although most of the loading state is maintained in the loader struct,
+// one key piece - the build list - is a global, so that it can be modified
+// separate from the loading operation, such as during "go get"
+// upgrades/downgrades or in "go mod" operations.
+// TODO(rsc): It might be nice to make the loader take and return
+// a buildList rather than hard-coding use of the global.
+type loader struct {
+	tags      map[string]bool // tags for scanDir
+	testRoots bool            // include tests for roots
+	testAll   bool            // include tests for all packages
+
+	// missingMu protects found, but also buildList, modFile
+	missingMu sync.Mutex
+	found     map[string]bool
+
+	// updated on each iteration
+	buildList []module.Version
+
+	// reset on each iteration
+	roots    []*loadPkg
+	pkgs     []*loadPkg
+	work     *par.Work  // current work queue
+	pkgCache *par.Cache // map from string to *loadPkg
+	missing  *par.Work  // missing work queue
+}
+
+func newLoader() *loader {
+	ld := new(loader)
+	ld.tags = imports.Tags()
+	ld.found = make(map[string]bool)
+
+	switch cfg.CmdName {
+	case "test", "vet":
+		ld.testRoots = true
+	}
+	return ld
+}
+
+func (ld *loader) reset() {
+	ld.roots = nil
+	ld.pkgs = nil
+	ld.work = new(par.Work)
+	ld.pkgCache = new(par.Cache)
+	ld.missing = nil
+}
+
+// A loadPkg records information about a single loaded package.
+type loadPkg struct {
+	path        string         // import path
+	mod         module.Version // module providing package
+	dir         string         // directory containing source code
+	imports     []*loadPkg     // packages imported by this one
+	err         error          // error loading package
+	stack       *loadPkg       // package importing this one in minimal import stack for this pkg
+	test        *loadPkg       // package with test imports, if we need test
+	testOf      *loadPkg
+	testImports []string // test-only imports, saved for use by pkg.test.
+}
+
+var errMissing = errors.New("cannot find package")
+
+// load attempts to load the build graph needed to process a set of root packages.
+// The set of root packages is defined by the addRoots function,
+// which must call add(path) with the import path of each root package.
+func (ld *loader) load(roots func() []string) {
 	var err error
 	mvsOp := mvs.BuildList
 	if *getU {
 		mvsOp = mvs.UpgradeAll
 	}
-	buildList, err = mvsOp(Target, newReqs())
+	ld.buildList = buildList
+	ld.buildList, err = mvsOp(Target, newReqs(ld.buildList))
 	if err != nil {
 		base.Fatalf("vgo: %v", err)
 	}
 
-	var ld *loader
 	for {
-		ld = newLoader()
-		doImports(ld)
-		if len(ld.missing) == 0 {
+		ld.reset()
+		if roots != nil {
+			// Note: the returned roots can change on each iteration,
+			// since the expansion of package patterns depends on the
+			// build list we're using.
+			for _, path := range roots() {
+				ld.work.Add(ld.pkg(path, true))
+			}
+		}
+		ld.work.Do(10, ld.doPkg)
+		ld.buildStacks()
+		for _, pkg := range ld.pkgs {
+			if pkg.err == errMissing {
+				if ld.missing == nil {
+					ld.missing = new(par.Work)
+				}
+				ld.missing.Add(pkg)
+			} else if pkg.err != nil {
+				base.Errorf("vgo: %s: %s", pkg.stackText(), pkg.err)
+			}
+		}
+		if ld.missing == nil {
 			break
 		}
-		for _, m := range ld.missing {
-			findMissing(m)
-		}
+		ld.missing.Do(10, ld.findMissing)
 		base.ExitIfErrors()
-		buildList, err = mvsOp(Target, newReqs())
+
+		ld.buildList, err = mvsOp(Target, newReqs(ld.buildList))
 		if err != nil {
 			base.Fatalf("vgo: %v", err)
 		}
 	}
 	base.ExitIfErrors()
 
-	importmap = ld.importmap
-	pkgdir = ld.pkgdir
-	pkgmod = ld.pkgmod
+	buildList = ld.buildList
+	ld.buildList = nil // catch accidental use
 }
 
-type loader struct {
-	imported  map[string]importLevel
-	importmap map[string]string
-	pkgdir    map[string]string
-	pkgmod    map[string]module.Version
-	tags      map[string]bool
-	missing   []missing
-	imports   []string
-	stack     []string
+// pkg returns the *loadPkg for path, creating and queuing it if needed.
+// If the package should be tested, its test is created but not queued
+// (the test is queued after processing pkg).
+// If isRoot is true, the pkg is being queued as one of the roots of the work graph.
+func (ld *loader) pkg(path string, isRoot bool) *loadPkg {
+	return ld.pkgCache.Do(path, func() interface{} {
+		pkg := &loadPkg{
+			path: path,
+		}
+		if ld.testRoots && isRoot || ld.testAll {
+			test := &loadPkg{
+				path:   path,
+				testOf: pkg,
+			}
+			pkg.test = test
+		}
+		if isRoot {
+			ld.roots = append(ld.roots, pkg)
+		}
+		ld.work.Add(pkg)
+		return pkg
+	}).(*loadPkg)
 }
 
-type missing struct {
-	path  string
-	stack string
-}
-
-func newLoader() *loader {
-	ld := &loader{
-		imported:  make(map[string]importLevel),
-		importmap: make(map[string]string),
-		pkgdir:    make(map[string]string),
-		pkgmod:    make(map[string]module.Version),
-		tags:      imports.Tags(),
-	}
-	ld.imported["C"] = 100
-	return ld
-}
-
-func (ld *loader) stackText() string {
-	var buf bytes.Buffer
-	for _, p := range ld.stack[:len(ld.stack)-1] {
-		fmt.Fprintf(&buf, "import %q ->\n\t", p)
-	}
-	fmt.Fprintf(&buf, "import %q", ld.stack[len(ld.stack)-1])
-	return buf.String()
-}
-
-func (ld *loader) importList(pkgs []string, level importLevel) {
-	for _, pkg := range pkgs {
-		ld.importPkg(pkg, level)
-	}
-}
-
-func (ld *loader) importPkg(path string, level importLevel) {
-	if ld.imported[path] >= level {
-		return
-	}
-
-	ld.stack = append(ld.stack, path)
-	defer func() {
-		ld.stack = ld.stack[:len(ld.stack)-1]
-	}()
-
-	// Any rewritings go here.
-	realPath := path
-
-	ld.imported[path] = level
-	ld.importmap[path] = realPath
-	if realPath != path && ld.imported[realPath] >= level {
-		// Already handled.
-		return
-	}
-
-	dir := ld.importDir(realPath)
-	if dir == "" {
-		return
-	}
-
-	ld.pkgdir[realPath] = dir
-
-	imports, testImports, err := scanDir(dir, ld.tags)
-	if err != nil {
-		if strings.HasPrefix(err.Error(), "no Go ") {
-			// Don't print about directories with no Go source files.
-			// Let the eventual real package load do that.
+// doPkg processes a package on the work queue.
+func (ld *loader) doPkg(item interface{}) {
+	// TODO: what about replacements?
+	pkg := item.(*loadPkg)
+	var imports []string
+	if pkg.testOf != nil {
+		pkg.dir = pkg.testOf.dir
+		pkg.mod = pkg.testOf.mod
+		imports = pkg.testOf.testImports
+	} else {
+		pkg.dir, pkg.mod, pkg.err = ld.findDir(pkg.path)
+		if pkg.dir == "" {
 			return
 		}
-		base.Errorf("vgo: %s [%s]: %v", ld.stackText(), dir, err)
-		return
-	}
-	nextLevel := level
-	if level == levelTest {
-		nextLevel = levelBuild
-	}
-	for _, pkg := range imports {
-		ld.importPkg(pkg, nextLevel)
-	}
-	if level >= levelTest {
-		for _, pkg := range testImports {
-			ld.importPkg(pkg, nextLevel)
+		var testImports []string
+		var err error
+		imports, testImports, err = scanDir(pkg.dir, ld.tags)
+		if err != nil {
+			if strings.HasPrefix(err.Error(), "no Go ") {
+				// Don't print about directories with no Go source files.
+				// Let the eventual real package load do that.
+				return
+			}
+			pkg.err = err
+			return
 		}
+		if pkg.test != nil {
+			pkg.testImports = testImports
+		}
+	}
+
+	for _, path := range imports {
+		pkg.imports = append(pkg.imports, ld.pkg(path, false))
+	}
+
+	// Now that pkg.dir, pkg.mod, pkg.testImports are set, we can queue pkg.test.
+	// TODO: All that's left is creating new imports. Why not just do it now?
+	if pkg.test != nil {
+		ld.work.Add(pkg.test)
 	}
 }
 
-func (ld *loader) importDir(path string) string {
-	if importPathInModule(path, Target.Path) {
-		dir := ModRoot
-		if len(path) > len(Target.Path) {
-			dir = filepath.Join(dir, path[len(Target.Path)+1:])
-		}
-		ld.pkgmod[path] = Target
-		return dir
-	}
+// importPathInModule reports whether, syntactically,
+// a package with the given import path could be supplied
+// by a module with the given module path (mpath).
+func importPathInModule(path, mpath string) bool {
+	return mpath == path ||
+		len(path) > len(mpath) && path[len(mpath)] == '/' && path[:len(mpath)] == mpath
+}
 
+// findDir finds the directory holding source code for the given import path.
+// It returns the directory, the module containing the directory,
+// and any error encountered.
+// It is possible to return successfully (err == nil) with an empty directory,
+// for built-in packages like "unsafe" and "C".
+// It is also possible to return successfully with a zero module.Version,
+// for packages in the standard library or when using vendored code.
+func (ld *loader) findDir(path string) (dir string, mod module.Version, err error) {
+	// Is the package in the standard library?
 	if search.IsStandardImportPath(path) {
+		if path == "C" || path == "unsafe" {
+			// There's no directory for import "C" or import "unsafe".
+			return "", module.Version{}, nil
+		}
 		if strings.HasPrefix(path, "golang_org/") {
-			return filepath.Join(cfg.GOROOT, "src/vendor", path)
+			return filepath.Join(cfg.GOROOT, "src/vendor", path), module.Version{}, nil
 		}
 		dir := filepath.Join(cfg.GOROOT, "src", path)
 		if _, err := os.Stat(dir); err == nil {
-			return dir
+			return dir, module.Version{}, nil
 		}
 	}
 
+	// Is the package in the main module?
+	// Note that having the main module path as a prefix
+	// does not guarantee that the package is in the
+	// main module. It might still be supplied by some
+	// other module. For example, this might be
+	// module x/y, and we might be looking for x/y/v2/z.
+	// or maybe x/y/z/w in separate module x/y/z.
+	var mainDir string
+	if importPathInModule(path, Target.Path) {
+		mainDir = ModRoot
+		if len(path) > len(Target.Path) {
+			mainDir = filepath.Join(ModRoot, path[len(Target.Path)+1:])
+		}
+		if _, err := os.Stat(mainDir); err == nil {
+			return mainDir, Target, nil
+		}
+	}
+
+	// With -getmode=vendor, we expect everything else to be in vendor.
 	if cfg.BuildGetmode == "vendor" {
 		// Using -getmode=vendor, everything the module needs
 		// (beyond the current module and standard library)
 		// must be in the module's vendor directory.
-		return filepath.Join(ModRoot, "vendor", path)
+		// If the package exists in vendor, use it.
+		// If the package is not covered by the main module (mainDir == ""), use vendor.
+		// Otherwise, if the package could be in either place but is in neither, report the main module.
+		vendorDir := filepath.Join(ModRoot, "vendor", path)
+		if _, err := os.Stat(vendorDir); err == nil || mainDir == "" {
+			// TODO(rsc): We could look up the module information from vendor/modules.txt.
+			return vendorDir, module.Version{}, nil
+		}
+		return mainDir, Target, nil
 	}
 
+	// Scan all the possible modules that might contain this package,
+	// and complain if there are multiple choices. This correctly handles
+	// module boundaries that change over time, detecting mismatched
+	// module version pairings.
+	// (See comment about module paths in modfetch/repo.go.)
 	var mod1 module.Version
 	var dir1 string
-	for _, mod := range buildList {
+	for _, mod := range ld.buildList {
 		if !importPathInModule(path, mod.Path) {
 			continue
 		}
 		dir, err := fetch(mod)
 		if err != nil {
-			base.Errorf("vgo: %s: %v", ld.stackText(), err)
-			return ""
+			return "", module.Version{}, err
 		}
 		if len(path) > len(mod.Path) {
 			dir = filepath.Join(dir, path[len(mod.Path)+1:])
 		}
 		if dir1 != "" {
-			base.Errorf("vgo: %s: found in both %v %v and %v %v", ld.stackText(),
-				mod1.Path, mod1.Version, mod.Path, mod.Version)
-			return ""
+			return "", module.Version{}, fmt.Errorf("found in both %v@%v and %v@%v", mod1.Path, mod1.Version, mod.Path, mod.Version)
 		}
 		dir1 = dir
 		mod1 = mod
 	}
 	if dir1 != "" {
-		ld.pkgmod[path] = mod1
-		return dir1
+		return dir1, mod1, nil
 	}
-	ld.missing = append(ld.missing, missing{path, ld.stackText()})
-	return ""
+	return "", module.Version{}, errMissing
+}
+
+func (ld *loader) findMissing(item interface{}) {
+	pkg := item.(*loadPkg)
+	path := pkg.path
+	if build.IsLocalImport(path) {
+		base.Errorf("vgo: relative import is not supported: %s", path)
+	}
+
+	// TODO: This is wrong (if path = foo/v2/bar and m.Path is foo,
+	// maybe we should fall through to the loop at the bottom and check foo/v2).
+	ld.missingMu.Lock()
+	for _, m := range ld.buildList {
+		if importPathInModule(path, m.Path) {
+			ld.missingMu.Unlock()
+			return
+		}
+	}
+	ld.missingMu.Unlock()
+
+	fmt.Fprintf(os.Stderr, "resolving import %q\n", path)
+	repo, info, err := modfetch.Import(path, allowed)
+	if err != nil {
+		base.Errorf("vgo: %s: %v", pkg.stackText(), err)
+		return
+	}
+
+	root := repo.ModulePath()
+
+	ld.missingMu.Lock()
+	defer ld.missingMu.Unlock()
+
+	// Double-check before adding repo twice.
+	for _, m := range ld.buildList {
+		if importPathInModule(path, m.Path) {
+			return
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "vgo: finding %s (latest)\n", root)
+
+	if ld.found[path] {
+		base.Fatalf("internal error: findMissing loop on %s", path)
+	}
+	ld.found[path] = true
+	fmt.Fprintf(os.Stderr, "vgo: adding %s %s\n", root, info.Version)
+	ld.buildList = append(ld.buildList, module.Version{Path: root, Version: info.Version})
+	modFile.AddRequire(root, info.Version)
+}
+
+// scanDir is like imports.ScanDir but elides known magic imports from the list,
+// so that vgo does not go looking for packages that don't really exist.
+//
+// The only known magic imports are appengine and appengine/*.
+// These are so old that they predate "go get" and did not use URL-like paths.
+// Most code today now uses google.golang.org/appengine instead,
+// but not all code has been so updated. When we mostly ignore build tags
+// during "vgo vendor", we look into "// +build appengine" files and
+// may see these legacy imports. We drop them so that the module
+// search does not look for modules to try to satisfy them.
+func scanDir(dir string, tags map[string]bool) (imports_, testImports []string, err error) {
+	imports_, testImports, err = imports.ScanDir(dir, tags)
+
+	filter := func(x []string) []string {
+		w := 0
+		for _, pkg := range x {
+			if pkg != "appengine" && !strings.HasPrefix(pkg, "appengine/") &&
+				pkg != "appengine_internal" && !strings.HasPrefix(pkg, "appengine_internal/") {
+				x[w] = pkg
+				w++
+			}
+		}
+		return x[:w]
+	}
+
+	return filter(imports_), filter(testImports), err
+}
+
+// buildStacks computes minimal import stacks for each package,
+// for use in error messages. When it completes, packages that
+// are part of the original root set have pkg.stack == nil,
+// and other packages have pkg.stack pointing at the next
+// package up the import stack in their minimal chain.
+// As a side effect, buildStacks also constructs ld.pkgs,
+// the list of all packages loaded.
+func (ld *loader) buildStacks() {
+	if len(ld.pkgs) > 0 {
+		panic("buildStacks")
+	}
+	for _, pkg := range ld.roots {
+		pkg.stack = pkg // sentinel to avoid processing in next loop
+		ld.pkgs = append(ld.pkgs, pkg)
+	}
+	for i := 0; i < len(ld.pkgs); i++ { // not range: appending to ld.pkgs in loop
+		pkg := ld.pkgs[i]
+		for _, next := range pkg.imports {
+			if next.stack == nil {
+				next.stack = pkg
+				ld.pkgs = append(ld.pkgs, next)
+			}
+		}
+		if next := pkg.test; next != nil && next.stack == nil {
+			next.stack = pkg
+			ld.pkgs = append(ld.pkgs, next)
+		}
+	}
+	for _, pkg := range ld.roots {
+		pkg.stack = nil
+	}
+}
+
+// stackText builds the import stack text to use when
+// reporting an error in pkg. It has the general form
+//
+//	import root ->
+//		import other ->
+//		import other2 ->
+//		import pkg
+//
+func (pkg *loadPkg) stackText() string {
+	var stack []*loadPkg
+	for p := pkg.stack; p != nil; p = p.stack {
+		stack = append(stack, p)
+	}
+
+	var buf bytes.Buffer
+	for i := len(stack) - 1; i >= 0; i-- {
+		p := stack[i]
+		if p.testOf != nil {
+			fmt.Fprintf(&buf, "test ->\n\t")
+		} else {
+			fmt.Fprintf(&buf, "import %q ->\n\t", p.path)
+		}
+	}
+	fmt.Fprintf(&buf, "import %q", pkg.path)
+	return buf.String()
 }
 
 // Replacement returns the replacement for mod, if any, from go.mod.
@@ -366,58 +716,25 @@ func Replacement(mod module.Version) module.Version {
 	return found.New
 }
 
-func importPathInModule(path, mpath string) bool {
-	return mpath == path ||
-		len(path) > len(mpath) && path[len(mpath)] == '/' && path[:len(mpath)] == mpath
-}
-
-var found = make(map[string]bool)
-
-func findMissing(m missing) {
-	for _, mod := range buildList {
-		if importPathInModule(m.path, mod.Path) {
-			// Leave for ordinary build to complain about the missing import.
-			return
-		}
-	}
-	if build.IsLocalImport(m.path) {
-		base.Errorf("vgo: relative import is not supported: %s", m.path)
-		return
-	}
-	fmt.Fprintf(os.Stderr, "vgo: resolving import %q\n", m.path)
-	repo, info, err := modfetch.Import(m.path, allowed)
-	if err != nil {
-		base.Errorf("vgo: %s: %v", m.stack, err)
-		return
-	}
-	root := repo.ModulePath()
-	fmt.Fprintf(os.Stderr, "vgo: finding %s (latest)\n", root)
-	if found[root] {
-		base.Fatalf("internal error: findmissing loop on %s", root)
-	}
-	found[root] = true
-	fmt.Fprintf(os.Stderr, "vgo: adding %s %s\n", root, info.Version)
-	buildList = append(buildList, module.Version{Path: root, Version: info.Version})
-	modFile.AddRequire(root, info.Version)
-}
-
-// mvsReqs implements mvs.Reqs for vgo's semantic versions, with any exclusions
-// or replacements applied internally.
+// mvsReqs implements mvs.Reqs for vgo's semantic versions,
+// with any exclusions or replacements applied internally.
 type mvsReqs struct {
-	extra []module.Version
-	cache par.Cache
+	buildList []module.Version
+	extra     []module.Version
+	cache     par.Cache
 }
 
-func newReqs(extra ...module.Version) *mvsReqs {
+func newReqs(buildList []module.Version, extra ...module.Version) *mvsReqs {
 	r := &mvsReqs{
-		extra: extra,
+		buildList: buildList,
+		extra:     extra,
 	}
 	return r
 }
 
 // Reqs returns the module requirement graph.
 func Reqs() mvs.Reqs {
-	return newReqs()
+	return newReqs(buildList)
 }
 
 func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
@@ -454,8 +771,8 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if mod == Target {
 		var list []module.Version
-		if buildList != nil {
-			list = append(list, buildList[1:]...)
+		if r.buildList != nil {
+			list = append(list, r.buildList[1:]...)
 			return list, nil
 		}
 		for _, r := range modFile.Require {
@@ -609,34 +926,6 @@ func (*mvsReqs) next(m module.Version) (module.Version, error) {
 		return module.Version{Path: m.Path, Version: list[i]}, nil
 	}
 	return module.Version{Path: m.Path, Version: "none"}, nil
-}
-
-// scanDir is like imports.ScanDir but elides known magic imports from the list,
-// so that vgo does not go looking for packages that don't really exist.
-//
-// The only known magic imports are appengine and appengine/*.
-// These are so old that they predate "go get" and did not use URL-like paths.
-// Most code today now uses google.golang.org/appengine instead,
-// but not all code has been so updated. When we mostly ignore build tags
-// during "vgo vendor", we look into "// +build appengine" files and
-// may see these legacy imports. We drop them so that the module
-// search does not look for modules to try to satisfy them.
-func scanDir(path string, tags map[string]bool) (imports_, testImports []string, err error) {
-	imports_, testImports, err = imports.ScanDir(path, tags)
-
-	filter := func(x []string) []string {
-		w := 0
-		for _, pkg := range x {
-			if pkg != "appengine" && !strings.HasPrefix(pkg, "appengine/") &&
-				pkg != "appengine_internal" && !strings.HasPrefix(pkg, "appengine_internal/") {
-				x[w] = pkg
-				w++
-			}
-		}
-		return x
-	}
-
-	return filter(imports_), filter(testImports), err
 }
 
 func fetch(mod module.Version) (dir string, err error) {

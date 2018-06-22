@@ -6,10 +6,8 @@ package vgo
 
 import (
 	"fmt"
-	"go/build"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"cmd/go/internal/base"
@@ -19,65 +17,12 @@ import (
 	"cmd/go/internal/search"
 )
 
-func expandImportPaths(args []string) []string {
-	var out []string
-	for _, a := range args {
-		// TODO(rsc): Move a == "ALL" test into search.IsMetaPackage
-		// once we officially lock in all the module work (tentatively, Go 1.12).
-		if search.IsMetaPackage(a) || a == "ALL" {
-			switch a {
-			default:
-				fmt.Fprintf(os.Stderr, "vgo: warning: %q matches no packages when using modules\n", a)
-			case "all", "ALL":
-				out = append(out, AllPackages(a)...)
-			}
-			continue
-		}
-		if strings.Contains(a, "...") {
-			if build.IsLocalImport(a) {
-				out = append(out, search.AllPackagesInFS(a)...)
-			} else {
-				out = append(out, AllPackages(a)...)
-			}
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
-}
-
-// AllPackages returns all the packages that can be found
-// under the $GOPATH directories and $GOROOT matching pattern.
-// The pattern is either "all" (all packages), "std" (standard packages),
-// "cmd" (standard commands), or a path including "...".
-func AllPackages(pattern string) []string {
-	pkgs := MatchPackages(pattern)
-	if len(pkgs) == 0 {
-		fmt.Fprintf(os.Stderr, "warning: %q matched no packages\n", pattern)
-	}
-	return pkgs
-}
-
-// MatchPackages returns a list of package paths matching pattern
-// (see go help packages for pattern syntax).
-func MatchPackages(pattern string) []string {
-	if pattern == "std" || pattern == "cmd" {
-		return nil
-	}
-	if pattern == "all" {
-		return MatchAll()
-	}
-	if pattern == "ALL" {
-		return MatchALL()
-	}
-
-	return matchPackages(pattern, buildList)
-}
-
-func matchPackages(pattern string, buildList []module.Version) []string {
+// matchPackages returns a list of packages in the list of modules
+// matching the pattern. Package loading assumes the given set of tags.
+func matchPackages(pattern string, tags map[string]bool, modules []module.Version) []string {
 	match := func(string) bool { return true }
 	treeCanMatch := func(string) bool { return true }
-	if !search.IsMetaPackage(pattern) && pattern != "ALL" {
+	if !search.IsMetaPackage(pattern) {
 		match = search.MatchPattern(pattern)
 		treeCanMatch = search.TreeCanMatchPattern(pattern)
 	}
@@ -90,7 +35,7 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 	}
 	var pkgs []string
 
-	for _, mod := range buildList {
+	for _, mod := range modules {
 		if !treeCanMatch(mod.Path) {
 			continue
 		}
@@ -145,7 +90,7 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 			if !have[name] {
 				have[name] = true
 				if match(name) {
-					if _, _, err := scanDir(path, imports.Tags()); err != imports.ErrNoGo {
+					if _, _, err := scanDir(path, tags); err != imports.ErrNoGo {
 						pkgs = append(pkgs, name)
 					}
 				}
@@ -158,39 +103,4 @@ func matchPackages(pattern string, buildList []module.Version) []string {
 		})
 	}
 	return pkgs
-}
-
-// MatchAll returns a list of the packages matching the pattern "all".
-// We redefine "all" to mean start with the packages in the current module
-// and then follow imports into other modules to add packages imported
-// (directly or indirectly) as part of builds in this module.
-// It does not include packages in other modules that are not needed
-// by builds of this module.
-func MatchAll() []string {
-	return matchAll(imports.Tags())
-}
-
-// MatchALL returns a list of the packages matching the pattern "ALL".
-// The pattern "ALL" is like "all" but looks at all source files,
-// even ones that would be ignored by current build tag settings.
-// That's useful for identifying which packages to include in a vendor directory.
-func MatchALL() []string {
-	return matchAll(map[string]bool{"*": true})
-}
-
-// matchAll is the common implementation of MatchAll and MatchALL,
-// which differ only in the set of tags to apply to select files.
-func matchAll(tags map[string]bool) []string {
-	local := matchPackages("all", buildList[:1])
-	ld := newLoader()
-	ld.tags = tags
-	ld.importList(local, levelTestRecursive)
-	var all []string
-	for _, pkg := range ld.importmap {
-		if !isStandardImportPath(pkg) {
-			all = append(all, pkg)
-		}
-	}
-	sort.Strings(all)
-	return all
 }

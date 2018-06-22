@@ -114,7 +114,7 @@ func runGet(cmd *base.Command, args []string) {
 
 	// Upgrade.
 	var err error
-	buildList, err = mvs.Upgrade(Target, newReqs(), upgrade...)
+	buildList, err = mvs.Upgrade(Target, newReqs(buildList), upgrade...)
 	if err != nil {
 		base.Fatalf("vgo get: %v", err)
 	}
@@ -133,7 +133,7 @@ func runGet(cmd *base.Command, args []string) {
 	}
 
 	if len(downgrade) > 0 {
-		buildList, err = mvs.Downgrade(Target, newReqs(buildList[1:]...), downgrade...)
+		buildList, err = mvs.Downgrade(Target, newReqs(buildList, buildList[1:]...), downgrade...)
 		if err != nil {
 			base.Fatalf("vgo get: %v", err)
 		}
@@ -160,7 +160,7 @@ func runGet(cmd *base.Command, args []string) {
 
 	if *getD {
 		// Download all needed code as side-effect.
-		ImportPaths([]string{"ALL"})
+		LoadALL()
 	}
 
 	if *getM {

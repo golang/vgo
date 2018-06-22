@@ -53,7 +53,7 @@ func ModuleInfo(path string) *modinfo.ModulePublic {
 		return moduleInfo(module.Version{Path: path[:i], Version: path[i+1:]})
 	}
 
-	for _, m := range buildList {
+	for _, m := range BuildList() {
 		if m.Path == path {
 			return moduleInfo(m)
 		}

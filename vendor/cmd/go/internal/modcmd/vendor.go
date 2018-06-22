@@ -21,7 +21,7 @@ import (
 var copiedDir map[string]bool
 
 func runVendor() {
-	pkgs := vgo.ImportPaths([]string{"ALL"})
+	pkgs := vgo.LoadALL()
 
 	vdir := filepath.Join(vgo.ModRoot, "vendor")
 	if err := os.RemoveAll(vdir); err != nil {

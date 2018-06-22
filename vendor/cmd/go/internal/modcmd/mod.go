@@ -250,12 +250,12 @@ func runMod(cmd *base.Command, args []string) {
 	if *modSync || *modVendor || needBuildList {
 		var pkgs []string
 		if *modSync || *modVendor {
-			pkgs = vgo.ImportPaths([]string{"ALL"})
+			pkgs = vgo.LoadALL()
 		} else {
 			vgo.LoadBuildList()
 		}
 		if *modSync {
-			// ImportPaths(ALL) already added missing modules.
+			// LoadALL already added missing modules.
 			// Remove unused modules.
 			used := map[module.Version]bool{vgo.Target: true}
 			for _, pkg := range pkgs {

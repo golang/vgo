@@ -48,11 +48,6 @@ var (
 
 )
 
-// TargetPackages returns the list of packages in the target (top-level) module.
-func TargetPackages() []string {
-	return matchPackages("ALL", []module.Version{Target})
-}
-
 // ModFile returns the parsed go.mod file.
 //
 // Note that after calling ImportPaths or LoadBuildList,
@@ -154,7 +149,7 @@ func Init() {
 	load.VgoImportPaths = ImportPaths
 	load.VgoPackageBuildInfo = PackageBuildInfo
 	load.VgoModInfoProg = ModInfoProg
-	load.VgoAddImports = AddImports
+	load.VgoImportFromFiles = ImportFromFiles
 
 	search.SetModRoot(ModRoot)
 }
@@ -423,7 +418,7 @@ func WriteGoMod() {
 	modfetch.WriteGoSum()
 
 	if buildList != nil {
-		min, err := mvs.Req(Target, buildList, newReqs())
+		min, err := mvs.Req(Target, buildList, newReqs(buildList))
 		if err != nil {
 			base.Fatalf("vgo: %v", err)
 		}

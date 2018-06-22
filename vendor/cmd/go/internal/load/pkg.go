@@ -35,7 +35,7 @@ var (
 	VgoImportPaths       func(args []string) []string                                    // expand import paths
 	VgoPackageBuildInfo  func(main string, deps []string) string                         // return module info to embed in binary
 	VgoModInfoProg       func(info string) []byte                                        // wrap module info in .go code for binary
-	VgoAddImports        func([]string)                                                  // update go.mod to add modules for imports in these files
+	VgoImportFromFiles   func([]string)                                                  // update go.mod to add modules for imports in these files
 )
 
 var IgnoreImports bool // control whether we ignore imports in packages
@@ -1803,8 +1803,8 @@ func GoFilesPackage(gofiles []string) *Package {
 	}
 	ctxt.ReadDir = func(string) ([]os.FileInfo, error) { return dirent, nil }
 
-	if VgoAddImports != nil {
-		VgoAddImports(gofiles)
+	if VgoImportFromFiles != nil {
+		VgoImportFromFiles(gofiles)
 	}
 
 	var err error
