@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package gitrepo
+package codehost
 
 import (
 	"archive/zip"
@@ -18,8 +18,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"cmd/go/internal/modfetch/codehost"
 )
 
 func TestMain(m *testing.M) {
@@ -43,7 +41,7 @@ func testMain(m *testing.M) int {
 		log.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	codehost.WorkRoot = dir
+	WorkRoot = dir
 
 	if testenv.HasExternalNetwork() && testenv.HasExec() {
 		// Clone gitrepo1 into a local directory.
@@ -51,10 +49,10 @@ func testMain(m *testing.M) int {
 		// then git starts up all the usual protocol machinery,
 		// which will let us test remote git archive invocations.
 		localGitRepo = filepath.Join(dir, "gitrepo2")
-		if _, err := codehost.Run("", "git", "clone", "--mirror", gitrepo1, localGitRepo); err != nil {
+		if _, err := Run("", "git", "clone", "--mirror", gitrepo1, localGitRepo); err != nil {
 			log.Fatal(err)
 		}
-		if _, err := codehost.Run(localGitRepo, "git", "config", "daemon.uploadarch", "true"); err != nil {
+		if _, err := Run(localGitRepo, "git", "config", "daemon.uploadarch", "true"); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -62,11 +60,11 @@ func testMain(m *testing.M) int {
 	return m.Run()
 }
 
-func testRepo(remote string) (codehost.Repo, error) {
+func testGitRepo(remote string) (Repo, error) {
 	if remote == "localGitRepo" {
 		remote = "file://" + filepath.ToSlash(localGitRepo)
 	}
-	return LocalRepo(remote)
+	return LocalGitRepo(remote)
 }
 
 var tagsTests = []struct {
@@ -81,13 +79,13 @@ var tagsTests = []struct {
 	{gitrepo1, "2", []string{}},
 }
 
-func TestTags(t *testing.T) {
+func TestGitTags(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range tagsTests {
 		f := func(t *testing.T) {
-			r, err := testRepo(tt.repo)
+			r, err := testGitRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -109,11 +107,11 @@ func TestTags(t *testing.T) {
 
 var latestTests = []struct {
 	repo string
-	info *codehost.RevInfo
+	info *RevInfo
 }{
 	{
 		gitrepo1,
-		&codehost.RevInfo{
+		&RevInfo{
 			Name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Short:   "ede458df7cd0",
 			Version: "ede458df7cd0fdca520df19a33158086a8a68e81",
@@ -122,13 +120,13 @@ var latestTests = []struct {
 	},
 }
 
-func TestLatest(t *testing.T) {
+func TestGitLatest(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range latestTests {
 		f := func(t *testing.T) {
-			r, err := testRepo(tt.repo)
+			r, err := testGitRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,13 +173,13 @@ var readFileTests = []struct {
 	},
 }
 
-func TestReadFile(t *testing.T) {
+func TestGitReadFile(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range readFileTests {
 		f := func(t *testing.T) {
-			r, err := testRepo(tt.repo)
+			r, err := testGitRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -305,13 +303,13 @@ type zipFile struct {
 	size int64
 }
 
-func TestReadZip(t *testing.T) {
+func TestGitReadZip(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range readZipTests {
 		f := func(t *testing.T) {
-			r, err := testRepo(tt.repo)
+			r, err := testGitRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -373,12 +371,12 @@ var statTests = []struct {
 	repo string
 	rev  string
 	err  string
-	info *codehost.RevInfo
+	info *RevInfo
 }{
 	{
 		repo: gitrepo1,
 		rev:  "HEAD",
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Short:   "ede458df7cd0",
 			Version: "ede458df7cd0fdca520df19a33158086a8a68e81",
@@ -388,7 +386,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "v2", // branch
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "9d02800338b8a55be062c838d1f02e0c5780b9eb",
 			Short:   "9d02800338b8",
 			Version: "9d02800338b8a55be062c838d1f02e0c5780b9eb",
@@ -398,7 +396,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "v2.3.4", // badly-named branch (semver should be a tag)
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "76a00fb249b7f93091bc2c89a789dab1fc1bc26f",
 			Short:   "76a00fb249b7",
 			Version: "76a00fb249b7f93091bc2c89a789dab1fc1bc26f",
@@ -408,7 +406,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "v2.3", // badly-named tag (we only respect full semver v2.3.0)
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "76a00fb249b7f93091bc2c89a789dab1fc1bc26f",
 			Short:   "76a00fb249b7",
 			Version: "v2.3",
@@ -418,7 +416,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "v1.2.3", // tag
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Short:   "ede458df7cd0",
 			Version: "v1.2.3",
@@ -428,7 +426,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "ede458df", // hash prefix in refs
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Short:   "ede458df7cd0",
 			Version: "ede458df7cd0fdca520df19a33158086a8a68e81",
@@ -438,7 +436,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "97f6aa59", // hash prefix not in refs
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "97f6aa59c81c623494825b43d39e445566e429a4",
 			Short:   "97f6aa59c81c",
 			Version: "97f6aa59c81c623494825b43d39e445566e429a4",
@@ -448,7 +446,7 @@ var statTests = []struct {
 	{
 		repo: gitrepo1,
 		rev:  "v1.2.4-annotated", // annotated tag uses unwrapped commit hash
-		info: &codehost.RevInfo{
+		info: &RevInfo{
 			Name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Short:   "ede458df7cd0",
 			Version: "v1.2.4-annotated",
@@ -462,13 +460,13 @@ var statTests = []struct {
 	},
 }
 
-func TestStat(t *testing.T) {
+func TestGitStat(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	testenv.MustHaveExec(t)
 
 	for _, tt := range statTests {
 		f := func(t *testing.T) {
-			r, err := testRepo(tt.repo)
+			r, err := testGitRepo(tt.repo)
 			if err != nil {
 				t.Fatal(err)
 			}

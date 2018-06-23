@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package gitrepo provides a Git-based implementation of codehost.Repo.
-package gitrepo
+package codehost
 
 import (
 	"bytes"
@@ -18,54 +17,53 @@ import (
 	"sync"
 	"time"
 
-	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/par"
 )
 
-// Repo returns the code repository at the given Git remote reference.
-func Repo(remote string) (codehost.Repo, error) {
-	return newRepoCached(remote, false)
+// GitRepo returns the code repository at the given Git remote reference.
+func GitRepo(remote string) (Repo, error) {
+	return newGitRepoCached(remote, false)
 }
 
-// LocalRepo is like Repo but accepts both Git remote references
+// LocalGitRepo is like Repo but accepts both Git remote references
 // and paths to repositories on the local file system.
-func LocalRepo(remote string) (codehost.Repo, error) {
-	return newRepoCached(remote, true)
+func LocalGitRepo(remote string) (Repo, error) {
+	return newGitRepoCached(remote, true)
 }
 
-const workDirType = "git2"
+const gitWorkDirType = "git2"
 
-var repoCache par.Cache
+var gitRepoCache par.Cache
 
-func newRepoCached(remote string, localOK bool) (codehost.Repo, error) {
+func newGitRepoCached(remote string, localOK bool) (Repo, error) {
 	type key struct {
 		remote  string
 		localOK bool
 	}
 	type cached struct {
-		repo codehost.Repo
+		repo Repo
 		err  error
 	}
 
-	c := repoCache.Do(key{remote, localOK}, func() interface{} {
-		repo, err := newRepo(remote, localOK)
+	c := gitRepoCache.Do(key{remote, localOK}, func() interface{} {
+		repo, err := newGitRepo(remote, localOK)
 		return cached{repo, err}
 	}).(cached)
 
 	return c.repo, c.err
 }
 
-func newRepo(remote string, localOK bool) (codehost.Repo, error) {
-	r := &repo{remote: remote}
+func newGitRepo(remote string, localOK bool) (Repo, error) {
+	r := &gitRepo{remote: remote}
 	if strings.Contains(remote, "://") {
 		// This is a remote path.
-		dir, err := codehost.WorkDir(workDirType, r.remote)
+		dir, err := WorkDir(gitWorkDirType, r.remote)
 		if err != nil {
 			return nil, err
 		}
 		r.dir = dir
 		if _, err := os.Stat(filepath.Join(dir, "objects")); err != nil {
-			if _, err := codehost.Run(dir, "git", "init", "--bare"); err != nil {
+			if _, err := Run(dir, "git", "init", "--bare"); err != nil {
 				os.RemoveAll(dir)
 				return nil, err
 			}
@@ -73,7 +71,7 @@ func newRepo(remote string, localOK bool) (codehost.Repo, error) {
 			// but this lets us say git fetch origin instead, which
 			// is a little nicer. More importantly, using a named remote
 			// avoids a problem with Git LFS. See golang.org/issue/25605.
-			if _, err := codehost.Run(dir, "git", "remote", "add", "origin", r.remote); err != nil {
+			if _, err := Run(dir, "git", "remote", "add", "origin", r.remote); err != nil {
 				os.RemoveAll(dir)
 				return nil, err
 			}
@@ -103,7 +101,7 @@ func newRepo(remote string, localOK bool) (codehost.Repo, error) {
 	return r, nil
 }
 
-type repo struct {
+type gitRepo struct {
 	remote string
 	local  bool
 	dir    string
@@ -131,11 +129,11 @@ const (
 // loadLocalTags loads tag references from the local git cache
 // into the map r.localTags.
 // Should only be called as r.localTagsOnce.Do(r.loadLocalTags).
-func (r *repo) loadLocalTags() {
+func (r *gitRepo) loadLocalTags() {
 	// The git protocol sends all known refs and ls-remote filters them on the client side,
 	// so we might as well record both heads and tags in one shot.
 	// Most of the time we only care about tags but sometimes we care about heads too.
-	out, err := codehost.Run(r.dir, "git", "tag", "-l")
+	out, err := Run(r.dir, "git", "tag", "-l")
 	if err != nil {
 		return
 	}
@@ -150,11 +148,11 @@ func (r *repo) loadLocalTags() {
 
 // loadRefs loads heads and tags references from the remote into the map r.refs.
 // Should only be called as r.refsOnce.Do(r.loadRefs).
-func (r *repo) loadRefs() {
+func (r *gitRepo) loadRefs() {
 	// The git protocol sends all known refs and ls-remote filters them on the client side,
 	// so we might as well record both heads and tags in one shot.
 	// Most of the time we only care about tags but sometimes we care about heads too.
-	out, err := codehost.Run(r.dir, "git", "ls-remote", "-q", r.remote)
+	out, err := Run(r.dir, "git", "ls-remote", "-q", r.remote)
 	if err != nil {
 		r.refsErr = err
 		return
@@ -178,7 +176,7 @@ func (r *repo) loadRefs() {
 	}
 }
 
-func (r *repo) Tags(prefix string) ([]string, error) {
+func (r *gitRepo) Tags(prefix string) ([]string, error) {
 	r.refsOnce.Do(r.loadRefs)
 	if r.refsErr != nil {
 		return nil, r.refsErr
@@ -199,7 +197,7 @@ func (r *repo) Tags(prefix string) ([]string, error) {
 	return tags, nil
 }
 
-func (r *repo) Latest() (*codehost.RevInfo, error) {
+func (r *gitRepo) Latest() (*RevInfo, error) {
 	r.refsOnce.Do(r.loadRefs)
 	if r.refsErr != nil {
 		return nil, r.refsErr
@@ -214,7 +212,7 @@ func (r *repo) Latest() (*codehost.RevInfo, error) {
 // for use when the server requires giving a ref instead of a hash.
 // There may be multiple ref names for a given hash,
 // in which case this returns some name - it doesn't matter which.
-func (r *repo) findRef(hash string) (ref string, ok bool) {
+func (r *gitRepo) findRef(hash string) (ref string, ok bool) {
 	r.refsOnce.Do(r.loadRefs)
 	for ref, h := range r.refs {
 		if h == hash {
@@ -241,13 +239,13 @@ const minHashDigits = 7
 
 // stat stats the given rev in the local repository,
 // or else it fetches more info from the remote repository and tries again.
-func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
+func (r *gitRepo) stat(rev string) (*RevInfo, error) {
 	if r.local {
 		return r.statLocal(rev, rev)
 	}
 
 	// Fast path: maybe rev is a hash we already have locally.
-	if len(rev) >= minHashDigits && len(rev) <= 40 && codehost.AllHex(rev) {
+	if len(rev) >= minHashDigits && len(rev) <= 40 && AllHex(rev) {
 		if info, err := r.statLocal(rev, rev); err == nil {
 			return info, nil
 		}
@@ -277,7 +275,7 @@ func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
 		ref = "HEAD"
 		hash = r.refs[ref]
 		rev = hash // Replace rev, because meaning of HEAD can change.
-	} else if len(rev) >= minHashDigits && len(rev) <= 40 && codehost.AllHex(rev) {
+	} else if len(rev) >= minHashDigits && len(rev) <= 40 && AllHex(rev) {
 		// At the least, we have a hash prefix we can look up after the fetch below.
 		// Maybe we can map it to a full hash using the known refs.
 		prefix := rev
@@ -304,7 +302,7 @@ func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
 	}
 
 	// Protect r.fetchLevel and the "fetch more and more" sequence.
-	// TODO(rsc): Add codehost.LockDir and use it for protecting that
+	// TODO(rsc): Add LockDir and use it for protecting that
 	// sequence, so that multiple processes don't collide in their
 	// git commands.
 	r.mu.Lock()
@@ -324,7 +322,7 @@ func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
 			ref = hash
 			refspec = hash
 		}
-		_, err := codehost.Run(r.dir, "git", "fetch", "-f", "--depth=1", r.remote, refspec)
+		_, err := Run(r.dir, "git", "fetch", "-f", "--depth=1", r.remote, refspec)
 		if err == nil {
 			return r.statLocal(rev, ref)
 		}
@@ -348,7 +346,7 @@ func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
 		if len(unshallowFlag) > 0 {
 			protoFlag = []string{"-c", "protocol.version=0"}
 		}
-		if _, err := codehost.Run(r.dir, "git", protoFlag, "fetch", unshallowFlag, "-f", r.remote, "refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"); err != nil {
+		if _, err := Run(r.dir, "git", protoFlag, "fetch", unshallowFlag, "-f", r.remote, "refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"); err != nil {
 			return nil, err
 		}
 	}
@@ -356,12 +354,12 @@ func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
 	return r.statLocal(rev, rev)
 }
 
-// statLocal returns a codehost.RevInfo describing rev in the local git repository.
+// statLocal returns a RevInfo describing rev in the local git repository.
 // It uses version as info.Version.
-func (r *repo) statLocal(version, rev string) (*codehost.RevInfo, error) {
-	out, err := codehost.Run(r.dir, "git", "log", "-n1", "--format=format:%H %ct", rev)
+func (r *gitRepo) statLocal(version, rev string) (*RevInfo, error) {
+	out, err := Run(r.dir, "git", "log", "-n1", "--format=format:%H %ct", rev)
 	if err != nil {
-		if codehost.AllHex(rev) {
+		if AllHex(rev) {
 			return nil, fmt.Errorf("unknown hash %s", rev)
 		}
 		return nil, fmt.Errorf("unknown revision %s", rev)
@@ -379,18 +377,18 @@ func (r *repo) statLocal(version, rev string) (*codehost.RevInfo, error) {
 		return nil, fmt.Errorf("invalid time from git log: %q", out)
 	}
 
-	info := &codehost.RevInfo{
+	info := &RevInfo{
 		Name:    hash,
-		Short:   codehost.ShortenSHA1(hash),
+		Short:   ShortenSHA1(hash),
 		Time:    time.Unix(t, 0).UTC(),
 		Version: version,
 	}
 	return info, nil
 }
 
-func (r *repo) Stat(rev string) (*codehost.RevInfo, error) {
+func (r *gitRepo) Stat(rev string) (*RevInfo, error) {
 	type cached struct {
-		info *codehost.RevInfo
+		info *RevInfo
 		err  error
 	}
 	c := r.statCache.Do(rev, func() interface{} {
@@ -400,20 +398,20 @@ func (r *repo) Stat(rev string) (*codehost.RevInfo, error) {
 	return c.info, c.err
 }
 
-func (r *repo) ReadFile(rev, file string, maxSize int64) ([]byte, error) {
+func (r *gitRepo) ReadFile(rev, file string, maxSize int64) ([]byte, error) {
 	// TODO: Could use git cat-file --batch.
 	info, err := r.Stat(rev) // download rev into local git repo
 	if err != nil {
 		return nil, err
 	}
-	out, err := codehost.Run(r.dir, "git", "cat-file", "blob", info.Name+":"+file)
+	out, err := Run(r.dir, "git", "cat-file", "blob", info.Name+":"+file)
 	if err != nil {
 		return nil, os.ErrNotExist
 	}
 	return out, nil
 }
 
-func (r *repo) ReadZip(rev, subdir string, maxSize int64) (zip io.ReadCloser, actualSubdir string, err error) {
+func (r *gitRepo) ReadZip(rev, subdir string, maxSize int64) (zip io.ReadCloser, actualSubdir string, err error) {
 	// TODO: Use maxSize or drop it.
 	args := []string{}
 	if subdir != "" {
@@ -423,9 +421,9 @@ func (r *repo) ReadZip(rev, subdir string, maxSize int64) (zip io.ReadCloser, ac
 	if err != nil {
 		return nil, "", err
 	}
-	archive, err := codehost.Run(r.dir, "git", "archive", "--format=zip", "--prefix=prefix/", info.Name, args)
+	archive, err := Run(r.dir, "git", "archive", "--format=zip", "--prefix=prefix/", info.Name, args)
 	if err != nil {
-		if bytes.Contains(err.(*codehost.RunError).Stderr, []byte("did not match any files")) {
+		if bytes.Contains(err.(*RunError).Stderr, []byte("did not match any files")) {
 			return nil, "", os.ErrNotExist
 		}
 		return nil, "", err

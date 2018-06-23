@@ -14,7 +14,6 @@ import (
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/get"
 	"cmd/go/internal/modfetch/codehost"
-	"cmd/go/internal/modfetch/gitrepo"
 	"cmd/go/internal/module"
 	"cmd/go/internal/par"
 	"cmd/go/internal/semver"
@@ -236,7 +235,7 @@ func lookupCodeRepo(rr *get.RepoRoot) (codehost.Repo, error) {
 	default:
 		return nil, fmt.Errorf("lookup %s: unknown VCS %s %s", rr.Root, rr.VCS, rr.Repo)
 	case "git":
-		return gitrepo.Repo(rr.Repo)
+		return codehost.GitRepo(rr.Repo)
 		// TODO: "hg", "svn", "bzr", "fossil"
 	}
 }
