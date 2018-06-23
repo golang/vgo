@@ -431,7 +431,7 @@ func (f *File) SetRequire(req []module.Version) {
 			if len(stmt.Token) > 0 && stmt.Token[0] == "require" {
 				var newLines []*Line
 				for _, line := range stmt.Line {
-					if p, err := strconv.Unquote(line.Token[0]); err == nil && need[p] != "" {
+					if p, err := parseString(&line.Token[0]); err == nil && need[p] != "" {
 						line.Token[1] = need[p]
 						delete(need, p)
 						newLines = append(newLines, line)
@@ -445,7 +445,7 @@ func (f *File) SetRequire(req []module.Version) {
 
 		case *Line:
 			if len(stmt.Token) > 0 && stmt.Token[0] == "require" {
-				if p, err := strconv.Unquote(stmt.Token[1]); err == nil && need[p] != "" {
+				if p, err := parseString(&stmt.Token[1]); err == nil && need[p] != "" {
 					stmt.Token[2] = need[p]
 					delete(need, p)
 				} else {

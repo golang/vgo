@@ -693,3 +693,39 @@ func TestImportDir(t *testing.T) {
 	tg.cd(tg.path("x"))
 	tg.run("-vgo", "build")
 }
+
+func TestModSyncPrintJson(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.setenv("GOPATH", tg.path("."))
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte(`
+		package x
+		import "github.com/gorilla/mux"
+		func main() {
+			_ := mux.NewRouter()
+		}`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte("module x"), 0666))
+	tg.cd(tg.path("x"))
+	tg.run("-vgo", "mod", "-sync", "-json")
+	count := tg.grepCountBoth(`"Path": "github.com/gorilla/mux",`)
+	if count != 1 {
+		t.Fatal("produces duplicate imports")
+	}
+	// test quoted module path
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require (
+			"github.com/gorilla/context" v1.1.1
+			"github.com/gorilla/mux" v1.6.2
+	)`), 0666))
+	tg.run("-vgo", "mod", "-sync", "-json")
+	count = tg.grepCountBoth(`"Path": "github.com/gorilla/mux",`)
+	if count != 1 {
+		t.Fatal("produces duplicate imports")
+	}
+
+}
