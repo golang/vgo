@@ -2,18 +2,48 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package modfetch
+package modconv
 
 import (
 	"bytes"
+	"fmt"
 	"internal/testenv"
+	"io/ioutil"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"cmd/go/internal/cfg"
-	"cmd/go/internal/modconv"
+	"cmd/go/internal/modfetch"
+	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/modfile"
+	"cmd/go/internal/module"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(testMain(m))
+}
+
+func testMain(m *testing.M) int {
+	if _, err := exec.LookPath("git"); err != nil {
+		fmt.Fprintln(os.Stderr, "skipping because git binary not found")
+		fmt.Println("PASS")
+		return 0
+	}
+
+	dir, err := ioutil.TempDir("", "modconv-test-")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	modfetch.SrcMod = filepath.Join(dir, "src/mod")
+	codehost.WorkRoot = filepath.Join(dir, "codework")
+
+	return m.Run()
+}
 
 func TestConvertLegacyConfig(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
@@ -117,23 +147,32 @@ func TestConvertLegacyConfig(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			repo, err := Lookup(tt.path)
+
+			dir, err := modfetch.Download(module.Version{Path: tt.path, Version: tt.vers})
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			out, err := repo.GoMod(tt.vers)
-			if err != nil {
-				t.Fatal(err)
+			for name := range Converters {
+				file := filepath.Join(dir, name)
+				data, err := ioutil.ReadFile(file)
+				if err == nil {
+					f := new(modfile.File)
+					f.AddModuleStmt(tt.path)
+					if err := ConvertLegacyConfig(f, filepath.ToSlash(file), data); err != nil {
+						t.Fatal(err)
+					}
+					out, err := f.Format()
+					if err != nil {
+						t.Fatalf("format after conversion: %v", err)
+					}
+					if !bytes.Equal(out, want) {
+						t.Fatalf("final go.mod:\n%s\n\nwant:\n%s", out, want)
+					}
+					return
+				}
 			}
-			prefix := modconv.Prefix + "\n"
-			if !bytes.HasPrefix(out, []byte(prefix)) {
-				t.Fatalf("go.mod missing prefix %q:\n%s", prefix, out)
-			}
-			out = out[len(prefix):]
-			if !bytes.Equal(out, want) {
-				t.Fatalf("final go.mod:\n%s\n\nwant:\n%s", out, want)
-			}
+			t.Fatalf("no converter found for %s@%s", tt.path, tt.vers)
 		})
 	}
 }

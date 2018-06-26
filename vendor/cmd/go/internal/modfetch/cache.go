@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/par"
 	"cmd/go/internal/semver"
@@ -248,7 +247,12 @@ func readDiskStatByHash(path, rev string) (file string, info *RevInfo, err error
 	return "", nil, errNotCached
 }
 
-var vgoVersion = []byte(modconv.Prefix)
+// oldVgoPrefix is the prefix in the old auto-generated cached go.mod files.
+// We stopped trying to auto-generate the go.mod files. Now we use a trivial
+// go.mod with only a module line, and we've dropped the version prefix
+// entirely. If we see a version prefix, that means we're looking at an old copy
+// and should ignore it.
+var oldVgoPrefix = []byte("//vgo 0.0.")
 
 // readDiskGoMod reads a cached stat result from disk,
 // returning the name of the cache file and the result.
@@ -257,15 +261,8 @@ var vgoVersion = []byte(modconv.Prefix)
 func readDiskGoMod(path, rev string) (file string, data []byte, err error) {
 	file, data, err = readDiskCache(path, rev, "mod")
 
-	// If go.mod has a //vgo comment at the start,
-	// it was auto-converted from a legacy lock file.
-	// The auto-conversion details may have bugs and
-	// may be fixed in newer versions of vgo.
-	// We ignore cached go.mod files if they do not match
-	// our own vgoVersion.
-	// This use of "vgo" appears in disk files and must be preserved
-	// even once we excise most of the mentions of vgo from the code.
-	if err == nil && bytes.HasPrefix(data, vgoVersion[:len("//vgo")]) && !bytes.HasPrefix(data, vgoVersion) {
+	// If the file has an old auto-conversion prefix, pretend it's not there.
+	if bytes.HasPrefix(data, oldVgoPrefix) {
 		err = errNotCached
 		data = nil
 	}

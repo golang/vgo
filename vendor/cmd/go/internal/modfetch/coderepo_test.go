@@ -274,7 +274,7 @@ var codeRepoTests = []struct {
 		name:    "d670f9405373e636a5a2765eea47fac0c9bc91a4",
 		short:   "d670f9405373",
 		time:    time.Date(2018, 1, 9, 11, 43, 31, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/yaml.v2\n",
+		gomod:   "module gopkg.in/yaml.v2\n",
 	},
 	{
 		path:    "gopkg.in/check.v1",
@@ -283,7 +283,7 @@ var codeRepoTests = []struct {
 		name:    "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
 		short:   "20d25e280405",
 		time:    time.Date(2016, 12, 8, 18, 13, 25, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/check.v1\n",
+		gomod:   "module gopkg.in/check.v1\n",
 	},
 	{
 		path:    "gopkg.in/yaml.v2",
@@ -301,7 +301,7 @@ var codeRepoTests = []struct {
 		name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 		short:   "ede458df7cd0",
 		time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule vcs-test.golang.org/go/mod/gitrepo1\n",
+		gomod:   "module vcs-test.golang.org/go/mod/gitrepo1\n",
 	},
 	{
 		path:    "gopkg.in/natefinch/lumberjack.v2",
@@ -310,7 +310,7 @@ var codeRepoTests = []struct {
 		name:    "a96e63847dc3c67d17befa69c303767e2f84e54f",
 		short:   "a96e63847dc3",
 		time:    time.Date(2017, 5, 31, 16, 3, 50, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/natefinch/lumberjack.v2\n",
+		gomod:   "module gopkg.in/natefinch/lumberjack.v2\n",
 	},
 	{
 		path: "gopkg.in/natefinch/lumberjack.v2",
@@ -325,7 +325,7 @@ var codeRepoTests = []struct {
 		name:    "a96e63847dc3c67d17befa69c303767e2f84e54f",
 		short:   "a96e63847dc3",
 		time:    time.Date(2017, 5, 31, 16, 3, 50, 0, time.UTC),
-		gomod:   "//vgo 0.0.4\n\nmodule gopkg.in/natefinch/lumberjack.v2\n",
+		gomod:   "module gopkg.in/natefinch/lumberjack.v2\n",
 	},
 }
 

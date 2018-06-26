@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package modfetch
+package modconv
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"cmd/go/internal/modconv"
+	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
 	"cmd/go/internal/par"
@@ -26,9 +26,9 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	if i >= 0 {
 		j = strings.LastIndex(file[:i], "/")
 	}
-	convert := modconv.Converters[file[i+1:]]
+	convert := Converters[file[i+1:]]
 	if convert == nil && j != -2 {
-		convert = modconv.Converters[file[j+1:]]
+		convert = Converters[file[j+1:]]
 	}
 	if convert == nil {
 		return fmt.Errorf("unknown legacy config file %s", file)
@@ -55,7 +55,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	)
 	work.Do(10, func(item interface{}) {
 		r := item.(module.Version)
-		repo, info, err := ImportRepoRev(r.Path, r.Version)
+		repo, info, err := modfetch.ImportRepoRev(r.Path, r.Version)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "vgo: converting %s: stat %s@%s: %v\n", file, r.Path, r.Version, err)
 			return

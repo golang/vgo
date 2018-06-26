@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
@@ -268,41 +267,15 @@ func (r *codeRepo) GoMod(version string) (data []byte, err error) {
 	return data, nil
 }
 
-var altConfigs = []string{
-	"Gopkg.lock",
-
-	"GLOCKFILE",
-	"Godeps/Godeps.json",
-	"dependencies.tsv",
-	"glide.lock",
-	"vendor.conf",
-	"vendor.yml",
-	"vendor/manifest",
-	"vendor/vendor.json",
-}
-
 func (r *codeRepo) legacyGoMod(rev, dir string) []byte {
-	mf := new(modfile.File)
-	mf.AddModuleStmt(r.modPath)
-	for _, file := range altConfigs {
-		data, err := r.code.ReadFile(rev, path.Join(dir, file), codehost.MaxGoMod)
-		if err != nil {
-			continue
-		}
-		convert := modconv.Converters[file]
-		if convert == nil {
-			continue
-		}
-		if err := ConvertLegacyConfig(mf, path.Join(r.codeRoot+"@"+rev, dir, file), data); err != nil {
-			continue
-		}
-		break
-	}
-	data, err := mf.Format()
-	if err != nil {
-		return []byte(fmt.Sprintf("%s\nmodule %q\n", modconv.Prefix, r.modPath))
-	}
-	return append([]byte(modconv.Prefix+"\n"), data...)
+	// We used to try to build a go.mod reflecting pre-existing
+	// package management metadata files, but the conversion
+	// was inherently imperfect (because those files don't have
+	// exactly the same semantics as go.mod) and, when done
+	// for dependencies in the middle of a build, impossible to
+	// correct. So we stopped.
+	// Return a fake go.mod that simply declares the module path.
+	return []byte(fmt.Sprintf("module %s\n", modfile.AutoQuote(r.modPath)))
 }
 
 func (r *codeRepo) modPrefix(rev string) string {

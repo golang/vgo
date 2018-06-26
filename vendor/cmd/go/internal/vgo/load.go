@@ -17,7 +17,6 @@ import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/imports"
-	"cmd/go/internal/modconv"
 	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
@@ -457,8 +456,6 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 
 	return c.list, c.err
 }
-
-var vgoVersion = []byte(modconv.Prefix)
 
 func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if mod == Target {
