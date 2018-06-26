@@ -107,7 +107,7 @@ func (r *codeRepo) Versions(prefix string) ([]string, error) {
 		if r.codeDir != "" {
 			v = v[len(r.codeDir)+1:]
 		}
-		if !semver.IsValid(v) || v != semver.Canonical(v) || isPseudoVersion(v) || !module.MatchPathMajor(v, r.pathMajor) {
+		if !semver.IsValid(v) || v != semver.Canonical(v) || IsPseudoVersion(v) || !module.MatchPathMajor(v, r.pathMajor) {
 			continue
 		}
 		list = append(list, v)
@@ -141,7 +141,7 @@ func (r *codeRepo) Latest() (*RevInfo, error) {
 
 func (r *codeRepo) convert(info *codehost.RevInfo) (*RevInfo, error) {
 	versionOK := func(v string) bool {
-		return semver.IsValid(v) && v == semver.Canonical(v) && !isPseudoVersion(v) && module.MatchPathMajor(v, r.pathMajor)
+		return semver.IsValid(v) && v == semver.Canonical(v) && !IsPseudoVersion(v) && module.MatchPathMajor(v, r.pathMajor)
 	}
 	v := info.Version
 	if r.codeDir == "" {
@@ -168,7 +168,7 @@ func (r *codeRepo) convert(info *codehost.RevInfo) (*RevInfo, error) {
 
 func (r *codeRepo) revToRev(rev string) string {
 	if semver.IsValid(rev) {
-		if isPseudoVersion(rev) {
+		if IsPseudoVersion(rev) {
 			i := strings.Index(rev, "-")
 			j := strings.Index(rev[i+1:], "-")
 			return rev[i+1+j+1:]
@@ -526,6 +526,23 @@ func ParsePseudoVersion(repo Repo, version string) (rev string, err error) {
 
 var pseudoVersionRE = regexp.MustCompile(`^v[0-9]+\.0\.0-[0-9]{14}-[A-Za-z0-9]+$`)
 
-func isPseudoVersion(v string) bool {
+// IsPseudoVersion reports whether v is a pseudo-version.
+func IsPseudoVersion(v string) bool {
 	return pseudoVersionRE.MatchString(v)
+}
+
+// PseudoVersionTime returns the time stamp of the pseudo-version v.
+// It returns an error if v is not a pseudo-version or if the time stamp
+// embedded in the pseudo-version is not a valid time.
+func PseudoVersionTime(v string) (time.Time, error) {
+	if !IsPseudoVersion(v) {
+		return time.Time{}, fmt.Errorf("not a pseudo-version")
+	}
+	i := strings.Index(v, "-") + 1
+	j := i + strings.Index(v[i:], "-")
+	t, err := time.Parse("20060102150405", v[i:j])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("malformed pseudo-version %q", v)
+	}
+	return t, nil
 }

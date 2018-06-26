@@ -69,6 +69,28 @@ func Major(v string) string {
 	return v[:1+len(pv.major)]
 }
 
+// Prerelease returns the prerelease suffix of the semantic version v.
+// For example, Prerelease("v2.1.0-pre+meta") == "-pre".
+// If v is an invalid semantic version string, Prerelease returns the empty string.
+func Prerelease(v string) string {
+	pv, ok := parse(v)
+	if !ok {
+		return ""
+	}
+	return pv.prerelease
+}
+
+// Build returns the build suffix of the semantic version v.
+// For example, Build("v2.1.0+meta") == "+meta".
+// If v is an invalid semantic version string, Build returns the empty string.
+func Build(v string) string {
+	pv, ok := parse(v)
+	if !ok {
+		return ""
+	}
+	return pv.build
+}
+
 // Compare returns an integer comparing two versions according to
 // according to semantic version precedence.
 // The result will be 0 if v == w, -1 if v < w, or +1 if v > w.

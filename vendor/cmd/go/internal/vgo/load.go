@@ -431,12 +431,6 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 		if err != nil {
 			return cached{nil, err}
 		}
-		if *getU {
-			for i := range list {
-				list[i].Version = "none"
-			}
-			return cached{list, nil}
-		}
 		for i, mv := range list {
 			for excluded[mv] {
 				mv1, err := r.next(mv)
@@ -517,6 +511,9 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
 	}
 
+	if f.Module == nil {
+		return nil, fmt.Errorf("%v@%v go.mod: missing module line", mod.Path, mod.Version)
+	}
 	if mpath := f.Module.Mod.Path; mpath != origPath && mpath != mod.Path {
 		return nil, fmt.Errorf("downloaded %q and got module %q", mod.Path, mpath)
 	}
@@ -541,21 +538,38 @@ func (*mvsReqs) Max(v1, v2 string) string {
 	return v1
 }
 
-// Latest returns the latest tagged version of the module at path,
-// or the latest untagged version if no version is tagged.
-func (*mvsReqs) Latest(path string) (module.Version, error) {
+// Upgrade returns the desired upgrade for m.
+// If m is a tagged version, then Upgrade returns the latest tagged version.
+// If m is a pseudo-version, then Upgrade returns the latest tagged version
+// when that version has a time-stamp newer than m.
+// Otherwise Upgrade returns m (preserving the pseudo-version).
+// This special case prevents accidental downgrades
+// when already using a pseudo-version newer than the latest tagged version.
+func (*mvsReqs) Upgrade(m module.Version) (module.Version, error) {
 	// Note that query "latest" is not the same as
 	// using repo.Latest.
 	// The query only falls back to untagged versions
 	// if nothing is tagged. The Latest method
 	// only ever returns untagged versions,
 	// which is not what we want.
-	fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", path)
-	info, err := modfetch.Query(path, "latest", allowed)
+	fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", m.Path)
+	info, err := modfetch.Query(m.Path, "latest", allowed)
 	if err != nil {
 		return module.Version{}, err
 	}
-	return module.Version{Path: path, Version: info.Version}, nil
+
+	// If we're on a later prerelease, keep using it,
+	// even though normally an Upgrade will ignore prereleases.
+	if semver.Compare(info.Version, m.Version) < 0 {
+		return m, nil
+	}
+
+	// If we're on a pseudo-version chronologically after the latest tagged version, keep using it.
+	// This avoids accidental downgrades.
+	if mTime, err := modfetch.PseudoVersionTime(m.Version); err == nil && info.Time.Before(mTime) {
+		return m, nil
+	}
+	return module.Version{Path: m.Path, Version: info.Version}, nil
 }
 
 func versions(path string) ([]string, error) {

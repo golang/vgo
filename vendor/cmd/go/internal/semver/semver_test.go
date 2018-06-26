@@ -42,6 +42,7 @@ var tests = []struct {
 	{"v1.2.3-zzz", "v1.2.3-zzz"},
 	{"v1.2.3", "v1.2.3"},
 	{"v1.2.3+meta", "v1.2.3"},
+	{"v1.2.3+meta-pre", "v1.2.3"},
 }
 
 func TestIsValid(t *testing.T) {
@@ -71,6 +72,36 @@ func TestMajor(t *testing.T) {
 		}
 		if out != want {
 			t.Errorf("Major(%q) = %q, want %q", tt.in, out, want)
+		}
+	}
+}
+
+func TestPrerelease(t *testing.T) {
+	for _, tt := range tests {
+		pre := Prerelease(tt.in)
+		var want string
+		if tt.out != "" {
+			if i := strings.Index(tt.out, "-"); i >= 0 {
+				want = tt.out[i:]
+			}
+		}
+		if pre != want {
+			t.Errorf("Prerelease(%q) = %q, want %q", tt.in, pre, want)
+		}
+	}
+}
+
+func TestBuild(t *testing.T) {
+	for _, tt := range tests {
+		build := Build(tt.in)
+		var want string
+		if tt.out != "" {
+			if i := strings.Index(tt.in, "+"); i >= 0 {
+				want = tt.in[i:]
+			}
+		}
+		if build != want {
+			t.Errorf("Build(%q) = %q, want %q", tt.in, build, want)
 		}
 	}
 }

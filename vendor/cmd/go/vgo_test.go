@@ -374,6 +374,51 @@ func TestGetModuleVersion(t *testing.T) {
 	tg.runFail("-vgo", "get", "-m", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
 }
 
+func TestGetModuleUpgrade(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.setenv(homeEnvName(), tg.path("home"))
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.cd(tg.path("x"))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "rsc.io/quote"`), 0666))
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require rsc.io/quote v1.5.1
+	`), 0666))
+
+	tg.run("-vgo", "get", "-x", "-u")
+	tg.run("-vgo", "list", "-m", "all")
+	tg.grepStdout(`quote v1.5.2$`, "should have upgraded only to v1.5.2")
+
+	tg.run("-vgo", "get", "-m", "rsc.io/quote@dd9747d")
+	tg.run("-vgo", "list", "-m", "all")
+	tg.grepStdout(`quote v0.0.0-20180628003336-dd9747d19b04$`, "should have moved to pseudo-commit")
+
+	tg.run("-vgo", "get", "-m", "-u")
+	tg.run("-vgo", "list", "-m", "all")
+	tg.grepStdout(`quote v0.0.0-20180628003336-dd9747d19b04$`, "should have stayed on pseudo-commit")
+
+	tg.run("-vgo", "get", "-m", "rsc.io/quote@23179ee8a")
+	tg.run("-vgo", "list", "-m", "all")
+	tg.grepStdout(`quote v0.0.0-20180214005840-23179ee8a569$`, "should have moved to new pseudo-commit")
+
+	tg.run("-vgo", "get", "-m", "-u")
+	tg.run("-vgo", "list", "-m", "all")
+	tg.grepStdout(`quote v1.5.2$`, "should have moved off pseudo-commit")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+	`), 0666))
+	tg.run("-vgo", "list")
+	tg.grepStderr(`adding rsc.io/quote v1.5.2`, "should have added quote v1.5.2")
+	tg.grepStderrNot(`v1.5.3-pre1`, "should not mention v1.5.3-pre1")
+}
+
 func TestVgoBadDomain(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()

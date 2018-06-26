@@ -250,7 +250,7 @@ func readDiskStatByHash(path, rev string) (file string, info *RevInfo, err error
 	}
 	suffix := "-" + rev + ".info"
 	for _, name := range names {
-		if strings.HasSuffix(name, suffix) && isPseudoVersion(strings.TrimSuffix(name, ".info")) {
+		if strings.HasSuffix(name, suffix) && IsPseudoVersion(strings.TrimSuffix(name, ".info")) {
 			return readDiskStat(path, strings.TrimSuffix(name, ".info"))
 		}
 	}

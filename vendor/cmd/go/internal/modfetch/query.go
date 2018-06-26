@@ -15,24 +15,25 @@ import (
 // The module must be a complete module path.
 // The version must take one of the following forms:
 //
-//	- the literal string "latest", denoting the latest available tagged version
+//	- the literal string "latest", denoting the latest available, allowed tagged version,
+//	  with non-prereleases preferred over prereleases
 //	- v1.2.3, a semantic version string
-//	- v1 or v1.2, an abbreviated semantic version string completed by adding zeroes (v1.0.0 or v1.2.0);
-//	- >v1.2.3, denoting the earliest available version after v1.2.3
-//	- <v1.2.3, denoting the latest available version before v1.2.3
-//	- an RFC 3339 time stamp, denoting the latest available version at that time
-//	- a Unix time expressed as seconds since 1970, denoting the latest available version at that time
+//	- v1 or v1.2, an abbreviated semantic version string completed by adding zeroes (v1.0.0 or v1.2.0)
+//	- >v1.2.3, denoting the earliest available version after v1.2.3 (including prereleases)
+//	- <v1.2.3, denoting the latest available version before v1.2.3 (including prereleases)
 //	- a repository commit identifier, denoting that version
 //
-// The time stamps can be followed by an optional @branch suffix to limit the
-// result to revisions on a particular branch name.
+// If the allowed function is non-nil, Query excludes any versions for which allowed returns false.
 //
 func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, error) {
+	if allowed == nil {
+		allowed = func(module.Version) bool { return true }
+	}
 	if semver.IsValid(vers) {
 		// TODO: This turns query for "v2" into Stat "v2.0.0",
 		// but probably it should allow checking for a branch named "v2".
 		vers = semver.Canonical(vers)
-		if allowed != nil && !allowed(module.Version{Path: path, Version: vers}) {
+		if !allowed(module.Version{Path: path, Version: vers}) {
 			return nil, fmt.Errorf("%s@%s excluded", path, vers)
 		}
 
@@ -68,27 +69,33 @@ func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, erro
 			return repo.Latest()
 		}
 		if vers == "latest" {
+			// Prefer a proper (non-prerelease) release.
 			for i := len(versions) - 1; i >= 0; i-- {
-				if allowed == nil || allowed(module.Version{Path: path, Version: versions[i]}) {
+				if semver.Prerelease(versions[i]) == "" && allowed(module.Version{Path: path, Version: versions[i]}) {
+					return repo.Stat(versions[i])
+				}
+			}
+			// Fall back to pre-releases if that's all we have.
+			for i := len(versions) - 1; i >= 0; i-- {
+				if semver.Prerelease(versions[i]) != "" && allowed(module.Version{Path: path, Version: versions[i]}) {
 					return repo.Stat(versions[i])
 				}
 			}
 		} else if op == "<" {
 			for i := len(versions) - 1; i >= 0; i-- {
-				if semver.Compare(versions[i], vers) < 0 && (allowed == nil || allowed(module.Version{Path: path, Version: versions[i]})) {
+				if semver.Compare(versions[i], vers) < 0 && allowed(module.Version{Path: path, Version: versions[i]}) {
 					return repo.Stat(versions[i])
 				}
 			}
 		} else {
 			for i := 0; i < len(versions); i++ {
-				if semver.Compare(versions[i], vers) > 0 && (allowed == nil || allowed(module.Version{Path: path, Version: versions[i]})) {
+				if semver.Compare(versions[i], vers) > 0 && allowed(module.Version{Path: path, Version: versions[i]}) {
 					return repo.Stat(versions[i])
 				}
 			}
 		}
 		return nil, fmt.Errorf("no matching versions for %s%s", op, vers)
 	}
-	// TODO: Time queries, maybe.
 
 	return repo.Stat(vers)
 }

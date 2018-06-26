@@ -166,6 +166,30 @@ D2:
 build A: A B1 C1 D1
 upgrade* A: A B2 C2
 
+name: up1
+A: B1 C1
+B1:
+B2:
+B3:
+B4:
+B5.hidden:
+C2:
+C3:
+build A: A B1 C1
+upgrade* A: A B4 C3
+
+name: up2
+A: B5.hidden C1
+B1:
+B2:
+B3:
+B4:
+B5.hidden:
+C2:
+C3:
+build A: A B5.hidden C1
+upgrade* A: A B5.hidden C3
+
 name: down1
 A: B2
 B1: C1
@@ -378,17 +402,17 @@ func (r reqsMap) Max(v1, v2 string) string {
 	return v1
 }
 
-func (r reqsMap) Latest(path string) (module.Version, error) {
-	var m module.Version
+func (r reqsMap) Upgrade(m module.Version) (module.Version, error) {
+	var u module.Version
 	for k := range r {
-		if k.Path == path && m.Version < k.Version {
-			m = k
+		if k.Path == m.Path && u.Version < k.Version && !strings.HasSuffix(k.Version, ".hidden") {
+			u = k
 		}
 	}
-	if m.Path == "" {
-		return module.Version{}, &MissingModuleError{module.Version{Path: path, Version: ""}}
+	if u.Path == "" {
+		return module.Version{}, &MissingModuleError{module.Version{Path: m.Path, Version: ""}}
 	}
-	return m, nil
+	return u, nil
 }
 
 func (r reqsMap) Previous(m module.Version) (module.Version, error) {

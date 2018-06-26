@@ -40,12 +40,18 @@ type Reqs interface {
 	// and similarly v1 <= v2 can be written Max(v1, v2) == v2.
 	Max(v1, v2 string) string
 
-	// Latest returns the latest known version of the module at path
-	// (the one to use during UpgradeAll).
+	// Upgrade returns the upgraded version of m,
+	// for use during an UpgradeAll operation.
+	// If m should be kept as is, Upgrade returns m.
+	// If m is not yet used in the build, then m.Version will be "none".
+	// More typically, m.Version will be the version required
+	// by some other module in the build.
 	//
-	// Latest never returns version "none": if no module exists at the given path,
-	// it returns a non-nil error instead.
-	Latest(path string) (module.Version, error)
+	// If no module version is available for the given path,
+	// Upgrade returns a non-nil error.
+	// TODO(rsc): Upgrade must be able to return errors,
+	// but should "no latest version" just return m instead?
+	Upgrade(m module.Version) (module.Version, error)
 
 	// Previous returns the version of m.Path immediately prior to m.Version,
 	// or "none" if no such version is known.
@@ -217,7 +223,7 @@ func UpgradeAll(target module.Version, reqs Reqs) ([]module.Version, error) {
 			return target
 		}
 
-		latest, err := reqs.Latest(m.Path)
+		latest, err := reqs.Upgrade(m)
 		if err != nil {
 			panic(err) // TODO
 		}
