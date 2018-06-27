@@ -188,7 +188,7 @@ func InitMod() {
 		os.Rename(srcV, SrcMod)
 	}
 
-	modfetch.CacheRoot = filepath.Join(SrcMod, "cache/download")
+	modfetch.SrcMod = SrcMod
 	codehost.WorkRoot = filepath.Join(SrcMod, "cache/vcs")
 
 	if CmdModInit {
@@ -419,7 +419,7 @@ func findImportComment(file string) string {
 
 // WriteGoMod writes the current build list back to go.mod.
 func WriteGoMod() {
-	writeModHash()
+	modfetch.WriteGoSum()
 
 	if buildList != nil {
 		min, err := mvs.Req(Target, buildList, newReqs())

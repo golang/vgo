@@ -8,6 +8,7 @@ package module
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -199,4 +200,16 @@ func MatchPathMajor(v, pathMajor string) bool {
 		return m == "v0" || m == "v1"
 	}
 	return (pathMajor[0] == '/' || pathMajor[0] == '.') && m == pathMajor[1:]
+}
+
+// Sort sorts the list by Path, breaking ties by comparing Versions.
+func Sort(list []Version) {
+	sort.Slice(list, func(i, j int) bool {
+		mi := list[i]
+		mj := list[j]
+		if mi.Path != mj.Path {
+			return mi.Path < mj.Path
+		}
+		return semver.Compare(mi.Version, mj.Version) < 0
+	})
 }

@@ -161,7 +161,7 @@ func PackageBuildInfo(path string, deps []string) string {
 	for mod := range mdeps {
 		mods = append(mods, mod)
 	}
-	sortModules(mods)
+	module.Sort(mods)
 
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "path\t%s\n", path)
@@ -169,7 +169,7 @@ func PackageBuildInfo(path string, deps []string) string {
 	if tv == "" {
 		tv = "(devel)"
 	}
-	fmt.Fprintf(&buf, "mod\t%s\t%s\t%s\n", target.Path, tv, findModHash(target))
+	fmt.Fprintf(&buf, "mod\t%s\t%s\t%s\n", target.Path, tv, modfetch.Sum(target))
 	for _, mod := range mods {
 		mv := mod.Version
 		if mv == "" {
@@ -178,11 +178,11 @@ func PackageBuildInfo(path string, deps []string) string {
 		r := Replacement(mod)
 		h := ""
 		if r.Path == "" {
-			h = "\t" + findModHash(mod)
+			h = "\t" + modfetch.Sum(mod)
 		}
 		fmt.Fprintf(&buf, "dep\t%s\t%s%s\n", mod.Path, mod.Version, h)
 		if r.Path != "" {
-			fmt.Fprintf(&buf, "=>\t%s\t%s\t%s\n", r.Path, r.Version, findModHash(r))
+			fmt.Fprintf(&buf, "=>\t%s\t%s\t%s\n", r.Path, r.Version, modfetch.Sum(r))
 		}
 	}
 	return buf.String()

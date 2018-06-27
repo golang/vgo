@@ -21,7 +21,7 @@ import (
 
 var QuietLookup bool // do not print about lookups
 
-var CacheRoot string // $GOPATH/src/mod/cache
+var SrcMod string // $GOPATH/src/mod; set by package vgo
 
 // A cachingRepo is a cache around an underlying Repo,
 // avoiding redundant calls to ModulePath, Versions, Stat, Latest, and GoMod (but not Zip).
@@ -230,7 +230,7 @@ func readDiskStatByHash(path, rev string) (file string, info *RevInfo, err error
 		return "", nil, errNotCached
 	}
 	rev = rev[:12]
-	dir, err := os.Open(filepath.Join(CacheRoot, path, "@v"))
+	dir, err := os.Open(filepath.Join(SrcMod, "cache/download", path, "@v"))
 	if err != nil {
 		return "", nil, errNotCached
 	}
@@ -279,10 +279,10 @@ func readDiskGoMod(path, rev string) (file string, data []byte, err error) {
 // If the read fails, the caller can use
 // writeDiskCache(file, data) to write a new cache entry.
 func readDiskCache(path, rev, suffix string) (file string, data []byte, err error) {
-	if !semver.IsValid(rev) || CacheRoot == "" {
+	if !semver.IsValid(rev) || SrcMod == "" {
 		return "", nil, errNotCached
 	}
-	file = filepath.Join(CacheRoot, path, "@v", rev+"."+suffix)
+	file = filepath.Join(SrcMod, "cache/download", path, "@v", rev+"."+suffix)
 	data, err = ioutil.ReadFile(file)
 	if err != nil {
 		return file, nil, errNotCached

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package vgo
+package modfetch
 
 import (
 	"archive/zip"
@@ -17,26 +17,13 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/dirhash"
-	"cmd/go/internal/modfetch"
 	"cmd/go/internal/module"
-	"cmd/go/internal/semver"
 )
 
-// fetch returns the directory in the local download cache
-// holding the root of mod's source tree.
-// It downloads the module if needed.
-func fetch(mod module.Version) (dir string, err error) {
-	if r := Replacement(mod); r.Path != "" {
-		if r.Version == "" {
-			dir = r.Path
-			if !filepath.IsAbs(dir) {
-				dir = filepath.Join(ModRoot, dir)
-			}
-			return dir, nil
-		}
-		mod = r
-	}
-
+// Download downloads the specific module version to the
+// local download cache and returns the name of the directory
+// corresponding to the root of the module's file tree.
+func Download(mod module.Version) (dir string, err error) {
 	modpath := mod.Path + "@" + mod.Version
 	dir = filepath.Join(SrcMod, modpath)
 	if files, _ := ioutil.ReadDir(dir); len(files) == 0 {
@@ -55,17 +42,17 @@ func fetch(mod module.Version) (dir string, err error) {
 				return "", err
 			}
 		}
-		if err := modfetch.Unzip(dir, zipfile, modpath, 0); err != nil {
+		if err := Unzip(dir, zipfile, modpath, 0); err != nil {
 			fmt.Fprintf(os.Stderr, "-> %s\n", err)
 			return "", err
 		}
 	}
-	checkModHash(mod)
+	checkSum(mod)
 	return dir, nil
 }
 
 func downloadZip(mod module.Version, target string) error {
-	repo, err := modfetch.Lookup(mod.Path)
+	repo, err := Lookup(mod.Path)
 	if err != nil {
 		return err
 	}
@@ -113,23 +100,38 @@ func downloadZip(mod module.Version, target string) error {
 	return ioutil.WriteFile(target+"hash", []byte(hash), 0666)
 }
 
-var useModHash = false
-var modHash map[module.Version][]string
+var (
+	GoSumFile string                      // path to go.sum; set by package vgo
+	modverify string                      // path to go.modverify, to be deleted
+	goSum     map[module.Version][]string // content of go.sum file (+ go.modverify if present)
+	useGoSum  bool                        // whether to use go.sum at all
+)
 
-func initModHash() {
-	if modHash != nil {
+func initGoSum() {
+	if goSum != nil || GoSumFile == "" {
 		return
 	}
-	modHash = make(map[module.Version][]string)
-	file := filepath.Join(ModRoot, "go.modverify")
-	data, err := ioutil.ReadFile(file)
-	if err != nil && os.IsNotExist(err) {
-		return
-	}
-	if err != nil {
+	goSum = make(map[module.Version][]string)
+	data, err := ioutil.ReadFile(GoSumFile)
+	if err != nil && !os.IsNotExist(err) {
 		base.Fatalf("vgo: %v", err)
 	}
-	useModHash = true
+	if err != nil {
+		return
+	}
+	useGoSum = true
+	readGoSum(GoSumFile, data)
+
+	// Add old go.modverify file.
+	// We'll delete go.modverify in WriteGoSum.
+	alt := strings.TrimSuffix(GoSumFile, ".sum") + ".modverify"
+	if data, err := ioutil.ReadFile(alt); err == nil {
+		readGoSum(alt, data)
+		modverify = alt
+	}
+}
+
+func readGoSum(file string, data []byte) {
 	lineno := 0
 	for len(data) > 0 {
 		var line []byte
@@ -146,16 +148,16 @@ func initModHash() {
 			continue
 		}
 		if len(f) != 3 {
-			base.Fatalf("vgo: malformed go.modverify:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
+			base.Fatalf("vgo: malformed go.sum:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
 		}
 		mod := module.Version{Path: f[0], Version: f[1]}
-		modHash[mod] = append(modHash[mod], f[2])
+		goSum[mod] = append(goSum[mod], f[2])
 	}
 }
 
-func checkModHash(mod module.Version) {
-	initModHash()
-	if !useModHash {
+func checkSum(mod module.Version) {
+	initGoSum()
+	if !useGoSum {
 		return
 	}
 
@@ -168,21 +170,23 @@ func checkModHash(mod module.Version) {
 		base.Fatalf("vgo: verifying %s %s: unexpected ziphash: %q", mod.Path, mod.Version, h)
 	}
 
-	for _, vh := range modHash[mod] {
+	for _, vh := range goSum[mod] {
 		if h == vh {
 			return
 		}
 		if strings.HasPrefix(vh, "h1:") {
-			base.Fatalf("vgo: verifying %s %s: module hash mismatch\n\tdownloaded:   %v\n\tgo.modverify: %v", mod.Path, mod.Version, h, vh)
+			base.Fatalf("vgo: verifying %s %s: module hash mismatch\n\tdownloaded: %v\n\tgo.sum:     %v", mod.Path, mod.Version, h, vh)
 		}
 	}
-	if len(modHash[mod]) > 0 {
-		fmt.Fprintf(os.Stderr, "warning: verifying %s %s: unknown hashes in go.modverify: %v; adding %v", mod.Path, mod.Version, strings.Join(modHash[mod], ", "), h)
+	if len(goSum[mod]) > 0 {
+		fmt.Fprintf(os.Stderr, "warning: verifying %s %s: unknown hashes in go.sum: %v; adding %v", mod.Path, mod.Version, strings.Join(goSum[mod], ", "), h)
 	}
-	modHash[mod] = append(modHash[mod], h)
+	goSum[mod] = append(goSum[mod], h)
 }
 
-func findModHash(mod module.Version) string {
+// Sum returns the checksum for the downloaded copy of the given module,
+// if present in the download cache.
+func Sum(mod module.Version) string {
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
 		return ""
@@ -190,43 +194,34 @@ func findModHash(mod module.Version) string {
 	return strings.TrimSpace(string(data))
 }
 
-func writeModHash() {
-	if !useModHash {
+// WriteGoSum writes the go.sum file if it needs to be updated.
+func WriteGoSum() {
+	if !useGoSum {
 		return
 	}
 
 	var mods []module.Version
-	for m := range modHash {
+	for m := range goSum {
 		mods = append(mods, m)
 	}
-	sortModules(mods)
+	module.Sort(mods)
 	var buf bytes.Buffer
 	for _, m := range mods {
-		list := modHash[m]
+		list := goSum[m]
 		sort.Strings(list)
 		for _, h := range list {
 			fmt.Fprintf(&buf, "%s %s %s\n", m.Path, m.Version, h)
 		}
 	}
 
-	file := filepath.Join(ModRoot, "go.modverify")
-	data, _ := ioutil.ReadFile(filepath.Join(ModRoot, "go.modverify"))
-	if bytes.Equal(data, buf.Bytes()) {
-		return
-	}
-
-	if err := ioutil.WriteFile(file, buf.Bytes(), 0666); err != nil {
-		base.Fatalf("vgo: writing go.modverify: %v", err)
-	}
-}
-
-func sortModules(mods []module.Version) {
-	sort.Slice(mods, func(i, j int) bool {
-		mi := mods[i]
-		mj := mods[j]
-		if mi.Path != mj.Path {
-			return mi.Path < mj.Path
+	data, _ := ioutil.ReadFile(GoSumFile)
+	if !bytes.Equal(data, buf.Bytes()) {
+		if err := ioutil.WriteFile(GoSumFile, buf.Bytes(), 0666); err != nil {
+			base.Fatalf("vgo: writing go.sum: %v", err)
 		}
-		return semver.Compare(mi.Version, mj.Version) < 0
-	})
+	}
+
+	if modverify != "" {
+		os.Remove(modverify)
+	}
 }

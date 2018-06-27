@@ -671,7 +671,7 @@ func TestVerifyNotDownloaded(t *testing.T) {
 		module x
 		require github.com/pkg/errors v0.8.0
 	`), 0666))
-	tg.must(ioutil.WriteFile(tg.path("x/go.modverify"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
+	tg.must(ioutil.WriteFile(tg.path("x/go.sum"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
 `), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x`), 0666))
 	tg.cd(tg.path("x"))

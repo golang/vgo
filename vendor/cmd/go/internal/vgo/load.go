@@ -627,3 +627,18 @@ func scanDir(path string, tags map[string]bool) (imports_, testImports []string,
 
 	return filter(imports_), filter(testImports), err
 }
+
+func fetch(mod module.Version) (dir string, err error) {
+	if r := Replacement(mod); r.Path != "" {
+		if r.Version == "" {
+			dir = r.Path
+			if !filepath.IsAbs(dir) {
+				dir = filepath.Join(ModRoot, dir)
+			}
+			return dir, nil
+		}
+		mod = r
+	}
+
+	return modfetch.Download(mod)
+}
