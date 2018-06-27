@@ -210,6 +210,21 @@ func Sort(list []Version) {
 		if mi.Path != mj.Path {
 			return mi.Path < mj.Path
 		}
-		return semver.Compare(mi.Version, mj.Version) < 0
+		// To help go.sum formatting, allow version/file.
+		// Compare semver prefix by semver rules,
+		// file by string order.
+		vi := mi.Version
+		vj := mj.Version
+		var fi, fj string
+		if k := strings.Index(vi, "/"); k >= 0 {
+			vi, fi = vi[:k], vi[k:]
+		}
+		if k := strings.Index(vj, "/"); k >= 0 {
+			vj, fj = vj[:k], vj[k:]
+		}
+		if vi != vj {
+			return semver.Compare(vi, vj) < 0
+		}
+		return fi < fj
 	})
 }

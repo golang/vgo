@@ -81,6 +81,7 @@ func downloadZip(mod module.Version, target string) error {
 	if err != nil {
 		return err
 	}
+	checkOneSum(mod, hash) // check before installing the zip file
 	r, err := os.Open(tmpfile)
 	if err != nil {
 		return err
@@ -163,11 +164,35 @@ func checkSum(mod module.Version) {
 
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
-		base.Fatalf("vgo: verifying %s %s: %v", mod.Path, mod.Version, err)
+		base.Fatalf("vgo: verifying %s@%s: %v", mod.Path, mod.Version, err)
 	}
 	h := strings.TrimSpace(string(data))
 	if !strings.HasPrefix(h, "h1:") {
-		base.Fatalf("vgo: verifying %s %s: unexpected ziphash: %q", mod.Path, mod.Version, h)
+		base.Fatalf("vgo: verifying %s@%s: unexpected ziphash: %q", mod.Path, mod.Version, h)
+	}
+
+	checkOneSum(mod, h)
+}
+
+func checkGoMod(path, version string, data []byte) {
+	initGoSum()
+	if !useGoSum {
+		return
+	}
+
+	h, err := dirhash.Hash1([]string{"go.mod"}, func(string) (io.ReadCloser, error) {
+		return ioutil.NopCloser(bytes.NewReader(data)), nil
+	})
+	if err != nil {
+		base.Fatalf("vgo: verifying %s %s go.mod: %v", path, version, err)
+	}
+	checkOneSum(module.Version{Path: path, Version: version + "/go.mod"}, h)
+}
+
+func checkOneSum(mod module.Version, h string) {
+	initGoSum()
+	if !useGoSum {
+		return
 	}
 
 	for _, vh := range goSum[mod] {
@@ -175,11 +200,11 @@ func checkSum(mod module.Version) {
 			return
 		}
 		if strings.HasPrefix(vh, "h1:") {
-			base.Fatalf("vgo: verifying %s %s: module hash mismatch\n\tdownloaded: %v\n\tgo.sum:     %v", mod.Path, mod.Version, h, vh)
+			base.Fatalf("vgo: verifying %s@%s: checksum mismatch\n\tdownloaded: %v\n\tgo.sum:     %v", mod.Path, mod.Version, h, vh)
 		}
 	}
 	if len(goSum[mod]) > 0 {
-		fmt.Fprintf(os.Stderr, "warning: verifying %s %s: unknown hashes in go.sum: %v; adding %v", mod.Path, mod.Version, strings.Join(goSum[mod], ", "), h)
+		fmt.Fprintf(os.Stderr, "warning: verifying %s@%s: unknown hashes in go.sum: %v; adding %v", mod.Path, mod.Version, strings.Join(goSum[mod], ", "), h)
 	}
 	goSum[mod] = append(goSum[mod], h)
 }

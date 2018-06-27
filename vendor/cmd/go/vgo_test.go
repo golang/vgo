@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 
 	"cmd/go/internal/modconv"
@@ -660,24 +661,60 @@ func TestConvertLegacyConfig(t *testing.T) {
 	tg.grepStdout("v0.6.0", "expected github.com/pkg/errors at v0.6.0")
 }
 
-func TestVerifyNotDownloaded(t *testing.T) {
+func TestVerify(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.makeTempdir()
-	tg.setenv("GOPATH", tg.path("gp"))
+	gopath := tg.path("gp")
+	tg.setenv("GOPATH", gopath)
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
 		module x
 		require github.com/pkg/errors v0.8.0
 	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "github.com/pkg/errors"`), 0666))
+
+	// With correct go.sum,verify succeeds but avoids download.
 	tg.must(ioutil.WriteFile(tg.path("x/go.sum"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
 `), 0666))
-	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x`), 0666))
 	tg.cd(tg.path("x"))
 	tg.run("-vgo", "mod", "-verify")
-	tg.mustNotExist(filepath.Join(tg.path("gp"), "/src/mod/cache/github.com/pkg/errors/@v/v0.8.0.zip"))
-	tg.mustNotExist(filepath.Join(tg.path("gp"), "/src/mod/github.com/pkg"))
+	tg.mustNotExist(filepath.Join(gopath, "src/mod/cache/download/github.com/pkg/errors/@v/v0.8.0.zip"))
+	tg.mustNotExist(filepath.Join(gopath, "src/mod/github.com/pkg"))
+
+	// With incorrect sum, sync (which must download) fails.
+	// Even if the incorrect sum is in the old legacy go.modverify file.
+	tg.must(ioutil.WriteFile(tg.path("x/go.sum"), []byte(`
+`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.modverify"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf1+qw=
+`), 0666))
+	tg.runFail("-vgo", "mod", "-sync") // downloads pkg/errors
+	tg.grepStderr("checksum mismatch", "must detect mismatch")
+	tg.mustNotExist(filepath.Join(gopath, "src/mod/cache/download/github.com/pkg/errors/@v/v0.8.0.zip"))
+	tg.mustNotExist(filepath.Join(gopath, "src/mod/github.com/pkg"))
+
+	// With corrected sum, sync works.
+	tg.must(ioutil.WriteFile(tg.path("x/go.modverify"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
+`), 0666))
+	tg.run("-vgo", "mod", "-sync")
+	tg.mustExist(filepath.Join(gopath, "src/mod/cache/download/github.com/pkg/errors/@v/v0.8.0.zip"))
+	tg.mustExist(filepath.Join(gopath, "src/mod/github.com/pkg"))
+	tg.mustNotExist(tg.path("x/go.modverify")) // moved into go.sum
+
+	// Sync should have added sum for go.mod.
+	data, err := ioutil.ReadFile(tg.path("x/go.sum"))
+	if !strings.Contains(string(data), "\ngithub.com/pkg/errors v0.8.0/go.mod ") {
+		t.Fatalf("cannot find go.mod hash in go.sum: %v\n%s", err, data)
+	}
+
+	// Even the most basic attempt to load the module graph should detect incorrect go.mod files.
+	tg.run("-vgo", "mod", "-graph") // loads module graph, is OK
+	tg.must(ioutil.WriteFile(tg.path("x/go.sum"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
+github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl1=
+`), 0666))
+	tg.runFail("-vgo", "mod", "-graph") // loads module graph, fails (even though sum is in old go.modverify file)
+	tg.grepStderr("go.mod: checksum mismatch", "must detect mismatch")
 }
 
 func TestVendorWithoutDeps(t *testing.T) {

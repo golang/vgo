@@ -133,10 +133,20 @@ func (r *cachingRepo) GoMod(rev string) ([]byte, error) {
 	c := r.cache.Do("gomod:"+rev, func() interface{} {
 		file, text, err := readDiskGoMod(r.path, rev)
 		if err == nil {
+			// Note: readDiskGoMod already called checkGoMod.
 			return cached{text, nil}
 		}
 
+		// Convert rev to canonical version
+		// so that we use the right identifier in the go.sum check.
+		info, err := r.Stat(rev)
+		if err != nil {
+			return cached{nil, err}
+		}
+		rev = info.Version
+
 		text, err = r.r.GoMod(rev)
+		checkGoMod(r.path, rev, text)
 		if err == nil {
 			if err := writeDiskGoMod(file, text); err != nil {
 				fmt.Fprintf(os.Stderr, "go: writing go.mod cache: %v\n", err)
@@ -265,6 +275,10 @@ func readDiskGoMod(path, rev string) (file string, data []byte, err error) {
 	if bytes.HasPrefix(data, oldVgoPrefix) {
 		err = errNotCached
 		data = nil
+	}
+
+	if err == nil {
+		checkGoMod(path, rev, data)
 	}
 
 	return file, data, err

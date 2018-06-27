@@ -189,6 +189,7 @@ func InitMod() {
 	}
 
 	modfetch.SrcMod = SrcMod
+	modfetch.GoSumFile = filepath.Join(ModRoot, "go.sum")
 	codehost.WorkRoot = filepath.Join(SrcMod, "cache/vcs")
 
 	if CmdModInit {
