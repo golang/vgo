@@ -167,7 +167,7 @@ func runGet(cmd *base.Command, args []string) {
 		return
 	}
 
-	work.InstallPackages(args, true)
+	work.InstallPackages(args)
 }
 
 // downloadPaths prepares the list of paths to pass to download.

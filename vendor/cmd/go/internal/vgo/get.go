@@ -176,7 +176,7 @@ func runGet(cmd *base.Command, args []string) {
 			}
 		}
 		if len(list) > 0 {
-			work.InstallPackages(list, false)
+			work.InstallPackages(list)
 		}
 	}
 }

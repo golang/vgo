@@ -328,7 +328,7 @@ func runBuild(cmd *base.Command, args []string) {
 		depMode = ModeInstall
 	}
 
-	pkgs = pkgsFilter(load.Packages(args))
+	pkgs = omitTestOnly(pkgsFilter(load.Packages(args)))
 
 	// Special case -o /dev/null by not writing at all.
 	if cfg.BuildO == os.DevNull {
@@ -433,15 +433,32 @@ func libname(args []string, pkgs []*load.Package) (string, error) {
 
 func runInstall(cmd *base.Command, args []string) {
 	BuildInit()
-	InstallPackages(args, false)
+	InstallPackages(args)
 }
 
-func InstallPackages(args []string, forGet bool) {
+// omitTestOnly returns pkgs with test-only packages removed.
+func omitTestOnly(pkgs []*load.Package) []*load.Package {
+	var list []*load.Package
+	for _, p := range pkgs {
+		if len(p.GoFiles)+len(p.CgoFiles) == 0 && !p.Internal.CmdlinePkgLiteral {
+			// Package has no source files,
+			// perhaps due to build tags or perhaps due to only having *_test.go files.
+			// Also, it is only being processed as the result of a wildcard match
+			// like ./..., not because it was listed as a literal path on the command line.
+			// Ignore it.
+			continue
+		}
+		list = append(list, p)
+	}
+	return list
+}
+
+func InstallPackages(args []string) {
 	if cfg.GOBIN != "" && !filepath.IsAbs(cfg.GOBIN) {
 		base.Fatalf("cannot install, GOBIN must be an absolute path")
 	}
 
-	pkgs := pkgsFilter(load.PackagesForBuild(args))
+	pkgs := omitTestOnly(pkgsFilter(load.PackagesForBuild(args)))
 
 	for _, p := range pkgs {
 		if p.Target == "" && (!p.Standard || p.ImportPath != "unsafe") {
@@ -469,11 +486,6 @@ func InstallPackages(args []string, forGet bool) {
 	a := &Action{Mode: "go install"}
 	var tools []*Action
 	for _, p := range pkgs {
-		// During 'go get', don't attempt (and fail) to install packages with only tests.
-		// TODO(rsc): It's not clear why 'go get' should be different from 'go install' here. See #20760.
-		if forGet && len(p.GoFiles)+len(p.CgoFiles) == 0 && len(p.TestGoFiles)+len(p.XTestGoFiles) > 0 {
-			continue
-		}
 		// If p is a tool, delay the installation until the end of the build.
 		// This avoids installing assemblers/compilers that are being executed
 		// by other steps in the build.
