@@ -17,7 +17,7 @@ import (
 func ListModules(args []string) []*modinfo.ModulePublic {
 	LoadBuildList()
 	if len(args) == 0 {
-		return []*modinfo.ModulePublic{moduleInfo(buildList[0])}
+		return []*modinfo.ModulePublic{moduleInfo(buildList[0], true)}
 	}
 
 	var mods []*modinfo.ModulePublic
@@ -47,7 +47,7 @@ func ListModules(args []string) []*modinfo.ModulePublic {
 				matched = true
 				if !matchedBuildList[i] {
 					matchedBuildList[i] = true
-					mods = append(mods, moduleInfo(m))
+					mods = append(mods, moduleInfo(m, true))
 				}
 			}
 		}

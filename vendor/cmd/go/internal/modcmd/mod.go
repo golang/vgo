@@ -84,9 +84,20 @@ Go types:
 
 	type GoMod struct {
 		Module Module
-		Require []Module
+		Require []Require
 		Exclude []Module
-		Replace []struct{ Old, New Module }
+		Replace []Replace
+	}
+	
+	type Require struct {
+		Path string
+		Version string
+		Indirect bool
+	}
+	
+	type Replace string {
+		Old Module
+		New Module
 	}
 
 Note that this only describes the go.mod file itself, not other modules
@@ -432,9 +443,15 @@ func flagDropReplace(arg string) {
 // fileJSON is the -json output data structure.
 type fileJSON struct {
 	Module  module.Version
-	Require []module.Version
+	Require []requireJSON
 	Exclude []module.Version
 	Replace []replaceJSON
+}
+
+type requireJSON struct {
+	Path     string
+	Version  string `json:",omitempty"`
+	Indirect bool   `json:",omitempty"`
 }
 
 type replaceJSON struct {
@@ -449,7 +466,7 @@ func modPrintJSON() {
 	var f fileJSON
 	f.Module = modFile.Module.Mod
 	for _, r := range modFile.Require {
-		f.Require = append(f.Require, r.Mod)
+		f.Require = append(f.Require, requireJSON{Path: r.Mod.Path, Version: r.Mod.Version, Indirect: r.Indirect})
 	}
 	for _, x := range modFile.Exclude {
 		f.Exclude = append(f.Exclude, x.Mod)

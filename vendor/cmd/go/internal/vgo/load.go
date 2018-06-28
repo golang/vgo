@@ -200,6 +200,7 @@ func LoadALL() []string {
 	InitMod()
 
 	loaded = newLoader()
+	loaded.isALL = true
 	loaded.tags = anyTags
 	loaded.testAll = true
 	all := TargetPackages()
@@ -267,6 +268,13 @@ func PackageModule(path string) module.Version {
 	return pkg.mod
 }
 
+// ModuleUsedDirectly reports whether the main module directly imports
+// some package in the module with the given path.
+func ModuleUsedDirectly(path string) bool {
+	return loaded.direct[path]
+}
+
+// Lookup XXX TODO.
 func Lookup(parentPath, path string) (dir, realPath string, err error) {
 	realPath = ImportMap(path)
 	if realPath == "" {
@@ -297,6 +305,7 @@ func Lookup(parentPath, path string) (dir, realPath string, err error) {
 type loader struct {
 	tags      map[string]bool // tags for scanDir
 	testRoots bool            // include tests for roots
+	isALL     bool            // created with LoadALL
 	testAll   bool            // include tests for all packages
 
 	// missingMu protects found, but also buildList, modFile
@@ -312,6 +321,9 @@ type loader struct {
 	work     *par.Work  // current work queue
 	pkgCache *par.Cache // map from string to *loadPkg
 	missing  *par.Work  // missing work queue
+
+	// computed at end of iterations
+	direct map[string]bool // imported directly by main module
 }
 
 func newLoader() *loader {
@@ -398,6 +410,29 @@ func (ld *loader) load(roots func() []string) {
 		}
 	}
 	base.ExitIfErrors()
+
+	// Compute directly referenced dependency modules.
+	ld.direct = make(map[string]bool)
+	for _, pkg := range ld.pkgs {
+		if pkg.mod == Target {
+			for _, dep := range pkg.imports {
+				if dep.mod.Path != "" {
+					ld.direct[dep.mod.Path] = true
+				}
+			}
+		}
+	}
+
+	// Mix in direct markings (really, lack of indirect markings)
+	// from go.mod, unless we scanned the whole module
+	// and can therefore be sure we know better than go.mod.
+	if !ld.isALL && modFile != nil {
+		for _, r := range modFile.Require {
+			if !r.Indirect {
+				ld.direct[r.Mod.Path] = true
+			}
+		}
+	}
 
 	buildList = ld.buildList
 	ld.buildList = nil // catch accidental use

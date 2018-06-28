@@ -36,8 +36,9 @@ type Module struct {
 
 // A Require is a single require statement.
 type Require struct {
-	Mod    module.Version
-	Syntax *Line
+	Mod      module.Version
+	Indirect bool // has "// indirect" comment
+	Syntax   *Line
 }
 
 // An Exclude is a single exclude statement.
@@ -182,8 +183,9 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 		}
 		if verb == "require" {
 			f.Require = append(f.Require, &Require{
-				Mod:    module.Version{Path: s, Version: v},
-				Syntax: line,
+				Mod:      module.Version{Path: s, Version: v},
+				Syntax:   line,
+				Indirect: isIndirect(line),
 			})
 		} else {
 			f.Exclude = append(f.Exclude, &Exclude{
@@ -251,6 +253,54 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			Syntax: line,
 		})
 	}
+}
+
+// isIndirect reports whether line has a "// indirect" comment,
+// meaning it is in go.mod only for its effect on indirect dependencies,
+// so that it can be dropped entirely once the effective version of the
+// indirect dependency reaches the given minimum version.
+func isIndirect(line *Line) bool {
+	if len(line.Suffix) == 0 {
+		return false
+	}
+	f := strings.Fields(line.Suffix[0].Token)
+	return (len(f) == 2 && f[1] == "indirect" || len(f) > 2 && f[1] == "indirect;") && f[0] == "//"
+}
+
+// setIndirect sets line to have (or not have) a "// indirect" comment.
+func setIndirect(line *Line, indirect bool) {
+	if isIndirect(line) == indirect {
+		return
+	}
+	if indirect {
+		// Adding comment.
+		if len(line.Suffix) == 0 {
+			// New comment.
+			line.Suffix = []Comment{{Token: "// indirect", Suffix: true}}
+			return
+		}
+		// Insert at beginning of existing comment.
+		com := &line.Suffix[0]
+		space := " "
+		if len(com.Token) > 2 && com.Token[2] == ' ' || com.Token[2] == '\t' {
+			space = ""
+		}
+		com.Token = "// indirect;" + space + com.Token[2:]
+		return
+	}
+
+	// Removing comment.
+	f := strings.Fields(line.Suffix[0].Token)
+	if len(f) == 2 {
+		// Remove whole comment.
+		line.Suffix = nil
+		return
+	}
+
+	// Remove comment prefix.
+	com := &line.Suffix[0]
+	i := strings.Index(com.Token, "indirect;")
+	com.Token = "//" + com.Token[i+len("indirect;"):]
 }
 
 // IsDirectoryPath reports whether the given path should be interpreted
@@ -403,24 +453,29 @@ func (f *File) AddRequire(path, vers string) error {
 	}
 
 	if need {
-		f.AddNewRequire(path, vers)
+		f.AddNewRequire(path, vers, false)
 	}
 	return nil
 }
 
-func (f *File) AddNewRequire(path, vers string) {
-	f.Require = append(f.Require, &Require{module.Version{Path: path, Version: vers}, f.Syntax.addLine(nil, "require", AutoQuote(path), vers)})
+func (f *File) AddNewRequire(path, vers string, indirect bool) {
+	line := f.Syntax.addLine(nil, "require", AutoQuote(path), vers)
+	setIndirect(line, indirect)
+	f.Require = append(f.Require, &Require{module.Version{Path: path, Version: vers}, indirect, line})
 }
 
-func (f *File) SetRequire(req []module.Version) {
+func (f *File) SetRequire(req []*Require) {
 	need := make(map[string]string)
-	for _, m := range req {
-		need[m.Path] = m.Version
+	indirect := make(map[string]bool)
+	for _, r := range req {
+		need[r.Mod.Path] = r.Mod.Version
+		indirect[r.Mod.Path] = r.Indirect
 	}
 
 	for _, r := range f.Require {
 		if v, ok := need[r.Mod.Path]; ok {
 			r.Mod.Version = v
+			r.Indirect = indirect[r.Mod.Path]
 		}
 	}
 
@@ -434,6 +489,7 @@ func (f *File) SetRequire(req []module.Version) {
 					if p, err := parseString(&line.Token[0]); err == nil && need[p] != "" {
 						line.Token[1] = need[p]
 						delete(need, p)
+						setIndirect(line, indirect[p])
 						newLines = append(newLines, line)
 					}
 				}
@@ -448,6 +504,7 @@ func (f *File) SetRequire(req []module.Version) {
 				if p, err := parseString(&stmt.Token[1]); err == nil && need[p] != "" {
 					stmt.Token[2] = need[p]
 					delete(need, p)
+					setIndirect(stmt, indirect[p])
 				} else {
 					continue // drop stmt
 				}
@@ -458,7 +515,7 @@ func (f *File) SetRequire(req []module.Version) {
 	f.Syntax.Stmt = newStmts
 
 	for path, vers := range need {
-		f.AddNewRequire(path, vers)
+		f.AddNewRequire(path, vers, indirect[path])
 	}
 	f.SortBlocks()
 }

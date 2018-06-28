@@ -142,8 +142,9 @@ func buildList(target module.Version, reqs Reqs, upgrade func(module.Version) mo
 }
 
 // Req returns the minimal requirement list for the target module
-// that results in the given build list.
-func Req(target module.Version, list []module.Version, reqs Reqs) ([]module.Version, error) {
+// that results in the given build list, with the constraint that all
+// module paths listed in base must appear in the returned list.
+func Req(target module.Version, list []module.Version, base []string, reqs Reqs) ([]module.Version, error) {
 	// Note: Not running in parallel because we assume
 	// that list came from a previous operation that paged
 	// in all the requirements, so there's no I/O to overlap now.
@@ -197,7 +198,14 @@ func Req(target module.Version, list []module.Version, reqs Reqs) ([]module.Vers
 			max[m.Path] = m.Version
 		}
 	}
+	// First walk the base modules that must be listed.
 	var min []module.Version
+	for _, path := range base {
+		m := module.Version{Path: path, Version: max[path]}
+		min = append(min, m)
+		walk(m)
+	}
+	// Now the reverse postorder to bring in anything else.
 	for i := len(postorder) - 1; i >= 0; i-- {
 		m := postorder[i]
 		if max[m.Path] != m.Version {

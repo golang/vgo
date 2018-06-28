@@ -72,7 +72,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	}
 	sort.Strings(paths)
 	for _, path := range paths {
-		f.AddNewRequire(path, need[path])
+		f.AddNewRequire(path, need[path], false)
 	}
 
 	for _, r := range mf.Replace {

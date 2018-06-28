@@ -41,7 +41,7 @@ func PackageModuleInfo(pkgpath string) *modinfo.ModulePublic {
 	if isStandardImportPath(pkgpath) || !Enabled() {
 		return nil
 	}
-	return moduleInfo(findModule(pkgpath, pkgpath))
+	return moduleInfo(findModule(pkgpath, pkgpath), true)
 }
 
 func ModuleInfo(path string) *modinfo.ModulePublic {
@@ -50,12 +50,12 @@ func ModuleInfo(path string) *modinfo.ModulePublic {
 	}
 
 	if i := strings.Index(path, "@"); i >= 0 {
-		return moduleInfo(module.Version{Path: path[:i], Version: path[i+1:]})
+		return moduleInfo(module.Version{Path: path[:i], Version: path[i+1:]}, false)
 	}
 
 	for _, m := range BuildList() {
 		if m.Path == path {
-			return moduleInfo(m)
+			return moduleInfo(m, true)
 		}
 	}
 
@@ -87,7 +87,7 @@ func addUpdate(m *modinfo.ModulePublic) {
 	}
 }
 
-func moduleInfo(m module.Version) *modinfo.ModulePublic {
+func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 	if m == Target {
 		return &modinfo.ModulePublic{
 			Path:    m.Path,
@@ -97,8 +97,9 @@ func moduleInfo(m module.Version) *modinfo.ModulePublic {
 	}
 
 	info := &modinfo.ModulePublic{
-		Path:    m.Path,
-		Version: m.Version,
+		Path:     m.Path,
+		Version:  m.Version,
+		Indirect: fromBuildList && loaded != nil && !loaded.direct[m.Path],
 	}
 
 	// complete fills in the extra fields in m.

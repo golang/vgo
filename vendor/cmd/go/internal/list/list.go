@@ -199,6 +199,7 @@ applied to a Go struct, but now a Module struct:
         Time     *time.Time   // time version was created
         Update   *Module      // available update, if any (with -u)
         Main     bool         // is this the main module?
+        Indirect bool         // is this module only an indirect dependency of main module?
         Dir      string       // directory holding files for this module, if any
         Error    *ModuleError // error loading module
     }

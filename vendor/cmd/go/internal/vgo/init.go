@@ -418,11 +418,24 @@ func WriteGoMod() {
 	modfetch.WriteGoSum()
 
 	if buildList != nil {
-		min, err := mvs.Req(Target, buildList, newReqs(buildList))
+		var direct []string
+		for _, m := range buildList[1:] {
+			if loaded.direct[m.Path] {
+				direct = append(direct, m.Path)
+			}
+		}
+		min, err := mvs.Req(Target, buildList, direct, newReqs(buildList))
 		if err != nil {
 			base.Fatalf("vgo: %v", err)
 		}
-		modFile.SetRequire(min)
+		var list []*modfile.Require
+		for _, m := range min {
+			list = append(list, &modfile.Require{
+				Mod:      m,
+				Indirect: !loaded.direct[m.Path],
+			})
+		}
+		modFile.SetRequire(list)
 	}
 
 	file := filepath.Join(ModRoot, "go.mod")

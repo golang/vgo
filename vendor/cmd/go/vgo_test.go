@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -163,8 +164,7 @@ require x.3 v1.99.0
 	tg.run("-vgo", "mod", "-json")
 	want := `{
 	"Module": {
-		"Path": "x.x/y/z",
-		"Version": ""
+		"Path": "x.x/y/z"
 	},
 	"Require": [
 		{
@@ -185,8 +185,7 @@ require x.3 v1.99.0
 				"Version": "v1.4.0"
 			},
 			"New": {
-				"Path": "../z",
-				"Version": ""
+				"Path": "../z"
 			}
 		}
 	]
@@ -392,8 +391,45 @@ func TestGetModuleUpgrade(t *testing.T) {
 	`), 0666))
 
 	tg.run("-vgo", "get", "-x", "-u")
-	tg.run("-vgo", "list", "-m", "all")
+	tg.run("-vgo", "list", "-m", "-f={{.Path}} {{.Version}}{{if .Indirect}} // indirect{{end}}", "all")
 	tg.grepStdout(`quote v1.5.2$`, "should have upgraded only to v1.5.2")
+	tg.grepStdout(`x/text [v0-9a-f.\-]+ // indirect`, "should list golang.org/x/text as indirect")
+
+	var gomod string
+	readGoMod := func() {
+		data, err := ioutil.ReadFile(tg.path("x/go.mod"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gomod = string(data)
+	}
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.2\n") {
+		t.Fatalf("expected rsc.io/quote direct requirement:\n%s", gomod)
+	}
+	if !regexp.MustCompile(`(?m)golang.org/x/text.* // indirect`).MatchString(gomod) {
+		t.Fatalf("expected golang.org/x/text indirect requirement:\n%s", gomod)
+	}
+
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "golang.org/x/text"`), 0666))
+	tg.run("-vgo", "list") // rescans directory
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.2\n") {
+		t.Fatalf("expected rsc.io/quote direct requirement:\n%s", gomod)
+	}
+	if !regexp.MustCompile(`(?m)golang.org/x/text[^/]+\n`).MatchString(gomod) {
+		t.Fatalf("expected golang.org/x/text DIRECT requirement:\n%s", gomod)
+	}
+
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "rsc.io/quote"`), 0666))
+	tg.run("-vgo", "mod", "-sync") // rescans everything, can put // indirect marks back
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.2\n") {
+		t.Fatalf("expected rsc.io/quote direct requirement:\n%s", gomod)
+	}
+	if !regexp.MustCompile(`(?m)golang.org/x/text.* // indirect\n`).MatchString(gomod) {
+		t.Fatalf("expected golang.org/x/text indirect requirement:\n%s", gomod)
+	}
 
 	tg.run("-vgo", "get", "-m", "rsc.io/quote@dd9747d")
 	tg.run("-vgo", "list", "-m", "all")

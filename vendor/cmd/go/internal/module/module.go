@@ -26,7 +26,7 @@ type Version struct {
 	// and uses Version = "".
 	// Second, during MVS calculations the version "none" is used
 	// to represent the decision to take no version of a given module.
-	Version string
+	Version string `json:",omitempty"`
 }
 
 // Check checks that a given module path, version pair is valid.
