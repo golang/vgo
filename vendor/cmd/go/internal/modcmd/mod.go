@@ -245,7 +245,7 @@ func runMod(cmd *base.Command, args []string) {
 
 	// Semantic edits.
 
-	needBuildList := *modFix
+	needBuildList := *modFix || *modGraph
 
 	if *modSync || *modVendor || needBuildList {
 		var pkgs []string

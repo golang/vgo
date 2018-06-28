@@ -715,6 +715,26 @@ github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 `), 0666))
 	tg.runFail("-vgo", "mod", "-graph") // loads module graph, fails (even though sum is in old go.modverify file)
 	tg.grepStderr("go.mod: checksum mismatch", "must detect mismatch")
+
+	// go.sum should be created and updated automatically.
+	tg.must(os.Remove(tg.path("x/go.sum")))
+	tg.run("-vgo", "mod", "-graph")
+	tg.mustExist(tg.path("x/go.sum"))
+	data, err = ioutil.ReadFile(tg.path("x/go.sum"))
+	if !strings.Contains(string(data), " v0.8.0/go.mod ") {
+		t.Fatalf("cannot find go.mod hash in go.sum: %v\n%s", err, data)
+	}
+	if strings.Contains(string(data), " v0.8.0 ") {
+		t.Fatalf("unexpected module tree hash in go.sum: %v\n%s", err, data)
+	}
+	tg.run("-vgo", "mod", "-sync")
+	data, err = ioutil.ReadFile(tg.path("x/go.sum"))
+	if !strings.Contains(string(data), " v0.8.0/go.mod ") {
+		t.Fatalf("cannot find go.mod hash in go.sum: %v\n%s", err, data)
+	}
+	if !strings.Contains(string(data), " v0.8.0 ") {
+		t.Fatalf("cannot find module tree hash in go.sum: %v\n%s", err, data)
+	}
 }
 
 func TestVendorWithoutDeps(t *testing.T) {

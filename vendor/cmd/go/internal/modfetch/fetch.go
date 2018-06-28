@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/dirhash"
@@ -101,26 +102,32 @@ func downloadZip(mod module.Version, target string) error {
 	return ioutil.WriteFile(target+"hash", []byte(hash), 0666)
 }
 
-var (
-	GoSumFile string                      // path to go.sum; set by package vgo
-	modverify string                      // path to go.modverify, to be deleted
-	goSum     map[module.Version][]string // content of go.sum file (+ go.modverify if present)
-	useGoSum  bool                        // whether to use go.sum at all
-)
+var GoSumFile string // path to go.sum; set by package vgo
 
-func initGoSum() {
-	if goSum != nil || GoSumFile == "" {
-		return
+var goSum struct {
+	mu        sync.Mutex
+	m         map[module.Version][]string // content of go.sum file (+ go.modverify if present)
+	enabled   bool                        // whether to use go.sum at all
+	modverify string                      // path to go.modverify, to be deleted
+}
+
+// initGoSum initializes the go.sum data.
+// It reports whether use of go.sum is now enabled.
+// The goSum lock must be held.
+func initGoSum() bool {
+	if GoSumFile == "" {
+		return false
 	}
-	goSum = make(map[module.Version][]string)
+	if goSum.m != nil {
+		return true
+	}
+
+	goSum.m = make(map[module.Version][]string)
 	data, err := ioutil.ReadFile(GoSumFile)
 	if err != nil && !os.IsNotExist(err) {
 		base.Fatalf("vgo: %v", err)
 	}
-	if err != nil {
-		return
-	}
-	useGoSum = true
+	goSum.enabled = true
 	readGoSum(GoSumFile, data)
 
 	// Add old go.modverify file.
@@ -128,10 +135,13 @@ func initGoSum() {
 	alt := strings.TrimSuffix(GoSumFile, ".sum") + ".modverify"
 	if data, err := ioutil.ReadFile(alt); err == nil {
 		readGoSum(alt, data)
-		modverify = alt
+		goSum.modverify = alt
 	}
+	return true
 }
 
+// readGoSum parses data, which is the content of file,
+// and adds it to goSum.m. The goSum lock must be held.
 func readGoSum(file string, data []byte) {
 	lineno := 0
 	for len(data) > 0 {
@@ -152,16 +162,13 @@ func readGoSum(file string, data []byte) {
 			base.Fatalf("vgo: malformed go.sum:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
 		}
 		mod := module.Version{Path: f[0], Version: f[1]}
-		goSum[mod] = append(goSum[mod], f[2])
+		goSum.m[mod] = append(goSum.m[mod], f[2])
 	}
 }
 
+// checkSum checks the given module's checksum.
 func checkSum(mod module.Version) {
-	initGoSum()
-	if !useGoSum {
-		return
-	}
-
+	// Do the file I/O before acquiring the go.sum lock.
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
 		base.Fatalf("vgo: verifying %s@%s: %v", mod.Path, mod.Version, err)
@@ -174,28 +181,28 @@ func checkSum(mod module.Version) {
 	checkOneSum(mod, h)
 }
 
+// checkGoMod checks the given module's go.mod checksum;
+// data is the go.mod content.
 func checkGoMod(path, version string, data []byte) {
-	initGoSum()
-	if !useGoSum {
-		return
-	}
-
 	h, err := dirhash.Hash1([]string{"go.mod"}, func(string) (io.ReadCloser, error) {
 		return ioutil.NopCloser(bytes.NewReader(data)), nil
 	})
 	if err != nil {
 		base.Fatalf("vgo: verifying %s %s go.mod: %v", path, version, err)
 	}
+
 	checkOneSum(module.Version{Path: path, Version: version + "/go.mod"}, h)
 }
 
+// checkOneSum checks that the recorded hash for mod is h.
 func checkOneSum(mod module.Version, h string) {
-	initGoSum()
-	if !useGoSum {
+	goSum.mu.Lock()
+	defer goSum.mu.Unlock()
+	if !initGoSum() {
 		return
 	}
 
-	for _, vh := range goSum[mod] {
+	for _, vh := range goSum.m[mod] {
 		if h == vh {
 			return
 		}
@@ -203,10 +210,10 @@ func checkOneSum(mod module.Version, h string) {
 			base.Fatalf("vgo: verifying %s@%s: checksum mismatch\n\tdownloaded: %v\n\tgo.sum:     %v", mod.Path, mod.Version, h, vh)
 		}
 	}
-	if len(goSum[mod]) > 0 {
-		fmt.Fprintf(os.Stderr, "warning: verifying %s@%s: unknown hashes in go.sum: %v; adding %v", mod.Path, mod.Version, strings.Join(goSum[mod], ", "), h)
+	if len(goSum.m[mod]) > 0 {
+		fmt.Fprintf(os.Stderr, "warning: verifying %s@%s: unknown hashes in go.sum: %v; adding %v", mod.Path, mod.Version, strings.Join(goSum.m[mod], ", "), h)
 	}
-	goSum[mod] = append(goSum[mod], h)
+	goSum.m[mod] = append(goSum.m[mod], h)
 }
 
 // Sum returns the checksum for the downloaded copy of the given module,
@@ -221,18 +228,20 @@ func Sum(mod module.Version) string {
 
 // WriteGoSum writes the go.sum file if it needs to be updated.
 func WriteGoSum() {
-	if !useGoSum {
+	goSum.mu.Lock()
+	defer goSum.mu.Unlock()
+	if !initGoSum() {
 		return
 	}
 
 	var mods []module.Version
-	for m := range goSum {
+	for m := range goSum.m {
 		mods = append(mods, m)
 	}
 	module.Sort(mods)
 	var buf bytes.Buffer
 	for _, m := range mods {
-		list := goSum[m]
+		list := goSum.m[m]
 		sort.Strings(list)
 		for _, h := range list {
 			fmt.Fprintf(&buf, "%s %s %s\n", m.Path, m.Version, h)
@@ -246,7 +255,7 @@ func WriteGoSum() {
 		}
 	}
 
-	if modverify != "" {
-		os.Remove(modverify)
+	if goSum.modverify != "" {
+		os.Remove(goSum.modverify)
 	}
 }
