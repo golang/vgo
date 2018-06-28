@@ -348,7 +348,7 @@ func (r *repo) stat(rev string) (*codehost.RevInfo, error) {
 		if len(unshallowFlag) > 0 {
 			protoFlag = []string{"-c", "protocol.version=0"}
 		}
-		if _, err := codehost.Run(r.dir, "git", protoFlag, "fetch", unshallowFlag, "-f", "-t", r.remote, "refs/heads/*:refs/heads/*"); err != nil {
+		if _, err := codehost.Run(r.dir, "git", protoFlag, "fetch", unshallowFlag, "-f", r.remote, "refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*"); err != nil {
 			return nil, err
 		}
 	}
