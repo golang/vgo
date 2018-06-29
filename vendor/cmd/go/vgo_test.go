@@ -735,6 +735,11 @@ github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 	if !strings.Contains(string(data), " v0.8.0 ") {
 		t.Fatalf("cannot find module tree hash in go.sum: %v\n%s", err, data)
 	}
+
+	tg.must(os.Remove(filepath.Join(gopath, "src/mod/cache/download/github.com/pkg/errors/@v/v0.8.0.ziphash")))
+	tg.run("-vgo", "mod", "-sync") // ignores missing ziphash file for ordinary go.sum validation
+
+	tg.runFail("-vgo", "mod", "-verify") // explicit verify fails with missing ziphash
 }
 
 func TestVendorWithoutDeps(t *testing.T) {

@@ -171,6 +171,10 @@ func checkSum(mod module.Version) {
 	// Do the file I/O before acquiring the go.sum lock.
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
+		if os.IsNotExist(err) {
+			// This can happen if someone does rm -rf GOPATH/src/cache/download. So it goes.
+			return
+		}
 		base.Fatalf("vgo: verifying %s@%s: %v", mod.Path, mod.Version, err)
 	}
 	h := strings.TrimSpace(string(data))
