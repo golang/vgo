@@ -96,7 +96,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "github.com/rsc/vgotest1",
 		rev:     "80d85c5",
-		version: "v0.0.0-20180219231006-80d85c5d4d17",
+		version: "v1.0.0",
 		name:    "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:   "80d85c5d4d17",
 		time:    time.Date(2018, 2, 19, 23, 10, 6, 0, time.UTC),
@@ -109,7 +109,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "github.com/rsc/vgotest1",
 		rev:     "mytag",
-		version: "v0.0.0-20180219231006-80d85c5d4d17",
+		version: "v1.0.0",
 		name:    "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:   "80d85c5d4d17",
 		time:    time.Date(2018, 2, 19, 23, 10, 6, 0, time.UTC),
@@ -122,7 +122,7 @@ var codeRepoTests = []struct {
 	{
 		path:     "github.com/rsc/vgotest1/v2",
 		rev:      "80d85c5",
-		version:  "v2.0.0-20180219231006-80d85c5d4d17",
+		version:  "v2.0.0",
 		name:     "80d85c5d4d17598a0e9055e7c175a32b415d6128",
 		short:    "80d85c5d4d17",
 		time:     time.Date(2018, 2, 19, 23, 10, 6, 0, time.UTC),
@@ -270,7 +270,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "gopkg.in/yaml.v2",
 		rev:     "d670f940",
-		version: "v2.0.0-20180109114331-d670f9405373",
+		version: "v2.0.0",
 		name:    "d670f9405373e636a5a2765eea47fac0c9bc91a4",
 		short:   "d670f9405373",
 		time:    time.Date(2018, 1, 9, 11, 43, 31, 0, time.UTC),
@@ -288,7 +288,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "gopkg.in/yaml.v2",
 		rev:     "v2",
-		version: "v2.0.0-20180328195020-5420a8b6744d",
+		version: "v2.2.1",
 		name:    "5420a8b6744d3b0345ab293f6fcba19c978f1183",
 		short:   "5420a8b6744d",
 		time:    time.Date(2018, 3, 28, 19, 50, 20, 0, time.UTC),
@@ -297,7 +297,7 @@ var codeRepoTests = []struct {
 	{
 		path:    "vcs-test.golang.org/go/mod/gitrepo1",
 		rev:     "master",
-		version: "v0.0.0-20180417194322-ede458df7cd0",
+		version: "v1.2.4-annotated",
 		name:    "ede458df7cd0fdca520df19a33158086a8a68e81",
 		short:   "ede458df7cd0",
 		time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),

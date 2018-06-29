@@ -431,6 +431,30 @@ func TestGetModuleUpgrade(t *testing.T) {
 		t.Fatalf("expected golang.org/x/text indirect requirement:\n%s", gomod)
 	}
 
+	tg.run("-vgo", "get", "rsc.io/quote@v0.0.0-20180214005840-23179ee8a569") // should record as (time-corrected) pseudo-version
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v0.0.0-20180214005840-23179ee8a569\n") {
+		t.Fatalf("expected rsc.io/quote v0.0.0-20180214005840-23179ee8a569 (not v1.5.1)\n%s", gomod)
+	}
+
+	tg.run("-vgo", "get", "rsc.io/quote@23179ee") // should record as v1.5.1
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.1\n") {
+		t.Fatalf("expected rsc.io/quote v1.5.1 (not 23179ee)\n%s", gomod)
+	}
+
+	tg.run("-vgo", "mod", "-require", "rsc.io/quote@23179ee") // should record as 23179ee
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote 23179ee\n") {
+		t.Fatalf("expected rsc.io/quote 23179ee\n%s", gomod)
+	}
+
+	tg.run("-vgo", "mod", "-fix") // fixup in any future vgo command should find v1.5.1 again
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.1\n") {
+		t.Fatalf("expected rsc.io/quote v1.5.1\n%s", gomod)
+	}
+
 	tg.run("-vgo", "get", "-m", "rsc.io/quote@dd9747d")
 	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout(`quote v0.0.0-20180628003336-dd9747d19b04$`, "should have moved to pseudo-commit")
@@ -439,9 +463,9 @@ func TestGetModuleUpgrade(t *testing.T) {
 	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout(`quote v0.0.0-20180628003336-dd9747d19b04$`, "should have stayed on pseudo-commit")
 
-	tg.run("-vgo", "get", "-m", "rsc.io/quote@23179ee8a")
+	tg.run("-vgo", "get", "-m", "rsc.io/quote@e7a685a342")
 	tg.run("-vgo", "list", "-m", "all")
-	tg.grepStdout(`quote v0.0.0-20180214005840-23179ee8a569$`, "should have moved to new pseudo-commit")
+	tg.grepStdout(`quote v0.0.0-20180214005133-e7a685a342c0$`, "should have moved to new pseudo-commit")
 
 	tg.run("-vgo", "get", "-m", "-u")
 	tg.run("-vgo", "list", "-m", "all")

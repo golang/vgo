@@ -128,7 +128,7 @@ func (r *codeRepo) Stat(rev string) (*RevInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.convert(info)
+	return r.convert(info, rev)
 }
 
 func (r *codeRepo) Latest() (*RevInfo, error) {
@@ -136,33 +136,54 @@ func (r *codeRepo) Latest() (*RevInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.convert(info)
+	return r.convert(info, "")
 }
 
-func (r *codeRepo) convert(info *codehost.RevInfo) (*RevInfo, error) {
-	versionOK := func(v string) bool {
-		return semver.IsValid(v) && v == semver.Canonical(v) && !IsPseudoVersion(v) && module.MatchPathMajor(v, r.pathMajor)
+func (r *codeRepo) convert(info *codehost.RevInfo, statVers string) (*RevInfo, error) {
+
+	info2 := &RevInfo{
+		Name:  info.Name,
+		Short: info.Short,
+		Time:  info.Time,
 	}
-	v := info.Version
-	if r.codeDir == "" {
-		if !versionOK(v) {
-			v = PseudoVersion(r.pseudoMajor, info.Time, info.Short)
-		}
+
+	// Determine version.
+	if semver.IsValid(statVers) && statVers == semver.Canonical(statVers) && module.MatchPathMajor(statVers, r.pathMajor) {
+		// The original call was repo.Stat(statVers), and requestedVersion is OK, so use it.
+		info2.Version = statVers
 	} else {
-		p := r.codeDir + "/"
-		if strings.HasPrefix(v, p) && versionOK(v[len(p):]) {
+		// Otherwise derive a version from a code repo tag.
+		// Tag must have a prefix matching codeDir.
+		p := ""
+		if r.codeDir != "" {
+			p = r.codeDir + "/"
+		}
+
+		tagOK := func(v string) bool {
+			if !strings.HasPrefix(v, p) {
+				return false
+			}
 			v = v[len(p):]
+			return semver.IsValid(v) && v == semver.Canonical(v) && module.MatchPathMajor(v, r.pathMajor) && !IsPseudoVersion(v)
+		}
+
+		// If info.Version is OK, use it.
+		if tagOK(info.Version) {
+			info2.Version = info.Version[len(p):]
 		} else {
-			v = PseudoVersion(r.pseudoMajor, info.Time, info.Short)
+			// Otherwise look through all known tags for latest in semver ordering.
+			for _, tag := range info.Tags {
+				if tagOK(tag) && semver.Compare(info2.Version, tag[len(p):]) < 0 {
+					info2.Version = tag[len(p):]
+				}
+			}
+			// Otherwise make a pseudo-version.
+			if info2.Version == "" {
+				info2.Version = PseudoVersion(r.pseudoMajor, info.Time, info.Short)
+			}
 		}
 	}
 
-	info2 := &RevInfo{
-		Name:    info.Name,
-		Short:   info.Short,
-		Time:    info.Time,
-		Version: v,
-	}
 	return info2, nil
 }
 

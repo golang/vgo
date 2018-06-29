@@ -309,18 +309,23 @@ func (r *gitRepo) stat(rev string) (*RevInfo, error) {
 	defer r.mu.Unlock()
 
 	// If we know a specific commit we need, fetch it.
-	if r.fetchLevel <= fetchSome && hash != "" {
+	if r.fetchLevel <= fetchSome && hash != "" && !r.local {
 		r.fetchLevel = fetchSome
 		var refspec string
-		if ref != "" {
+		if ref != "" && ref != "head" {
 			// If we do know the ref name, save the mapping locally
 			// so that (if it is a tag) it can show up in localTags
 			// on a future call. Also, some servers refuse to allow
 			// full hashes in ref specs, so prefer a ref name if known.
 			refspec = ref + ":" + ref
 		} else {
+			// Fetch the hash but give it a local name (refs/dummy),
+			// because that triggers the fetch behavior of creating any
+			// other known remote tags for the hash. We never use
+			// refs/dummy (it's not refs/tags/dummy) and it will be
+			// overwritten in the next command, and that's fine.
 			ref = hash
-			refspec = hash
+			refspec = hash + ":refs/dummy"
 		}
 		_, err := Run(r.dir, "git", "fetch", "-f", "--depth=1", r.remote, refspec)
 		if err == nil {
@@ -357,12 +362,12 @@ func (r *gitRepo) stat(rev string) (*RevInfo, error) {
 // statLocal returns a RevInfo describing rev in the local git repository.
 // It uses version as info.Version.
 func (r *gitRepo) statLocal(version, rev string) (*RevInfo, error) {
-	out, err := Run(r.dir, "git", "log", "-n1", "--format=format:%H %ct", rev)
+	out, err := Run(r.dir, "git", "log", "-n1", "--format=format:%H %ct %D", rev)
 	if err != nil {
 		return nil, fmt.Errorf("unknown revision %s", rev)
 	}
 	f := strings.Fields(string(out))
-	if len(f) != 2 {
+	if len(f) < 2 {
 		return nil, fmt.Errorf("unexpected response from git log: %q", out)
 	}
 	hash := f[0]
@@ -378,8 +383,30 @@ func (r *gitRepo) statLocal(version, rev string) (*RevInfo, error) {
 		Name:    hash,
 		Short:   ShortenSHA1(hash),
 		Time:    time.Unix(t, 0).UTC(),
-		Version: version,
+		Version: hash,
 	}
+
+	// Add tags. Output looks like:
+	//	ede458df7cd0fdca520df19a33158086a8a68e81 1523994202 HEAD -> master, tag: v1.2.4-annotated, tag: v1.2.3, origin/master, origin/HEAD
+	for i := 2; i < len(f); i++ {
+		if f[i] == "tag:" {
+			i++
+			if i < len(f) {
+				info.Tags = append(info.Tags, strings.TrimSuffix(f[i], ","))
+			}
+		}
+	}
+	sort.Strings(info.Tags)
+
+	// Used hash as info.Version above.
+	// Use caller's suggested version if it appears in the tag list
+	// (filters out branch names, HEAD).
+	for _, tag := range info.Tags {
+		if version == tag {
+			info.Version = version
+		}
+	}
+
 	return info, nil
 }
 

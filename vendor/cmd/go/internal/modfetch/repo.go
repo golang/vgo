@@ -327,7 +327,7 @@ func ImportRepoRev(path, rev string) (Repo, *RevInfo, error) {
 		return nil, nil, err
 	}
 
-	info, err := repo.(*codeRepo).convert(revInfo)
+	info, err := repo.(*codeRepo).convert(revInfo, "")
 	if err != nil {
 		return nil, nil, err
 	}
