@@ -91,9 +91,10 @@ func (x *FileSyntax) Span() (start, end Position) {
 
 func (x *FileSyntax) addLine(hint Expr, tokens ...string) *Line {
 	if hint == nil {
-		// If no hint given, add to the first statement of the given type.
+		// If no hint given, add to the last statement of the given type.
 	Loop:
-		for _, stmt := range x.Stmt {
+		for i := len(x.Stmt) - 1; i >= 0; i-- {
+			stmt := x.Stmt[i]
 			switch stmt := stmt.(type) {
 			case *Line:
 				if stmt.Token != nil && stmt.Token[0] == tokens[0] {
