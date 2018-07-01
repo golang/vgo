@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"cmd/go/internal/cfg"
 	"cmd/go/internal/modconv"
 	"cmd/go/internal/vgo"
 )
@@ -76,11 +77,28 @@ func TestFindModulePath(t *testing.T) {
 	// Windows line-ending.
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\r\n"), 0666))
 	path, err = vgo.FindModulePath(tg.path("x"))
-	if err != nil {
-		t.Fatal(err)
+	if path != "x" || err != nil {
+		t.Fatalf("FindModulePath = %q, %v, want %q, nil", path, err, "x")
 	}
-	if path != "x" {
-		t.Fatalf("FindModulePath = %q, want %q", path, "x")
+
+	// Explicit setting in Godeps.json takes priority over implicit setting from GOPATH location.
+	tg.tempFile("gp/src/example.com/x/y/z/z.go", "package z")
+	gopath := cfg.BuildContext.GOPATH
+	defer func() {
+		cfg.BuildContext.GOPATH = gopath
+	}()
+	cfg.BuildContext.GOPATH = tg.path("gp")
+	path, err = vgo.FindModulePath(tg.path("gp/src/example.com/x/y/z"))
+	if path != "example.com/x/y/z" || err != nil {
+		t.Fatalf("FindModulePath = %q, %v, want %q, nil", path, err, "example.com/x/y/z")
+	}
+
+	tg.tempFile("gp/src/example.com/x/y/z/Godeps/Godeps.json", `
+		{"ImportPath": "unexpected.com/z"}
+	`)
+	path, err = vgo.FindModulePath(tg.path("gp/src/example.com/x/y/z"))
+	if path != "unexpected.com/z" || err != nil {
+		t.Fatalf("FindModulePath = %q, %v, want %q, nil", path, err, "unexpected.com/z")
 	}
 }
 

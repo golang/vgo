@@ -258,7 +258,7 @@ func legacyModInit() {
 			if convert == nil {
 				return
 			}
-			fmt.Fprintf(os.Stderr, "vgo: copying requirements from %s\n", cfg)
+			fmt.Fprintf(os.Stderr, "vgo: copying requirements from %s\n", base.ShortPath(cfg))
 			cfg = filepath.ToSlash(cfg)
 			if err := modconv.ConvertLegacyConfig(modFile, cfg, data); err != nil {
 				base.Fatalf("vgo: %v", err)
@@ -337,12 +337,6 @@ func FindModulePath(dir string) (string, error) {
 		// Running go mod -init -module=x/y/z; return x/y/z.
 		return CmdModModule, nil
 	}
-	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
-		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
-		if strings.HasPrefix(dir, src) {
-			return filepath.ToSlash(dir[len(src):]), nil
-		}
-	}
 
 	// Cast about for import comments,
 	// first in top-level directory, then in subdirectories.
@@ -369,10 +363,10 @@ func FindModulePath(dir string) (string, error) {
 
 	// Look for Godeps.json declaring import path.
 	data, _ := ioutil.ReadFile(filepath.Join(dir, "Godeps/Godeps.json"))
-	var cfg struct{ ImportPath string }
-	json.Unmarshal(data, &cfg)
-	if cfg.ImportPath != "" {
-		return cfg.ImportPath, nil
+	var cfg1 struct{ ImportPath string }
+	json.Unmarshal(data, &cfg1)
+	if cfg1.ImportPath != "" {
+		return cfg1.ImportPath, nil
 	}
 
 	// Look for vendor.json declaring import path.
@@ -381,6 +375,14 @@ func FindModulePath(dir string) (string, error) {
 	json.Unmarshal(data, &cfg2)
 	if cfg2.RootPath != "" {
 		return cfg2.RootPath, nil
+	}
+
+	// Look for path in GOPATH.
+	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
+		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
+		if strings.HasPrefix(dir, src) {
+			return filepath.ToSlash(dir[len(src):]), nil
+		}
 	}
 
 	// Look for .git/config with github origin as last resort.
