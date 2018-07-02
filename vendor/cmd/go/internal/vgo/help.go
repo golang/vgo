@@ -7,7 +7,7 @@ package vgo
 import "cmd/go/internal/base"
 
 var HelpModule = &base.Command{
-	UsageLine: "module",
+	UsageLine: "modules",
 	Short:     "using versioned modules",
 	Long: `
 TODO: write whole thing

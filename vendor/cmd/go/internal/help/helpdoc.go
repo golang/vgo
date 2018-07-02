@@ -30,7 +30,7 @@ the C or C++ compiler, respectively, to use.
 
 var HelpPackages = &base.Command{
 	UsageLine: "packages",
-	Short:     "package lists",
+	Short:     "package lists and patterns",
 	Long: `
 Many commands apply to a set of packages:
 
