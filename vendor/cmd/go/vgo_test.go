@@ -753,6 +753,9 @@ func TestVerify(t *testing.T) {
 		t.Fatalf("cannot find go.mod hash in go.sum: %v\n%s", err, data)
 	}
 
+	// Verify should work too.
+	tg.run("-vgo", "mod", "-verify")
+
 	// Even the most basic attempt to load the module graph should detect incorrect go.mod files.
 	tg.run("-vgo", "mod", "-graph") // loads module graph, is OK
 	tg.must(ioutil.WriteFile(tg.path("x/go.sum"), []byte(`github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
