@@ -55,6 +55,7 @@ func (p *proxyRepo) Versions(prefix string) ([]string, error) {
 			list = append(list, f[0])
 		}
 	}
+	SortVersions(list)
 	return list, nil
 }
 

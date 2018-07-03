@@ -67,14 +67,7 @@ func ModuleInfo(path string) *modinfo.ModulePublic {
 	}
 }
 
-// AddUpdate fills in m.Update if an updated version is available.
-func AddUpdate(m *modinfo.ModulePublic) {
-	addUpdate(m)
-	if m.Replace != nil {
-		addUpdate(m.Replace)
-	}
-}
-
+// addUpdate fills in m.Update if an updated version is available.
 func addUpdate(m *modinfo.ModulePublic) {
 	if m.Version != "" {
 		if info, err := modfetch.Query(m.Path, "latest", allowed); err == nil && info.Version != m.Version {
@@ -85,6 +78,11 @@ func addUpdate(m *modinfo.ModulePublic) {
 			}
 		}
 	}
+}
+
+// addVersions fills in m.Versions with the list of known versions.
+func addVersions(m *modinfo.ModulePublic) {
+	m.Versions, _ = versions(m.Path)
 }
 
 func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {

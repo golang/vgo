@@ -12,6 +12,7 @@ import "time"
 type ModulePublic struct {
 	Path     string        `json:",omitempty"` // module path
 	Version  string        `json:",omitempty"` // module version
+	Versions []string      `json:",omitempty"` // available module versions
 	Replace  *ModulePublic `json:",omitempty"` // replaced by this module
 	Time     *time.Time    `json:",omitempty"` // time version was created
 	Update   *ModulePublic `json:",omitempty"` // available update (with -u)

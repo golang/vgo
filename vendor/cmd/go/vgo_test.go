@@ -495,6 +495,12 @@ func TestGetModuleUpgrade(t *testing.T) {
 	tg.run("-vgo", "list")
 	tg.grepStderr(`adding rsc.io/quote v1.5.2`, "should have added quote v1.5.2")
 	tg.grepStderrNot(`v1.5.3-pre1`, "should not mention v1.5.3-pre1")
+
+	tg.run("-vgo", "list", "-m", "-versions", "rsc.io/quote")
+	want := "rsc.io/quote v1.0.0 v1.1.0 v1.2.0 v1.2.1 v1.3.0 v1.4.0 v1.5.0 v1.5.1 v1.5.2 v1.5.3-pre1\n"
+	if tg.getStdout() != want {
+		t.Errorf("vgo list versions:\nhave:\n%s\nwant:\n%s", tg.getStdout(), want)
+	}
 }
 
 func TestVgoBadDomain(t *testing.T) {

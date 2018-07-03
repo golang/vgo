@@ -11,10 +11,34 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/modinfo"
+	"cmd/go/internal/par"
 	"cmd/go/internal/search"
 )
 
-func ListModules(args []string) []*modinfo.ModulePublic {
+func ListModules(args []string, listU, listVersions bool) []*modinfo.ModulePublic {
+	mods := listModules(args)
+	if listU || listVersions {
+		var work par.Work
+		for _, m := range mods {
+			work.Add(m)
+			if m.Replace != nil {
+				work.Add(m.Replace)
+			}
+		}
+		work.Do(10, func(item interface{}) {
+			m := item.(*modinfo.ModulePublic)
+			if listU {
+				addUpdate(m)
+			}
+			if listVersions {
+				addVersions(m)
+			}
+		})
+	}
+	return mods
+}
+
+func listModules(args []string) []*modinfo.ModulePublic {
 	LoadBuildList()
 	if len(args) == 0 {
 		return []*modinfo.ModulePublic{moduleInfo(buildList[0], true)}
@@ -52,7 +76,7 @@ func ListModules(args []string) []*modinfo.ModulePublic {
 			}
 		}
 		if !matched {
-			fmt.Fprintf(os.Stderr, "warning: pattern %q matched no module dependencies", arg)
+			fmt.Fprintf(os.Stderr, "warning: pattern %q matched no module dependencies\n", arg)
 		}
 	}
 
