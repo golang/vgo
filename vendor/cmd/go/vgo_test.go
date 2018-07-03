@@ -617,6 +617,39 @@ func TestVgoVendor(t *testing.T) {
 	tg.run("-vgo", "list", "-f={{.Dir}}", "x")
 	tg.grepStdout(`vendormod[/\\]x$`, "expected x in vendormod/x")
 
+	var toRemove []string
+	defer func() {
+		for _, file := range toRemove {
+			os.Remove(file)
+		}
+	}()
+
+	write := func(name string) {
+		file := filepath.Join(wd, "testdata/vendormod", name)
+		toRemove = append(toRemove, file)
+		tg.must(ioutil.WriteFile(file, []byte("file!"), 0666))
+	}
+	mustHaveVendor := func(name string) {
+		t.Helper()
+		tg.mustExist(filepath.Join(wd, "testdata/vendormod/vendor", name))
+	}
+	mustNotHaveVendor := func(name string) {
+		t.Helper()
+		tg.mustNotExist(filepath.Join(wd, "testdata/vendormod/vendor", name))
+	}
+
+	write("a/foo/AUTHORS.txt")
+	write("a/foo/CONTRIBUTORS")
+	write("a/foo/LICENSE")
+	write("a/foo/PATENTS")
+	write("a/foo/COPYING")
+	write("a/foo/COPYLEFT")
+	write("a/foo/licensed-to-kill")
+	write("w/LICENSE")
+	write("x/NOTICE!")
+	write("x/x2/LICENSE")
+	write("mypkg/LICENSE.txt")
+
 	tg.run("-vgo", "mod", "-vendor", "-v")
 	tg.grepStderr(`^# x v1.0.0 => ./x`, "expected to see module x with replacement")
 	tg.grepStderr(`^x`, "expected to see package x")
@@ -648,6 +681,24 @@ func TestVgoVendor(t *testing.T) {
 
 	tg.runFail("-vgo", "list", "-getmode=local", "-f={{.Dir}}", "newpkg")
 	tg.grepStderr(`disabled by -getmode=local`, "expected -getmode=local to avoid network")
+
+	mustNotHaveVendor("x/testdata")
+	mustNotHaveVendor("a/foo/bar/b/main_test.go")
+
+	mustHaveVendor("a/foo/AUTHORS.txt")
+	mustHaveVendor("a/foo/CONTRIBUTORS")
+	mustHaveVendor("a/foo/LICENSE")
+	mustHaveVendor("a/foo/PATENTS")
+	mustHaveVendor("a/foo/COPYING")
+	mustHaveVendor("a/foo/COPYLEFT")
+	mustHaveVendor("x/NOTICE!")
+	mustHaveVendor("mysite/myname/mypkg/LICENSE.txt")
+
+	mustNotHaveVendor("a/foo/licensed-to-kill")
+	mustNotHaveVendor("w")
+	mustNotHaveVendor("w/LICENSE") // w wasn't copied at all
+	mustNotHaveVendor("x/x2")
+	mustNotHaveVendor("x/x2/LICENSE") // x/x2 wasn't copied at all
 
 	if !testing.Short() {
 		tg.run("-vgo", "build")

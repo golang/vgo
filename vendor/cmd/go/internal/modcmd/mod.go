@@ -154,8 +154,8 @@ packages and dependencies, and it removes unused modules that
 don't provide any relevant packages.
 
 The -vendor flag resets the module's vendor directory to include all
-packages needed to build and test all the module's packages and
-their dependencies.
+packages needed to build and test all the module's packages.
+It does not include any test code for the vendored packages.
 
 The -verify flag checks that the dependencies of the current module,
 which are stored in a local downloaded source cache, have not been

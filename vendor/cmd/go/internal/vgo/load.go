@@ -191,18 +191,33 @@ func LoadBuildList() []module.Version {
 // and their dependencies in any other modules, without filtering
 // due to build tags, except "+build ignore".
 // It adds modules to the build list as needed to satisfy new imports.
-// This set is useful for identifying which packages to include in a vendor directory
-// or deciding whether a particular import appears anywhere in a module.
+// This set is useful for deciding whether a particular import is needed
+// anywhere in a module.
 func LoadALL() []string {
+	return loadAll(true)
+}
+
+// LoadVendor is like LoadALL but only follows test dependencies
+// for tests in the main module. Tests in dependency modules are
+// ignored completely.
+// This set is useful for identifying the which packages to include in a vendor directory.
+func LoadVendor() []string {
+	return loadAll(false)
+}
+
+func loadAll(testAll bool) []string {
 	if Init(); !Enabled() {
-		panic("vgo: misuse of LoadALL")
+		panic("vgo: misuse of LoadALL/LoadVendor")
 	}
 	InitMod()
 
 	loaded = newLoader()
 	loaded.isALL = true
 	loaded.tags = anyTags
-	loaded.testAll = true
+	loaded.testAll = testAll
+	if !testAll {
+		loaded.testRoots = true
+	}
 	all := TargetPackages()
 	loaded.load(func() []string { return all })
 	WriteGoMod()
@@ -650,7 +665,9 @@ func (ld *loader) findMissing(item interface{}) {
 // scanDir is like imports.ScanDir but elides known magic imports from the list,
 // so that vgo does not go looking for packages that don't really exist.
 //
-// The only known magic imports are appengine and appengine/*.
+// The standard magic import is "C", for cgo.
+//
+// The only other known magic imports are appengine and appengine/*.
 // These are so old that they predate "go get" and did not use URL-like paths.
 // Most code today now uses google.golang.org/appengine instead,
 // but not all code has been so updated. When we mostly ignore build tags
@@ -663,7 +680,7 @@ func scanDir(dir string, tags map[string]bool) (imports_, testImports []string, 
 	filter := func(x []string) []string {
 		w := 0
 		for _, pkg := range x {
-			if pkg != "appengine" && !strings.HasPrefix(pkg, "appengine/") &&
+			if pkg != "C" && pkg != "appengine" && !strings.HasPrefix(pkg, "appengine/") &&
 				pkg != "appengine_internal" && !strings.HasPrefix(pkg, "appengine_internal/") {
 				x[w] = pkg
 				w++
