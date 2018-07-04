@@ -342,7 +342,13 @@ func FindModulePath(dir string) (string, error) {
 		// Running go mod -init -module=x/y/z; return x/y/z.
 		return CmdModModule, nil
 	}
+	if path, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = path
+	}
 	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
+		if path, err := filepath.EvalSymlinks(gpdir); err == nil {
+			gpdir = path
+		}
 		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
 		if strings.HasPrefix(dir, src) {
 			return filepath.ToSlash(dir[len(src):]), nil
