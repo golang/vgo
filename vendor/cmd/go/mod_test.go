@@ -21,7 +21,7 @@ import (
 	"cmd/go/internal/vgo"
 )
 
-func TestVGOROOT(t *testing.T) {
+func TestModVGOROOT(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -33,7 +33,7 @@ func TestVGOROOT(t *testing.T) {
 	tg.run("env")
 }
 
-func TestGO111MODULE(t *testing.T) {
+func TestModGO111MODULE(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.makeTempdir()
@@ -92,7 +92,7 @@ func TestGO111MODULE(t *testing.T) {
 	tg.grepStdout(`"GOMOD": ""`, "expected module mode disabled")
 }
 
-func TestFindModuleRoot(t *testing.T) {
+func TestModFindModuleRoot(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -120,7 +120,7 @@ func TestFindModuleRoot(t *testing.T) {
 	}
 }
 
-func TestFindModulePath(t *testing.T) {
+func TestModFindModulePath(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -164,7 +164,7 @@ func TestFindModulePath(t *testing.T) {
 	}
 }
 
-func TestImportModFails(t *testing.T) {
+func TestModImportModFails(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "off") // testing GOPATH mode
 	defer tg.cleanup()
@@ -312,7 +312,7 @@ require x.3 v1.99.0
 
 // TODO(rsc): Test mod -sync, mod -fix (network required).
 
-func TestLocalModule(t *testing.T) {
+func TestModLocalModule(t *testing.T) {
 	// Test that local replacements work
 	// and that they can use a dummy name
 	// that isn't resolvable and need not even
@@ -338,7 +338,7 @@ func TestLocalModule(t *testing.T) {
 	tg.run("build")
 }
 
-func TestTags(t *testing.T) {
+func TestModTags(t *testing.T) {
 	// Test that build tags are used. See golang.org/issue/24053.
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
@@ -372,7 +372,7 @@ func TestTags(t *testing.T) {
 	tg.grepStdout(`\[x.go y.go\]`, "Go source files for tag1 and tag2")
 }
 
-func TestFSPatterns(t *testing.T) {
+func TestModFSPatterns(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -401,7 +401,7 @@ func TestFSPatterns(t *testing.T) {
 	tg.grepStdoutNot(`^m/y/z`, "should ignore submodule m/y/z...")
 }
 
-func TestGetModuleVersion(t *testing.T) {
+func TestModGetVersions(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 
 	tg := testgo(t)
@@ -467,7 +467,7 @@ func TestGetModuleVersion(t *testing.T) {
 	tg.runFail("get", "-m", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
 }
 
-func TestGetModuleUpgrade(t *testing.T) {
+func TestModGetUpgrade(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 
 	tg := testgo(t)
@@ -591,7 +591,7 @@ func TestGetModuleUpgrade(t *testing.T) {
 	tg.grepStdout(`no matching versions for query ">v1.5.3"`, "expected no matching version")
 }
 
-func TestVgoBadDomain(t *testing.T) {
+func TestModBadDomain(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -608,7 +608,7 @@ func TestVgoBadDomain(t *testing.T) {
 	tg.grepStderr("tcp.*nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
 }
 
-func TestVgoSync(t *testing.T) {
+func TestModSync(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -685,7 +685,7 @@ package sub
 	tg.grepStdout(`^z.1\s+v1.2.0`, "need z.1 to stay at v1.2.0 even though y is gone")
 }
 
-func TestVgoVendor(t *testing.T) {
+func TestModVendor(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -799,7 +799,7 @@ func TestVgoVendor(t *testing.T) {
 	}
 }
 
-func TestFillGoMod(t *testing.T) {
+func TestModInitLegacy(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
@@ -840,7 +840,7 @@ func TestFillGoMod(t *testing.T) {
 	tg.grepStderrNot("copying requirements from .*Gopkg.lock", "should not copy Gopkg.lock again")
 }
 
-func TestQueryExcluded(t *testing.T) {
+func TestModQueryExcluded(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -871,7 +871,7 @@ func TestQueryExcluded(t *testing.T) {
 	tg.grepStdout("github.com/gorilla/mux v1.6.[1-9]", "expected version 1.6.1 or later")
 }
 
-func TestRequireExcluded(t *testing.T) {
+func TestModRequireExcluded(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -908,7 +908,7 @@ func TestRequireExcluded(t *testing.T) {
 	tg.grepStderr("github.com/gorilla/mux v1.6.1", "find version 1.6.1")
 }
 
-func TestConvertLegacyConfig(t *testing.T) {
+func TestModInitLegacy2(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
@@ -936,7 +936,7 @@ func TestConvertLegacyConfig(t *testing.T) {
 	tg.grepStdout("v0.6.0", "expected github.com/pkg/errors at v0.6.0")
 }
 
-func TestVerify(t *testing.T) {
+func TestModVerify(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
@@ -1021,7 +1021,7 @@ github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 	tg.runFail("mod", "-verify") // explicit verify fails with missing ziphash
 }
 
-func TestVendorWithoutDeps(t *testing.T) {
+func TestModVendorNoDeps(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -1035,7 +1035,7 @@ func TestVendorWithoutDeps(t *testing.T) {
 	tg.grepStderr("go: no dependencies to vendor", "print vendor info")
 }
 
-func TestVersionWithoutModule(t *testing.T) {
+func TestModVersionNoModule(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
 	defer tg.cleanup()
@@ -1045,7 +1045,7 @@ func TestVersionWithoutModule(t *testing.T) {
 	tg.run("version")
 }
 
-func TestImportDir(t *testing.T) {
+func TestModImportDomainRoot(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
@@ -1097,5 +1097,4 @@ func TestModSyncPrintJson(t *testing.T) {
 	if count != 1 {
 		t.Fatal("produces duplicate imports")
 	}
-
 }
