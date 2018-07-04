@@ -102,6 +102,15 @@ func TestFindModulePath(t *testing.T) {
 	}
 }
 
+func TestImportModFails(t *testing.T) {
+	tg := testgo(t)
+	tg.setenv("GO111MODULE", "off") // testing GOPATH mode
+	defer tg.cleanup()
+
+	tg.runFail("list", "mod/foo")
+	tg.grepStderr(`disallowed import path`, "expected disallowed because of module cache")
+}
+
 func TestModEdit(t *testing.T) {
 	// Test that local replacements work
 	// and that they can use a dummy name
