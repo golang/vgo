@@ -16,86 +16,171 @@ import (
 // The version must take one of the following forms:
 //
 //	- the literal string "latest", denoting the latest available, allowed tagged version,
-//	  with non-prereleases preferred over prereleases
-//	- v1.2.3, a semantic version string
-//	- v1 or v1.2, an abbreviated semantic version string completed by adding zeroes (v1.0.0 or v1.2.0)
-//	- >v1.2.3, denoting the earliest available version after v1.2.3 (including prereleases)
-//	- <v1.2.3, denoting the latest available version before v1.2.3 (including prereleases)
-//	- a repository commit identifier, denoting that version
+//	  with non-prereleases preferred over prereleases.
+//	  If there are no tagged versions in the repo, latest returns the most recent commit.
+//	- v1, denoting the latest available tagged version v1.x.x.
+//	- v1.2, denoting the latest available tagged version v1.2.x.
+//	- v1.2.3, a semantic version string denoting that tagged version.
+//	- <v1.2.3, <=v1.2.3, >v1.2.3, >=v1.2.3,
+//	   denoting the version closest to the target and satisfying the given operator,
+//	   with non-prereleases preferred over prereleases.
+//	- a repository commit identifier, denoting that commit.
 //
 // If the allowed function is non-nil, Query excludes any versions for which allowed returns false.
 //
-func Query(path, vers string, allowed func(module.Version) bool) (*RevInfo, error) {
+func Query(path, query string, allowed func(module.Version) bool) (*RevInfo, error) {
 	if allowed == nil {
 		allowed = func(module.Version) bool { return true }
 	}
-	if semver.IsValid(vers) {
-		// TODO: This turns query for "v2" into Stat "v2.0.0",
-		// but probably it should allow checking for a branch named "v2".
-		vers = semver.Canonical(vers)
+
+	// Parse query to detect parse errors (and possibly handle query)
+	// before any network I/O.
+	badVersion := func(v string) (*RevInfo, error) {
+		return nil, fmt.Errorf("invalid semantic version %q in range %q", v, query)
+	}
+	var ok func(module.Version) bool
+	var preferOlder bool
+	switch {
+	case query == "latest":
+		ok = allowed
+
+	case strings.HasPrefix(query, "<="):
+		v := query[len("<="):]
+		if !semver.IsValid(v) {
+			return badVersion(v)
+		}
+		if isSemverPrefix(v) {
+			// Refuse to say whether <=v1.2 allows v1.2.3 (remember, @v1.2 might mean v1.2.3).
+			return nil, fmt.Errorf("ambiguous semantic version %q in range %q", v, query)
+		}
+		ok = func(m module.Version) bool {
+			return semver.Compare(m.Version, v) <= 0 && allowed(m)
+		}
+
+	case strings.HasPrefix(query, "<"):
+		v := query[len("<"):]
+		if !semver.IsValid(v) {
+			return badVersion(v)
+		}
+		ok = func(m module.Version) bool {
+			return semver.Compare(m.Version, v) < 0 && allowed(m)
+		}
+
+	case strings.HasPrefix(query, ">="):
+		v := query[len(">="):]
+		if !semver.IsValid(v) {
+			return badVersion(v)
+		}
+		ok = func(m module.Version) bool {
+			return semver.Compare(m.Version, v) >= 0 && allowed(m)
+		}
+		preferOlder = true
+
+	case strings.HasPrefix(query, ">"):
+		v := query[len(">"):]
+		if !semver.IsValid(v) {
+			return badVersion(v)
+		}
+		if isSemverPrefix(v) {
+			// Refuse to say whether >v1.2 allows v1.2.3 (remember, @v1.2 might mean v1.2.3).
+			return nil, fmt.Errorf("ambiguous semantic version %q in range %q", v, query)
+		}
+		ok = func(m module.Version) bool {
+			return semver.Compare(m.Version, v) > 0 && allowed(m)
+		}
+		preferOlder = true
+
+	case semver.IsValid(query) && isSemverPrefix(query):
+		ok = func(m module.Version) bool {
+			return matchSemverPrefix(query, m.Version) && allowed(m)
+		}
+
+	case semver.IsValid(query):
+		vers := semver.Canonical(query)
 		if !allowed(module.Version{Path: path, Version: vers}) {
 			return nil, fmt.Errorf("%s@%s excluded", path, vers)
 		}
+		return Stat(path, vers)
 
-		// Fast path that avoids network overhead of Lookup (resolving path to repo host),
-		// if we already have this stat information cached on disk.
-		info, err := Stat(path, vers)
-		if err == nil {
-			return info, nil
+	default:
+		// Direct lookup of semantic version or commit identifier.
+		info, err := Stat(path, query)
+		if err != nil {
+			return nil, err
 		}
+		if !allowed(module.Version{Path: path, Version: info.Version}) {
+			return nil, fmt.Errorf("%s@%s excluded", path, info.Version)
+		}
+		return info, nil
 	}
 
+	// Load versions and execute query.
 	repo, err := Lookup(path)
 	if err != nil {
 		return nil, err
 	}
-
-	if semver.IsValid(vers) {
-		return repo.Stat(vers)
-	}
-	if strings.HasPrefix(vers, ">") || strings.HasPrefix(vers, "<") || vers == "latest" {
-		var op string
-		if vers != "latest" {
-			if !semver.IsValid(vers[1:]) {
-				return nil, fmt.Errorf("invalid semantic version in range %s", vers)
-			}
-			op, vers = vers[:1], vers[1:]
-		}
-		versions, err := repo.Versions("")
-		if err != nil {
-			return nil, err
-		}
-		if len(versions) == 0 && vers == "latest" {
-			return repo.Latest()
-		}
-		if vers == "latest" {
-			// Prefer a proper (non-prerelease) release.
-			for i := len(versions) - 1; i >= 0; i-- {
-				if semver.Prerelease(versions[i]) == "" && allowed(module.Version{Path: path, Version: versions[i]}) {
-					return repo.Stat(versions[i])
-				}
-			}
-			// Fall back to pre-releases if that's all we have.
-			for i := len(versions) - 1; i >= 0; i-- {
-				if semver.Prerelease(versions[i]) != "" && allowed(module.Version{Path: path, Version: versions[i]}) {
-					return repo.Stat(versions[i])
-				}
-			}
-		} else if op == "<" {
-			for i := len(versions) - 1; i >= 0; i-- {
-				if semver.Compare(versions[i], vers) < 0 && allowed(module.Version{Path: path, Version: versions[i]}) {
-					return repo.Stat(versions[i])
-				}
-			}
-		} else {
-			for i := 0; i < len(versions); i++ {
-				if semver.Compare(versions[i], vers) > 0 && allowed(module.Version{Path: path, Version: versions[i]}) {
-					return repo.Stat(versions[i])
-				}
-			}
-		}
-		return nil, fmt.Errorf("no matching versions for %s%s", op, vers)
+	versions, err := repo.Versions("")
+	if err != nil {
+		return nil, err
 	}
 
-	return repo.Stat(vers)
+	if preferOlder {
+		for _, v := range versions {
+			if semver.Prerelease(v) == "" && ok(module.Version{Path: path, Version: v}) {
+				return repo.Stat(v)
+			}
+		}
+		for _, v := range versions {
+			if semver.Prerelease(v) != "" && ok(module.Version{Path: path, Version: v}) {
+				return repo.Stat(v)
+			}
+		}
+	} else {
+		for i := len(versions) - 1; i >= 0; i-- {
+			v := versions[i]
+			if semver.Prerelease(v) == "" && ok(module.Version{Path: path, Version: v}) {
+				return repo.Stat(v)
+			}
+		}
+		for i := len(versions) - 1; i >= 0; i-- {
+			v := versions[i]
+			if semver.Prerelease(v) != "" && ok(module.Version{Path: path, Version: v}) {
+				return repo.Stat(v)
+			}
+		}
+	}
+
+	if query == "latest" {
+		// Special case for "latest": if no tags match, use latest commit in repo,
+		// provided it is not excluded.
+		if info, err := repo.Latest(); err == nil && allowed(module.Version{Path: path, Version: info.Version}) {
+			return info, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no matching versions for query %q", query)
+}
+
+// isSemverPrefix reports whether v is a semantic version prefix: v1 or  v1.2 (not v1.2.3).
+// The caller is assumed to have checked that semver.IsValid(v) is true.
+func isSemverPrefix(v string) bool {
+	dots := 0
+	for i := 0; i < len(v); i++ {
+		switch v[i] {
+		case '-', '+':
+			return false
+		case '.':
+			dots++
+			if dots >= 2 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// matchSemverPrefix reports whether the shortened semantic version p
+// matches the full-width (non-shortened) semantic version v.
+func matchSemverPrefix(p, v string) bool {
+	return len(v) > len(p) && v[len(p)] == '.' && v[:len(p)] == p
 }

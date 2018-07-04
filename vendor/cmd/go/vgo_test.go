@@ -501,6 +501,17 @@ func TestGetModuleUpgrade(t *testing.T) {
 	if tg.getStdout() != want {
 		t.Errorf("vgo list versions:\nhave:\n%s\nwant:\n%s", tg.getStdout(), want)
 	}
+
+	tg.run("-vgo", "list", "-m", "rsc.io/quote@>v1.5.2")
+	tg.grepStdout(`v1.5.3-pre1`, "expected to find v1.5.3-pre1")
+	tg.run("-vgo", "list", "-m", "rsc.io/quote@<v1.5.4")
+	tg.grepStdout(`v1.5.2$`, "expected to find v1.5.2 (NOT v1.5.3-pre1)")
+
+	tg.runFail("-vgo", "list", "-m", "rsc.io/quote@>v1.5.3")
+	tg.grepStderr(`go list -m rsc.io/quote: no matching versions for query ">v1.5.3"`, "expected no matching version")
+
+	tg.run("-vgo", "list", "-m", "-e", "-f={{.Error.Err}}", "rsc.io/quote@>v1.5.3")
+	tg.grepStdout(`no matching versions for query ">v1.5.3"`, "expected no matching version")
 }
 
 func TestVgoBadDomain(t *testing.T) {
@@ -773,8 +784,9 @@ func TestQueryExcluded(t *testing.T) {
 	tg.grepStderr("finding github.com/gorilla/mux v1.6.1", "find version 1.6.1")
 
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), gomod, 0666))
-	tg.runFail("-vgo", "get", "github.com/gorilla/mux@v1.6")
-	tg.grepStderr("github.com/gorilla/mux@v1.6.0 excluded", "print version excluded")
+	tg.run("-vgo", "get", "github.com/gorilla/mux@>=v1.6")
+	tg.run("-vgo", "list", "-m", "...mux")
+	tg.grepStdout("github.com/gorilla/mux v1.6.[1-9]", "expected version 1.6.1 or later")
 }
 
 func TestRequireExcluded(t *testing.T) {

@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"cmd/go/internal/base"
+	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modinfo"
+	"cmd/go/internal/module"
 	"cmd/go/internal/par"
 	"cmd/go/internal/search"
 )
@@ -53,9 +55,20 @@ func listModules(args []string) []*modinfo.ModulePublic {
 		if search.IsRelativePath(arg) {
 			base.Fatalf("vgo: cannot use relative path %s to specify module", arg)
 		}
-		if strings.Contains(arg, "@") {
-			// TODO(rsc): Add support for 'go list -m golang.org/x/text@v0.3.0'
-			base.Fatalf("vgo: list path@version not implemented")
+		if i := strings.Index(arg, "@"); i >= 0 {
+			info, err := modfetch.Query(arg[:i], arg[i+1:], nil)
+			if err != nil {
+				mods = append(mods, &modinfo.ModulePublic{
+					Path:    arg[:i],
+					Version: arg[i+1:],
+					Error: &modinfo.ModuleError{
+						Err: err.Error(),
+					},
+				})
+				continue
+			}
+			mods = append(mods, moduleInfo(module.Version{Path: arg[:i], Version: info.Version}, false))
+			continue
 		}
 
 		// Module path or pattern.

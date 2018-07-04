@@ -358,10 +358,6 @@ func runList(cmd *base.Command, args []string) {
 			// TODO(rsc): Could make this mean something with -m.
 			base.Fatalf("go list -deps cannot be used with -m")
 		}
-		if *listE {
-			// TODO(rsc): Could make this mean something with -m.
-			base.Fatalf("go list -e cannot be used with -m")
-		}
 		if *listExport {
 			base.Fatalf("go list -export cannot be used with -m")
 		}
@@ -375,6 +371,13 @@ func runList(cmd *base.Command, args []string) {
 		vgo.LoadBuildList()
 
 		mods := vgo.ListModules(args, *listU, *listVersions)
+		if !*listE {
+			for _, m := range mods {
+				if m.Error != nil {
+					base.Fatalf("go list -m %s: %v", m.Path, m.Error.Err)
+				}
+			}
+		}
 		for _, m := range mods {
 			do(m)
 		}
