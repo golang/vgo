@@ -144,8 +144,8 @@ func Main() {
 		// Run vgo.Init so that each subcommand doesn't have to worry about it.
 		// Also install the vgo get command instead of the old go get command in vgo mode.
 		vgo.Init()
-		if !vgo.MustBeVgo && vgo.Enabled() {
-			// Didn't do this above, so do it now.
+		if vgo.Enabled() {
+			// Might not have done this above, so do it now.
 			*get.CmdGet = *vgo.CmdGet
 		}
 	}

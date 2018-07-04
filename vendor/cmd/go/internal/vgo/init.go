@@ -17,8 +17,8 @@ import (
 	"cmd/go/internal/mvs"
 	"cmd/go/internal/search"
 	"cmd/go/internal/semver"
+	"cmd/go/internal/str"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -45,7 +45,6 @@ var (
 
 	CmdModInit   bool   // go mod -init flag
 	CmdModModule string // go mod -module flag
-
 )
 
 // ModFile returns the parsed go.mod file.
@@ -67,10 +66,6 @@ func BinDir() string {
 	return filepath.Join(gopath, "bin")
 }
 
-func init() {
-	flag.BoolVar(&MustBeVgo, "vgo", MustBeVgo, "require use of modules")
-}
-
 // mustBeVgo reports whether we are invoked as vgo
 // (as opposed to go).
 // If so, we only support builds with go.mod files.
@@ -87,10 +82,23 @@ func Init() {
 	}
 	initialized = true
 
-	// If this is testgo - the test binary during cmd/go tests - then
-	// do not let it look for a go.mod. Only use vgo support if the
-	// global -vgo flag has been passed on the command line.
-	if base := filepath.Base(os.Args[0]); (base == "testgo" || base == "testgo.exe") && !MustBeVgo {
+	env := os.Getenv("GO111MODULE")
+	switch env {
+	default:
+		base.Fatalf("go: unknown environment setting GO111MODULE=%s", env)
+	case "", "auto":
+		// leave MustBeVgo alone
+	case "on":
+		MustBeVgo = true
+	case "off":
+		if !MustBeVgo {
+			return
+		}
+	}
+
+	// If this is testgo - the test binary during cmd/go tests -
+	// then do not let it look for a go.mod unless GO111MODULE has an explicit setting.
+	if base := filepath.Base(os.Args[0]); (base == "testgo" || base == "testgo.exe") && env == "" {
 		return
 	}
 
@@ -131,14 +139,31 @@ func Init() {
 		// Running 'go mod -init': go.mod will be created in current directory.
 		ModRoot = cwd
 	} else {
+		inGOPATH := false
+		for _, gopath := range filepath.SplitList(cfg.BuildContext.GOPATH) {
+			if gopath == "" {
+				continue
+			}
+			if str.HasFilePathPrefix(cwd, filepath.Join(gopath, "src")) {
+				inGOPATH = true
+				break
+			}
+		}
+		if inGOPATH {
+			if !MustBeVgo {
+				// No automatic enabling in GOPATH.
+				return
+			}
+		}
 		root, _ := FindModuleRoot(cwd, "", MustBeVgo)
 		if root == "" {
 			// If invoked as vgo, insist on a mod file.
 			if MustBeVgo {
-				base.Fatalf("cannot determine module root; please create a go.mod file there")
+				base.Fatalf("go: cannot find main module root; see 'go help modules'")
 			}
 			return
 		}
+
 		ModRoot = root
 	}
 
