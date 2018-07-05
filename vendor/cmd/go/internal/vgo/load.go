@@ -47,6 +47,9 @@ var buildList []module.Version
 // which should be used instead.
 var loaded *loader
 
+// get -u flag; TODO: remove.
+var GetU bool
+
 // ImportPaths returns the set of packages matching the args (patterns),
 // adding modules to the build list as needed to satisfy new imports.
 func ImportPaths(args []string) []string {
@@ -382,7 +385,7 @@ var errMissing = errors.New("cannot find package")
 func (ld *loader) load(roots func() []string) {
 	var err error
 	mvsOp := mvs.BuildList
-	if *getU {
+	if GetU {
 		mvsOp = mvs.UpgradeAll
 	}
 	ld.buildList = buildList
@@ -633,7 +636,7 @@ func (ld *loader) findMissing(item interface{}) {
 	ld.missingMu.Unlock()
 
 	fmt.Fprintf(os.Stderr, "resolving import %q\n", path)
-	repo, info, err := modfetch.Import(path, allowed)
+	repo, info, err := modfetch.Import(path, Allowed)
 	if err != nil {
 		base.Errorf("vgo: %s: %v", pkg.stackText(), err)
 		return
@@ -922,7 +925,7 @@ func (*mvsReqs) Upgrade(m module.Version) (module.Version, error) {
 	// only ever returns untagged versions,
 	// which is not what we want.
 	fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", m.Path)
-	info, err := modfetch.Query(m.Path, "latest", allowed)
+	info, err := modfetch.Query(m.Path, "latest", Allowed)
 	if err != nil {
 		return module.Version{}, err
 	}

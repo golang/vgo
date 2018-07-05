@@ -259,7 +259,8 @@ func InitMod() {
 	WriteGoMod()
 }
 
-func allowed(m module.Version) bool {
+// Allowed reports whether module m is allowed (not excluded) by the main module's go.mod.
+func Allowed(m module.Version) bool {
 	return !excluded[m]
 }
 

@@ -87,7 +87,7 @@ func Main() {
 
 	if vgo.MustBeVgo {
 		// If running as vgo or with -vgo, change get now to change help message.
-		*get.CmdGet = *vgo.CmdGet
+		*get.CmdGet = *modget.CmdGet
 	}
 
 	cfg.CmdName = args[0] // for error messages
@@ -146,7 +146,7 @@ func Main() {
 		vgo.Init()
 		if vgo.Enabled() {
 			// Might not have done this above, so do it now.
-			*get.CmdGet = *vgo.CmdGet
+			*get.CmdGet = *modget.CmdGet
 		}
 	}
 

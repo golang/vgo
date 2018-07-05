@@ -8,7 +8,14 @@ package modget
 import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/get"
+	"cmd/go/internal/load"
+	"cmd/go/internal/modfetch"
+	"cmd/go/internal/module"
+	"cmd/go/internal/mvs"
+	"cmd/go/internal/semver"
+	"cmd/go/internal/vgo"
 	"cmd/go/internal/work"
+	"strings"
 )
 
 var CmdGet = &base.Command{
@@ -139,8 +146,9 @@ var (
 	getFix = CmdGet.Flag.Bool("fix", false, "")
 	getM   = CmdGet.Flag.Bool("m", false, "")
 	getT   = CmdGet.Flag.Bool("t", false, "")
-	getU   = CmdGet.Flag.Bool("u", false, "")
+
 	// -insecure is get.Insecure
+	// -u is vgo.GetU
 	// -v is cfg.BuildV
 )
 
@@ -148,10 +156,131 @@ func init() {
 	work.AddBuildFlags(CmdGet)
 	CmdGet.Run = runGet // break init loop
 	CmdGet.Flag.BoolVar(&get.Insecure, "insecure", get.Insecure, "")
+	CmdGet.Flag.BoolVar(&vgo.GetU, "u", vgo.GetU, "")
 }
 
 func runGet(cmd *base.Command, args []string) {
-	// OK because the command is also unregistered.
-	// For now we're still running vgo.CmdGet.
-	panic("unimplemented")
+	if vgo.GetU && len(args) > 0 {
+		base.Fatalf("vgo get: -u not supported with argument list")
+	}
+	if !vgo.GetU && len(args) == 0 {
+		base.Fatalf("vgo get: need arguments or -u")
+	}
+
+	if vgo.GetU {
+		vgo.LoadBuildList()
+		return
+	}
+
+	vgo.Init()
+	vgo.InitMod()
+	var upgrade []module.Version
+	var downgrade []module.Version
+	var newPkgs []string
+	for _, pkg := range args {
+		var path, vers string
+		/* OLD CODE
+		if n := strings.Count(pkg, "(") + strings.Count(pkg, ")"); n > 0 {
+			i := strings.Index(pkg, "(")
+			j := strings.Index(pkg, ")")
+			if n != 2 || i < 0 || j <= i+1 || j != len(pkg)-1 && pkg[j+1] != '/' {
+				base.Errorf("vgo get: invalid module version syntax: %s", pkg)
+				continue
+			}
+			path, vers = pkg[:i], pkg[i+1:j]
+			pkg = pkg[:i] + pkg[j+1:]
+		*/
+		if i := strings.Index(pkg, "@"); i >= 0 {
+			path, pkg, vers = pkg[:i], pkg[:i], pkg[i+1:]
+			if strings.Contains(vers, "@") {
+				base.Errorf("vgo get: invalid module version syntax: %s", pkg)
+				continue
+			}
+		} else {
+			path = pkg
+			vers = "latest"
+		}
+		if vers == "none" {
+			downgrade = append(downgrade, module.Version{Path: path, Version: ""})
+		} else {
+			info, err := modfetch.Query(path, vers, vgo.Allowed)
+			if err != nil {
+				base.Errorf("vgo get %v: %v", pkg, err)
+				continue
+			}
+			upgrade = append(upgrade, module.Version{Path: path, Version: info.Version})
+			newPkgs = append(newPkgs, pkg)
+		}
+	}
+	args = newPkgs
+
+	// Upgrade.
+	var err error
+	list, err := mvs.Upgrade(vgo.Target, vgo.Reqs(), upgrade...)
+	if err != nil {
+		base.Fatalf("vgo get: %v", err)
+	}
+	vgo.SetBuildList(list)
+
+	vgo.LoadBuildList()
+
+	// Downgrade anything that went too far.
+	version := make(map[string]string)
+	for _, mod := range vgo.BuildList() {
+		version[mod.Path] = mod.Version
+	}
+	for _, mod := range upgrade {
+		if semver.Compare(mod.Version, version[mod.Path]) < 0 {
+			downgrade = append(downgrade, mod)
+		}
+	}
+
+	if len(downgrade) > 0 {
+		list, err := mvs.Downgrade(vgo.Target, vgo.Reqs(), downgrade...)
+		if err != nil {
+			base.Fatalf("vgo get: %v", err)
+		}
+		vgo.SetBuildList(list)
+
+		// TODO: Check that everything we need to import is still available.
+		/*
+			local := v.matchPackages("all", v.Reqs[:1])
+			for _, path := range local {
+				dir, err := v.importDir(path)
+				if err != nil {
+					return err // TODO
+				}
+				imports, testImports, err := scanDir(dir, v.Tags)
+				for _, path := range imports {
+					xxx
+				}
+				for _, path := range testImports {
+					xxx
+				}
+			}
+		*/
+	}
+	vgo.WriteGoMod()
+
+	if *getD {
+		// Download all needed code as side-effect.
+		vgo.LoadALL()
+	}
+
+	if *getM {
+		return
+	}
+
+	if len(args) > 0 {
+		work.BuildInit()
+		var list []string
+		for _, p := range load.PackagesAndErrors(args) {
+			if p.Error == nil || !strings.HasPrefix(p.Error.Err, "no Go files") {
+				list = append(list, p.ImportPath)
+			}
+		}
+		if len(list) > 0 {
+			work.InstallPackages(list)
+		}
+	}
 }
