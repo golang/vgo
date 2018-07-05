@@ -174,6 +174,7 @@ func Init() {
 		base.Fatalf("go: cannot use modules with build cache disabled")
 	}
 
+	cfg.ModulesEnabled = true
 	enabled = true
 	load.ModBinDir = BinDir
 	load.ModLookup = Lookup

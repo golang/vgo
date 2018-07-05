@@ -599,7 +599,7 @@ func (b *Builder) build(a *Action) (err error) {
 		fmt.Fprintf(&icfg, "packagefile %s=%s\n", p1.ImportPath, a1.built)
 	}
 
-	if p.Internal.BuildInfo != "" && load.ModInfoProg != nil {
+	if p.Internal.BuildInfo != "" && cfg.ModulesEnabled {
 		if err := b.writeFile(objdir+"_gomod_.go", load.ModInfoProg(p.Internal.BuildInfo)); err != nil {
 			return err
 		}

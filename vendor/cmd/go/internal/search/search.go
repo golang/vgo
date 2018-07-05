@@ -173,6 +173,7 @@ func MatchPackagesInFS(pattern string) []string {
 		if err != nil || !fi.IsDir() {
 			return nil
 		}
+		top := false
 		if path == dir {
 			// filepath.Walk starts at dir and recurses. For the recursive case,
 			// the path is the result of filepath.Join, which calls filepath.Clean.
@@ -182,6 +183,7 @@ func MatchPackagesInFS(pattern string) []string {
 			// "cd $GOROOT/src; go list ./io/..." would incorrectly skip the io
 			// package, because prepending the prefix "./" to the unclean path would
 			// result in "././io", and match("././io") returns false.
+			top = true
 			path = filepath.Clean(path)
 		}
 
@@ -190,6 +192,13 @@ func MatchPackagesInFS(pattern string) []string {
 		dot := strings.HasPrefix(elem, ".") && elem != "." && elem != ".."
 		if dot || strings.HasPrefix(elem, "_") || elem == "testdata" {
 			return filepath.SkipDir
+		}
+
+		if !top && cfg.ModulesEnabled {
+			// Ignore other modules found in subdirectories.
+			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+				return filepath.SkipDir
+			}
 		}
 
 		name := prefix + filepath.ToSlash(path)

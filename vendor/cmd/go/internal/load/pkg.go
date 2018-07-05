@@ -454,7 +454,7 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 	var modErr error
 	if isLocal {
 		importPath = dirToImportPath(filepath.Join(srcDir, path))
-	} else if ModLookup != nil {
+	} else if cfg.ModulesEnabled {
 		parentPath := ""
 		if parent != nil {
 			parentPath = parent.ImportPath
@@ -506,7 +506,7 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		bp.ImportPath = importPath
 		if cfg.GOBIN != "" {
 			bp.BinDir = cfg.GOBIN
-		} else if ModBinDir != nil {
+		} else if cfg.ModulesEnabled {
 			bp.BinDir = ModBinDir()
 		}
 		if modDir == "" && err == nil && !isLocal && bp.ImportComment != "" && bp.ImportComment != path &&
@@ -596,7 +596,7 @@ func isDir(path string) bool {
 // If vendor expansion doesn't trigger, then the path is also subject to
 // Go 1.11 module legacy conversion (golang.org/issue/25069).
 func ResolveImportPath(parent *Package, path string) (found string) {
-	if ModLookup != nil {
+	if cfg.ModulesEnabled {
 		parentPath := ""
 		if parent != nil {
 			parentPath = parent.ImportPath
@@ -1184,7 +1184,7 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 			// Install cross-compiled binaries to subdirectories of bin.
 			elem = full
 		}
-		if p.Internal.Build.BinDir == "" && ModBinDir != nil {
+		if p.Internal.Build.BinDir == "" && cfg.ModulesEnabled {
 			p.Internal.Build.BinDir = ModBinDir()
 		}
 		if p.Internal.Build.BinDir != "" {
@@ -1438,7 +1438,7 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 		return
 	}
 
-	if ModPackageModuleInfo != nil {
+	if cfg.ModulesEnabled {
 		p.Module = ModPackageModuleInfo(p.ImportPath)
 		if p.Name == "main" {
 			p.Internal.BuildInfo = ModPackageBuildInfo(p.ImportPath, p.Deps)
@@ -1722,7 +1722,7 @@ func ImportPaths(args []string) []string {
 	if cmdlineMatchers == nil {
 		SetCmdlinePatterns(search.CleanImportPaths(args))
 	}
-	if ModImportPaths != nil {
+	if cfg.ModulesEnabled {
 		return ModImportPaths(args)
 	}
 	return search.ImportPaths(args)
@@ -1820,7 +1820,7 @@ func GoFilesPackage(gofiles []string) *Package {
 	}
 	ctxt.ReadDir = func(string) ([]os.FileInfo, error) { return dirent, nil }
 
-	if ModImportFromFiles != nil {
+	if cfg.ModulesEnabled {
 		ModImportFromFiles(gofiles)
 	}
 
@@ -1852,7 +1852,7 @@ func GoFilesPackage(gofiles []string) *Package {
 		}
 		if cfg.GOBIN != "" {
 			pkg.Target = filepath.Join(cfg.GOBIN, exe)
-		} else if ModBinDir != nil {
+		} else if cfg.ModulesEnabled {
 			pkg.Target = filepath.Join(ModBinDir(), exe)
 		}
 	}

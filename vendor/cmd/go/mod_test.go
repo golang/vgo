@@ -393,12 +393,14 @@ func TestModFSPatterns(t *testing.T) {
 	tg.must(ioutil.WriteFile(tg.path("x/y/z/w/w.go"), []byte(`package w`), 0666))
 
 	tg.cd(tg.path("x"))
-	tg.run("list", "all")
-	tg.grepStdout(`^m$`, "expected m")
-	tg.grepStdout(`^m/vendor$`, "must see package named vendor")
-	tg.grepStdoutNot(`vendor/`, "must not see vendored packages")
-	tg.grepStdout(`^m/y$`, "expected m/y")
-	tg.grepStdoutNot(`^m/y/z`, "should ignore submodule m/y/z...")
+	for _, pattern := range []string{"all", "m/...", "./..."} {
+		tg.run("list", pattern)
+		tg.grepStdout(`^m$`, "expected m")
+		tg.grepStdout(`^m/vendor$`, "must see package named vendor")
+		tg.grepStdoutNot(`vendor/`, "must not see vendored packages")
+		tg.grepStdout(`^m/y$`, "expected m/y")
+		tg.grepStdoutNot(`^m/y/z`, "should ignore submodule m/y/z...")
+	}
 }
 
 func TestModGetVersions(t *testing.T) {
