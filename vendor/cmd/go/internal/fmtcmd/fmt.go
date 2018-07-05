@@ -16,8 +16,8 @@ import (
 	"cmd/go/internal/base"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/str"
-	"cmd/go/internal/vgo"
 )
 
 func init() {
@@ -60,7 +60,7 @@ func runFmt(cmd *base.Command, args []string) {
 		}()
 	}
 	for _, pkg := range load.PackagesAndErrors(args) {
-		if vgo.Enabled() && !pkg.Module.Main {
+		if modload.Enabled() && !pkg.Module.Main {
 			if !printed {
 				fmt.Fprintf(os.Stderr, "vgo: not formatting packages in dependency modules\n")
 				printed = true

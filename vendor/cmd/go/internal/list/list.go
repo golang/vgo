@@ -19,7 +19,7 @@ import (
 	"cmd/go/internal/cache"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
-	"cmd/go/internal/vgo"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/work"
 )
 
@@ -332,7 +332,7 @@ func runList(cmd *base.Command, args []string) {
 		fm := template.FuncMap{
 			"join":    strings.Join,
 			"context": context,
-			"module":  vgo.ModuleInfo,
+			"module":  modload.ModuleInfo,
 		}
 		tmpl, err := template.New("main").Funcs(fm).Parse(*listFmt)
 		if err != nil {
@@ -365,12 +365,12 @@ func runList(cmd *base.Command, args []string) {
 			base.Fatalf("go list -test cannot be used with -m")
 		}
 
-		if vgo.Init(); !vgo.Enabled() {
+		if modload.Init(); !modload.Enabled() {
 			base.Fatalf("go list -m: not using modules")
 		}
-		vgo.LoadBuildList()
+		modload.LoadBuildList()
 
-		mods := vgo.ListModules(args, *listU, *listVersions)
+		mods := modload.ListModules(args, *listU, *listVersions)
 		if !*listE {
 			for _, m := range mods {
 				if m.Error != nil {

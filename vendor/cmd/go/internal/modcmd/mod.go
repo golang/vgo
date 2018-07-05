@@ -15,9 +15,9 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/modfile"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/module"
 	"cmd/go/internal/par"
-	"cmd/go/internal/vgo"
 )
 
 var CmdMod = &base.Command{
@@ -189,8 +189,8 @@ func (f flagFunc) Set(s string) error { f(s); return nil }
 func init() {
 	CmdMod.Run = runMod // break init cycle
 
-	CmdMod.Flag.BoolVar(&vgo.CmdModInit, "init", vgo.CmdModInit, "")
-	CmdMod.Flag.StringVar(&vgo.CmdModModule, "module", vgo.CmdModModule, "")
+	CmdMod.Flag.BoolVar(&modload.CmdModInit, "init", modload.CmdModInit, "")
+	CmdMod.Flag.StringVar(&modload.CmdModModule, "module", modload.CmdModModule, "")
 
 	CmdMod.Flag.Var(flagFunc(flagRequire), "require", "")
 	CmdMod.Flag.Var(flagFunc(flagDropRequire), "droprequire", "")
@@ -203,7 +203,7 @@ func init() {
 }
 
 func runMod(cmd *base.Command, args []string) {
-	if vgo.Init(); !vgo.Enabled() {
+	if modload.Init(); !modload.Enabled() {
 		base.Fatalf("vgo mod: cannot use outside module")
 	}
 	if len(args) != 0 {
@@ -211,8 +211,8 @@ func runMod(cmd *base.Command, args []string) {
 	}
 
 	anyFlags :=
-		vgo.CmdModInit ||
-			vgo.CmdModModule != "" ||
+		modload.CmdModInit ||
+			modload.CmdModModule != "" ||
 			*modVendor ||
 			*modVerify ||
 			*modJSON ||
@@ -227,24 +227,24 @@ func runMod(cmd *base.Command, args []string) {
 		base.Fatalf("vgo mod: no flags specified (see 'go help mod').")
 	}
 
-	if vgo.CmdModModule != "" {
-		if err := module.CheckPath(vgo.CmdModModule); err != nil {
+	if modload.CmdModModule != "" {
+		if err := module.CheckPath(modload.CmdModModule); err != nil {
 			base.Fatalf("vgo mod: invalid -module: %v", err)
 		}
 	}
 
-	if vgo.CmdModInit {
+	if modload.CmdModInit {
 		if _, err := os.Stat("go.mod"); err == nil {
 			base.Fatalf("vgo mod -init: go.mod already exists")
 		}
 	}
-	vgo.InitMod()
+	modload.InitMod()
 
 	// Syntactic edits.
 
-	modFile := vgo.ModFile()
-	if vgo.CmdModModule != "" {
-		modFile.AddModuleStmt(vgo.CmdModModule)
+	modFile := modload.ModFile()
+	if modload.CmdModModule != "" {
+		modFile.AddModuleStmt(modload.CmdModModule)
 	}
 
 	if len(modEdits) > 0 {
@@ -252,7 +252,7 @@ func runMod(cmd *base.Command, args []string) {
 			edit(modFile)
 		}
 	}
-	vgo.WriteGoMod() // write back syntactic changes
+	modload.WriteGoMod() // write back syntactic changes
 
 	// Semantic edits.
 
@@ -261,34 +261,34 @@ func runMod(cmd *base.Command, args []string) {
 	if *modSync || *modVendor || needBuildList {
 		var pkgs []string
 		if *modSync || *modVendor {
-			pkgs = vgo.LoadALL()
+			pkgs = modload.LoadALL()
 		} else {
-			vgo.LoadBuildList()
+			modload.LoadBuildList()
 		}
 		if *modSync {
 			// LoadALL already added missing modules.
 			// Remove unused modules.
-			used := map[module.Version]bool{vgo.Target: true}
+			used := map[module.Version]bool{modload.Target: true}
 			for _, pkg := range pkgs {
-				used[vgo.PackageModule(pkg)] = true
+				used[modload.PackageModule(pkg)] = true
 			}
 
 			inGoMod := make(map[string]bool)
-			for _, r := range vgo.ModFile().Require {
+			for _, r := range modload.ModFile().Require {
 				inGoMod[r.Mod.Path] = true
 			}
 
 			var keep []module.Version
-			for _, m := range vgo.BuildList() {
+			for _, m := range modload.BuildList() {
 				if used[m] {
 					keep = append(keep, m)
 				} else if *modV && inGoMod[m.Path] {
 					fmt.Fprintf(os.Stderr, "unused %s\n", m.Path)
 				}
 			}
-			vgo.SetBuildList(keep)
+			modload.SetBuildList(keep)
 		}
-		vgo.WriteGoMod()
+		modload.WriteGoMod()
 		if *modVendor {
 			runVendor()
 		}
@@ -305,7 +305,7 @@ func runMod(cmd *base.Command, args []string) {
 	}
 
 	if *modPackages {
-		for _, pkg := range vgo.TargetPackages() {
+		for _, pkg := range modload.TargetPackages() {
 			fmt.Printf("%s\n", pkg)
 		}
 	}
@@ -461,7 +461,7 @@ type replaceJSON struct {
 
 // modPrintJSON prints the -json output.
 func modPrintJSON() {
-	modFile := vgo.ModFile()
+	modFile := modload.ModFile()
 
 	var f fileJSON
 	f.Module = modFile.Module.Mod
@@ -484,7 +484,7 @@ func modPrintJSON() {
 
 // modPrintGraph prints the -graph output.
 func modPrintGraph() {
-	reqs := vgo.Reqs()
+	reqs := modload.Reqs()
 
 	format := func(m module.Version) string {
 		if m.Version == "" {
@@ -498,7 +498,7 @@ func modPrintGraph() {
 	var out []string
 	var deps int // index in out where deps start
 	var work par.Work
-	work.Add(vgo.Target)
+	work.Add(modload.Target)
 	work.Do(1, func(item interface{}) {
 		m := item.(module.Version)
 		list, _ := reqs.Required(m)
@@ -506,7 +506,7 @@ func modPrintGraph() {
 			work.Add(r)
 			out = append(out, format(m)+" "+format(r)+"\n")
 		}
-		if m == vgo.Target {
+		if m == modload.Target {
 			deps = len(out)
 		}
 	})

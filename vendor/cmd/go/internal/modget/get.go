@@ -10,10 +10,10 @@ import (
 	"cmd/go/internal/get"
 	"cmd/go/internal/load"
 	"cmd/go/internal/modfetch"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/module"
 	"cmd/go/internal/mvs"
 	"cmd/go/internal/semver"
-	"cmd/go/internal/vgo"
 	"cmd/go/internal/work"
 	"strings"
 )
@@ -148,7 +148,7 @@ var (
 	getT   = CmdGet.Flag.Bool("t", false, "")
 
 	// -insecure is get.Insecure
-	// -u is vgo.GetU
+	// -u is modload.GetU
 	// -v is cfg.BuildV
 )
 
@@ -156,24 +156,24 @@ func init() {
 	work.AddBuildFlags(CmdGet)
 	CmdGet.Run = runGet // break init loop
 	CmdGet.Flag.BoolVar(&get.Insecure, "insecure", get.Insecure, "")
-	CmdGet.Flag.BoolVar(&vgo.GetU, "u", vgo.GetU, "")
+	CmdGet.Flag.BoolVar(&modload.GetU, "u", modload.GetU, "")
 }
 
 func runGet(cmd *base.Command, args []string) {
-	if vgo.GetU && len(args) > 0 {
+	if modload.GetU && len(args) > 0 {
 		base.Fatalf("vgo get: -u not supported with argument list")
 	}
-	if !vgo.GetU && len(args) == 0 {
+	if !modload.GetU && len(args) == 0 {
 		base.Fatalf("vgo get: need arguments or -u")
 	}
 
-	if vgo.GetU {
-		vgo.LoadBuildList()
+	if modload.GetU {
+		modload.LoadBuildList()
 		return
 	}
 
-	vgo.Init()
-	vgo.InitMod()
+	modload.Init()
+	modload.InitMod()
 	var upgrade []module.Version
 	var downgrade []module.Version
 	var newPkgs []string
@@ -203,7 +203,7 @@ func runGet(cmd *base.Command, args []string) {
 		if vers == "none" {
 			downgrade = append(downgrade, module.Version{Path: path, Version: ""})
 		} else {
-			info, err := modfetch.Query(path, vers, vgo.Allowed)
+			info, err := modfetch.Query(path, vers, modload.Allowed)
 			if err != nil {
 				base.Errorf("vgo get %v: %v", pkg, err)
 				continue
@@ -216,17 +216,17 @@ func runGet(cmd *base.Command, args []string) {
 
 	// Upgrade.
 	var err error
-	list, err := mvs.Upgrade(vgo.Target, vgo.Reqs(), upgrade...)
+	list, err := mvs.Upgrade(modload.Target, modload.Reqs(), upgrade...)
 	if err != nil {
 		base.Fatalf("vgo get: %v", err)
 	}
-	vgo.SetBuildList(list)
+	modload.SetBuildList(list)
 
-	vgo.LoadBuildList()
+	modload.LoadBuildList()
 
 	// Downgrade anything that went too far.
 	version := make(map[string]string)
-	for _, mod := range vgo.BuildList() {
+	for _, mod := range modload.BuildList() {
 		version[mod.Path] = mod.Version
 	}
 	for _, mod := range upgrade {
@@ -236,11 +236,11 @@ func runGet(cmd *base.Command, args []string) {
 	}
 
 	if len(downgrade) > 0 {
-		list, err := mvs.Downgrade(vgo.Target, vgo.Reqs(), downgrade...)
+		list, err := mvs.Downgrade(modload.Target, modload.Reqs(), downgrade...)
 		if err != nil {
 			base.Fatalf("vgo get: %v", err)
 		}
-		vgo.SetBuildList(list)
+		modload.SetBuildList(list)
 
 		// TODO: Check that everything we need to import is still available.
 		/*
@@ -260,11 +260,11 @@ func runGet(cmd *base.Command, args []string) {
 			}
 		*/
 	}
-	vgo.WriteGoMod()
+	modload.WriteGoMod()
 
 	if *getD {
 		// Download all needed code as side-effect.
-		vgo.LoadALL()
+		modload.LoadALL()
 	}
 
 	if *getM {

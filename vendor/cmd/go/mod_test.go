@@ -18,7 +18,7 @@ import (
 
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/modconv"
-	"cmd/go/internal/vgo"
+	"cmd/go/internal/modload"
 )
 
 func TestModVGOROOT(t *testing.T) {
@@ -112,7 +112,7 @@ func TestModFindModuleRoot(t *testing.T) {
 
 	for file := range modconv.Converters {
 		tg.must(ioutil.WriteFile(tg.path("x/"+file), []byte{}, 0666))
-		root, file1 := vgo.FindModuleRoot(tg.path("x/y/z"), tg.path("."), true)
+		root, file1 := modload.FindModuleRoot(tg.path("x/y/z"), tg.path("."), true)
 		if root != tg.path("x") || file1 != file {
 			t.Errorf("%s: findModuleRoot = %q, %q, want %q, %q", file, root, file1, tg.path("x"), file)
 		}
@@ -128,7 +128,7 @@ func TestModFindModulePath(t *testing.T) {
 
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\n"), 0666))
-	path, err := vgo.FindModulePath(tg.path("x"))
+	path, err := modload.FindModulePath(tg.path("x"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestModFindModulePath(t *testing.T) {
 
 	// Windows line-ending.
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\r\n"), 0666))
-	path, err = vgo.FindModulePath(tg.path("x"))
+	path, err = modload.FindModulePath(tg.path("x"))
 	if path != "x" || err != nil {
 		t.Fatalf("FindModulePath = %q, %v, want %q, nil", path, err, "x")
 	}
@@ -150,7 +150,7 @@ func TestModFindModulePath(t *testing.T) {
 		cfg.BuildContext.GOPATH = gopath
 	}()
 	cfg.BuildContext.GOPATH = tg.path("gp")
-	path, err = vgo.FindModulePath(tg.path("gp/src/example.com/x/y/z"))
+	path, err = modload.FindModulePath(tg.path("gp/src/example.com/x/y/z"))
 	if path != "example.com/x/y/z" || err != nil {
 		t.Fatalf("FindModulePath = %q, %v, want %q, nil", path, err, "example.com/x/y/z")
 	}
@@ -158,7 +158,7 @@ func TestModFindModulePath(t *testing.T) {
 	tg.tempFile("gp/src/example.com/x/y/z/Godeps/Godeps.json", `
 		{"ImportPath": "unexpected.com/z"}
 	`)
-	path, err = vgo.FindModulePath(tg.path("gp/src/example.com/x/y/z"))
+	path, err = modload.FindModulePath(tg.path("gp/src/example.com/x/y/z"))
 	if path != "unexpected.com/z" || err != nil {
 		t.Fatalf("FindModulePath = %q, %v, want %q, nil", path, err, "unexpected.com/z")
 	}

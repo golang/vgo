@@ -17,7 +17,7 @@ import (
 	"cmd/go/internal/cache"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
-	"cmd/go/internal/vgo"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/work"
 )
 
@@ -117,8 +117,8 @@ func findEnv(env []cfg.EnvVar, name string) string {
 // ExtraEnvVars returns environment variables that should not leak into child processes.
 func ExtraEnvVars() []cfg.EnvVar {
 	gomod := ""
-	if vgo.Init(); vgo.ModRoot != "" {
-		gomod = filepath.Join(vgo.ModRoot, "go.mod")
+	if modload.Init(); modload.ModRoot != "" {
+		gomod = filepath.Join(modload.ModRoot, "go.mod")
 	}
 	return []cfg.EnvVar{
 		{Name: "GOMOD", Value: gomod},
