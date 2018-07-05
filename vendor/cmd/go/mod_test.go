@@ -853,6 +853,14 @@ func TestModList(t *testing.T) {
 
 	tg.run("list", "-f={{.Dir}}", "rsc.io/quote") // downloads code to load package
 	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
+	dir := strings.TrimSpace(tg.getStdout())
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0222 != 0 {
+		t.Fatalf("%s should be unwritable", dir)
+	}
 
 	tg.run("list", "-m", "-f={{.Dir}}", "rsc.io/quote") // now module list should find it too
 	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")

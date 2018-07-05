@@ -771,11 +771,23 @@ func (tg *testgoData) cleanup() {
 		}
 	}
 	for _, path := range tg.temps {
-		tg.check(os.RemoveAll(path))
+		tg.check(removeAll(path))
 	}
 	if tg.tempdir != "" {
-		tg.check(os.RemoveAll(tg.tempdir))
+		tg.check(removeAll(tg.tempdir))
 	}
+}
+
+func removeAll(dir string) error {
+	// module cache has 0444 directories;
+	// make them writable in order to remove content.
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			os.Chmod(path, 0777)
+		}
+		return nil
+	})
+	return os.RemoveAll(dir)
 }
 
 // failSSH puts an ssh executable in the PATH that always fails.
