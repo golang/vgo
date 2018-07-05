@@ -449,22 +449,21 @@ func TestModGetVersions(t *testing.T) {
 	// Now there should be no build at all.
 	tg.run("get", "-m", "golang.org/x/crypto@7f39a6fea4fe9364")
 
-	// TODO(rsc): These should work, but "go get" needs more work
-	// regarding packages versus modules.
-
-	// @7f39a6fea4fe9364 should resolve.
-	// Now there should be no build at all.
-	// tg.run("get", "-m", "-x", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
-	// tg.grepStderrNot("compile", "should not see compile steps")
-
-	// @7f39a6fea4fe9364 should resolve.
-	// Now there should be a build
-	// tg.run("get", "-x", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
-	// tg.grepStderr("compile", "should see compile steps")
-
-	// .../pbkdf2@7f39a6fea4fe9364 should NOT resolve:
-	// we are using -m and .../pbkdf2 is not a module path.
+	// pbkdf2@7f39a6fea4fe9364 should not resolve with -m,
+	// because .../pbkdf2 is not a module path.
 	tg.runFail("get", "-m", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
+
+	// pbkdf2@7f39a6fea4fe9364 should resolve without -m.
+	// Because of -d, there should be no build at all.
+	tg.run("get", "-d", "-x", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
+	tg.grepStderrNot("compile", "should not see compile steps")
+
+	// Dropping -d, we should see a build now.
+	tg.run("get", "-x", "golang.org/x/crypto/pbkdf2@7f39a6fea4fe9364")
+	tg.grepStderr("compile", "should see compile steps")
+
+	// Even with -d, we should see an error for unknown packages.
+	tg.runFail("get", "-x", "golang.org/x/crypto/nonexist@7f39a6fea4fe9364")
 }
 
 func TestModGetUpgrade(t *testing.T) {
@@ -589,6 +588,31 @@ func TestModGetUpgrade(t *testing.T) {
 
 	tg.run("list", "-m", "-e", "-f={{.Error.Err}}", "rsc.io/quote@>v1.5.3")
 	tg.grepStdout(`no matching versions for query ">v1.5.3"`, "expected no matching version")
+
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require rsc.io/quote v1.4.0
+	`), 0666))
+
+	tg.run("list", "-m", "all")
+	tg.grepStdout(`rsc.io/sampler v1.0.0`, "expected sampler v1.0.0")
+
+	tg.run("get", "-m", "-u=patch", "rsc.io/quote")
+	tg.run("list", "-m", "all")
+	tg.grepStdout(`rsc.io/quote v1.5.2`, "expected quote v1.5.2")                // rsc.io/quote gets implicit @latest (not -u=patch)
+	tg.grepStdout(`rsc.io/sampler v1.3.1`, "expected sampler v1.3.1")            // even though v1.5.2 requires v1.3.0
+	tg.grepStdout(`golang.org/x/text v0.0.0-`, "expected x/text pseudo-version") // can't jump from v0.0.0- to v0.3.0
+
+	tg.run("get", "-m", "-u=patch", "rsc.io/quote@v1.2.0")
+	tg.run("list", "-m", "all")
+	tg.grepStdout(`rsc.io/quote v1.2.0`, "expected quote v1.2.0")           // not v1.2.1: -u=patch applies to deps of args, not args
+	tg.grepStdout(`rsc.io/sampler v1.3.1`, "expected sampler line to stay") // even though v1.2.0 does not require sampler?
+
+	tg.run("get", "-m", "-u=patch")
+	tg.run("list", "-m", "all")
+	tg.grepStdout(`rsc.io/quote v1.2.1`, "expected quote v1.2.1") // -u=patch with no args applies to deps of main module
+	tg.grepStdout(`rsc.io/sampler v1.3.1`, "expected sampler line to stay")
+	tg.grepStdout(`golang.org/x/text v0.0.0-`, "expected x/text pseudo-version") // even though x/text v0.3.0 is tagged
 }
 
 func TestModBadDomain(t *testing.T) {

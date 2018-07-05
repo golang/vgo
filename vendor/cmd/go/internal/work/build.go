@@ -459,10 +459,18 @@ func InstallPackages(args []string) {
 	}
 
 	pkgs := omitTestOnly(pkgsFilter(load.PackagesForBuild(args)))
-
 	for _, p := range pkgs {
-		if p.Target == "" && (!p.Standard || p.ImportPath != "unsafe") {
+		if p.Target == "" {
 			switch {
+			case p.Standard && p.ImportPath == "unsafe":
+				// unsafe is a built-in package, has no target
+			case p.Name != "main" && p.Internal.Local && p.ConflictDir == "":
+				// Non-executables outside GOPATH need not have a target:
+				// we can use the cache to hold the built package archive for use in future builds.
+				// The ones inside GOPATH should have a target (in GOPATH/pkg)
+				// or else something is wrong and worth reporting (like a ConflictDir).
+			case p.Name != "main" && p.Module != nil:
+				// Non-executables have no target (except the cache) when building with modules.
 			case p.Internal.GobinSubdir:
 				base.Errorf("go %s: cannot install cross-compiled binaries when GOBIN is set", cfg.CmdName)
 			case p.Internal.CmdlineFiles:

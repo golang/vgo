@@ -259,13 +259,10 @@ var codeRepoTests = []struct {
 	},
 	{
 		// package in subdirectory - github
-		path:     "github.com/rsc/quote/buggy",
-		rev:      "c4d4236f",
-		version:  "v0.0.0-20180214154420-c4d4236f9242",
-		name:     "c4d4236f92427c64bfbcf1cc3f8142ab18f30b22",
-		short:    "c4d4236f9242",
-		time:     time.Date(2018, 2, 14, 15, 44, 20, 0, time.UTC),
-		gomoderr: "missing go.mod",
+		// Because it's a package, Stat should fail entirely.
+		path: "github.com/rsc/quote/buggy",
+		rev:  "c4d4236f",
+		err:  "missing go.mod",
 	},
 	{
 		path:    "gopkg.in/yaml.v2",
@@ -600,6 +597,10 @@ var latestTests = []struct {
 		version: "v0.0.0-20180219223237-a08abb797a67",
 	},
 	{
+		path: "github.com/rsc/vgotest1/subdir",
+		err:  "missing go.mod",
+	},
+	{
 		path:    "swtch.com/testmod",
 		version: "v1.1.1",
 	},
@@ -629,6 +630,9 @@ func TestLatest(t *testing.T) {
 					t.Fatalf("Latest(): %v, want %q", err, tt.err)
 				}
 				t.Fatalf("Latest(): %v", err)
+			}
+			if tt.err != "" {
+				t.Fatalf("Latest() = %v, want error %q", info.Version, tt.err)
 			}
 			if info.Version != tt.version {
 				t.Fatalf("Latest() = %v, want %v", info.Version, tt.version)

@@ -140,7 +140,6 @@ func (r *codeRepo) Latest() (*RevInfo, error) {
 }
 
 func (r *codeRepo) convert(info *codehost.RevInfo, statVers string) (*RevInfo, error) {
-
 	info2 := &RevInfo{
 		Name:  info.Name,
 		Short: info.Short,
@@ -181,6 +180,17 @@ func (r *codeRepo) convert(info *codehost.RevInfo, statVers string) (*RevInfo, e
 			if info2.Version == "" {
 				info2.Version = PseudoVersion(r.pseudoMajor, info.Time, info.Short)
 			}
+		}
+	}
+
+	// Do not allow a successful stat of a pseudo-version for a subdirectory
+	// unless the subdirectory actually does have a go.mod.
+	if IsPseudoVersion(info2.Version) && r.codeDir != "" {
+		_, _, _, err := r.findDir(info2.Version)
+		if err != nil {
+			// TODO: It would be nice to return an error like "not a module".
+			// Right now we return "missing go.mod", which is a little confusing.
+			return nil, err
 		}
 	}
 

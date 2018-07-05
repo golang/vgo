@@ -269,6 +269,8 @@ func Import(path string, allowed func(module.Version) bool) (Repo, *RevInfo, err
 		// source code and check that it actually contains code for the
 		// target import path. To do that efficiently we will need to move
 		// the unzipped code cache out of ../modload into this package.
+		// TODO(rsc): When this happens, look carefully at the use of
+		// modfetch.Import in modget.getQuery.
 		return r, info, nil
 	}
 

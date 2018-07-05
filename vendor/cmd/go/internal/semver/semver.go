@@ -69,6 +69,21 @@ func Major(v string) string {
 	return v[:1+len(pv.major)]
 }
 
+// MajorMinor returns the major.minor version prefix of the semantic version v.
+// For example, MajorMinor("v2.1.0") == "v2.1".
+// If v is an invalid semantic version string, MajorMinor returns the empty string.
+func MajorMinor(v string) string {
+	pv, ok := parse(v)
+	if !ok {
+		return ""
+	}
+	i := 1 + len(pv.major)
+	if j := i + 1 + len(pv.minor); j <= len(v) && v[i] == '.' && v[i+1:j] == pv.minor {
+		return v[:j]
+	}
+	return v[:i] + "." + pv.minor
+}
+
 // Prerelease returns the prerelease suffix of the semantic version v.
 // For example, Prerelease("v2.1.0-pre+meta") == "-pre".
 // If v is an invalid semantic version string, Prerelease returns the empty string.

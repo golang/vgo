@@ -47,9 +47,6 @@ var buildList []module.Version
 // which should be used instead.
 var loaded *loader
 
-// get -u flag; TODO: remove.
-var GetU bool
-
 // ImportPaths returns the set of packages matching the args (patterns),
 // adding modules to the build list as needed to satisfy new imports.
 func ImportPaths(args []string) []string {
@@ -105,7 +102,7 @@ func ImportPaths(args []string) []string {
 
 			case strings.Contains(pkg, "..."):
 				// TODO: Don't we need to reevaluate this one last time once the build list stops changing?
-				list := warnPattern(pkg, matchPackages(pkg, loaded.tags, loaded.buildList))
+				list := warnPattern(pkg, matchPackages(pkg, loaded.tags, buildList))
 				roots = append(roots, list...)
 				paths = append(paths, list...)
 
@@ -184,9 +181,14 @@ func LoadBuildList() []module.Version {
 		base.Fatalf("go: LoadBuildList called but modules not enabled")
 	}
 	InitMod()
+	ReloadBuildList()
+	WriteGoMod()
+	return buildList
+}
+
+func ReloadBuildList() []module.Version {
 	loaded = newLoader()
 	loaded.load(func() []string { return nil })
-	WriteGoMod()
 	return buildList
 }
 
@@ -245,14 +247,16 @@ func TargetPackages() []string {
 // BuildList returns the module build list,
 // typically constructed by a previous call to
 // LoadBuildList or ImportPaths.
+// The caller must not modify the returned list.
 func BuildList() []module.Version {
 	return buildList
 }
 
 // SetBuildList sets the module build list.
 // The caller is responsible for ensuring that the list is valid.
+// SetBuildList does not retain a reference to the original list.
 func SetBuildList(list []module.Version) {
-	buildList = list
+	buildList = append([]module.Version{}, list...)
 }
 
 // ImportMap returns the actual package import path
@@ -330,9 +334,6 @@ type loader struct {
 	missingMu sync.Mutex
 	found     map[string]bool
 
-	// updated on each iteration
-	buildList []module.Version
-
 	// reset on each iteration
 	roots    []*loadPkg
 	pkgs     []*loadPkg
@@ -384,12 +385,7 @@ var errMissing = errors.New("cannot find package")
 // which must call add(path) with the import path of each root package.
 func (ld *loader) load(roots func() []string) {
 	var err error
-	mvsOp := mvs.BuildList
-	if GetU {
-		mvsOp = mvs.UpgradeAll
-	}
-	ld.buildList = buildList
-	ld.buildList, err = mvsOp(Target, newReqs(ld.buildList))
+	buildList, err = mvs.BuildList(Target, Reqs())
 	if err != nil {
 		base.Fatalf("go: %v", err)
 	}
@@ -422,7 +418,7 @@ func (ld *loader) load(roots func() []string) {
 		ld.missing.Do(10, ld.findMissing)
 		base.ExitIfErrors()
 
-		ld.buildList, err = mvsOp(Target, newReqs(ld.buildList))
+		buildList, err = mvs.BuildList(Target, Reqs())
 		if err != nil {
 			base.Fatalf("go: %v", err)
 		}
@@ -451,9 +447,6 @@ func (ld *loader) load(roots func() []string) {
 			}
 		}
 	}
-
-	buildList = ld.buildList
-	ld.buildList = nil // catch accidental use
 }
 
 // pkg returns the *loadPkg for path, creating and queuing it if needed.
@@ -594,7 +587,7 @@ func (ld *loader) findDir(path string) (dir string, mod module.Version, err erro
 	// (See comment about module paths in modfetch/repo.go.)
 	var mod1 module.Version
 	var dir1 string
-	for _, mod := range ld.buildList {
+	for _, mod := range buildList {
 		if !importPathInModule(path, mod.Path) {
 			continue
 		}
@@ -627,7 +620,7 @@ func (ld *loader) findMissing(item interface{}) {
 	// TODO: This is wrong (if path = foo/v2/bar and m.Path is foo,
 	// maybe we should fall through to the loop at the bottom and check foo/v2).
 	ld.missingMu.Lock()
-	for _, m := range ld.buildList {
+	for _, m := range buildList {
 		if importPathInModule(path, m.Path) {
 			ld.missingMu.Unlock()
 			return
@@ -648,7 +641,7 @@ func (ld *loader) findMissing(item interface{}) {
 	defer ld.missingMu.Unlock()
 
 	// Double-check before adding repo twice.
-	for _, m := range ld.buildList {
+	for _, m := range buildList {
 		if importPathInModule(path, m.Path) {
 			return
 		}
@@ -661,7 +654,7 @@ func (ld *loader) findMissing(item interface{}) {
 	}
 	ld.found[path] = true
 	fmt.Fprintf(os.Stderr, "go: adding %s %s\n", root, info.Version)
-	ld.buildList = append(ld.buildList, module.Version{Path: root, Version: info.Version})
+	buildList = append(buildList, module.Version{Path: root, Version: info.Version})
 	modFile.AddRequire(root, info.Version)
 }
 
@@ -775,21 +768,17 @@ func Replacement(mod module.Version) module.Version {
 // with any exclusions or replacements applied internally.
 type mvsReqs struct {
 	buildList []module.Version
-	extra     []module.Version
 	cache     par.Cache
 }
 
-func newReqs(buildList []module.Version, extra ...module.Version) *mvsReqs {
+// Reqs returns the current module requirement graph.
+// Future calls to SetBuildList do not affect the operation
+// of the returned Reqs.
+func Reqs() mvs.Reqs {
 	r := &mvsReqs{
 		buildList: buildList,
-		extra:     extra,
 	}
 	return r
-}
-
-// Reqs returns the module requirement graph.
-func Reqs() mvs.Reqs {
-	return newReqs(buildList)
 }
 
 func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
@@ -826,14 +815,7 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if mod == Target {
 		var list []module.Version
-		if r.buildList != nil {
-			list = append(list, r.buildList[1:]...)
-			return list, nil
-		}
-		for _, r := range modFile.Require {
-			list = append(list, r.Mod)
-		}
-		list = append(list, r.extra...)
+		list = append(list, r.buildList[1:]...)
 		return list, nil
 	}
 
@@ -910,38 +892,10 @@ func (*mvsReqs) Max(v1, v2 string) string {
 	return v1
 }
 
-// Upgrade returns the desired upgrade for m.
-// If m is a tagged version, then Upgrade returns the latest tagged version.
-// If m is a pseudo-version, then Upgrade returns the latest tagged version
-// when that version has a time-stamp newer than m.
-// Otherwise Upgrade returns m (preserving the pseudo-version).
-// This special case prevents accidental downgrades
-// when already using a pseudo-version newer than the latest tagged version.
+// Upgrade is a no-op, here to implement mvs.Reqs.
+// The upgrade logic for go get -u is in ../modget/get.go.
 func (*mvsReqs) Upgrade(m module.Version) (module.Version, error) {
-	// Note that query "latest" is not the same as
-	// using repo.Latest.
-	// The query only falls back to untagged versions
-	// if nothing is tagged. The Latest method
-	// only ever returns untagged versions,
-	// which is not what we want.
-	fmt.Fprintf(os.Stderr, "go: finding %s latest\n", m.Path)
-	info, err := modfetch.Query(m.Path, "latest", Allowed)
-	if err != nil {
-		return module.Version{}, err
-	}
-
-	// If we're on a later prerelease, keep using it,
-	// even though normally an Upgrade will ignore prereleases.
-	if semver.Compare(info.Version, m.Version) < 0 {
-		return m, nil
-	}
-
-	// If we're on a pseudo-version chronologically after the latest tagged version, keep using it.
-	// This avoids accidental downgrades.
-	if mTime, err := modfetch.PseudoVersionTime(m.Version); err == nil && info.Time.Before(mTime) {
-		return m, nil
-	}
-	return module.Version{Path: m.Path, Version: info.Version}, nil
+	return m, nil
 }
 
 func versions(path string) ([]string, error) {

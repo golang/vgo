@@ -7,6 +7,7 @@ package modload
 import (
 	"bytes"
 	"cmd/go/internal/base"
+	"cmd/go/internal/cache"
 	"cmd/go/internal/cfg"
 	"cmd/go/internal/load"
 	"cmd/go/internal/modconv"
@@ -167,6 +168,12 @@ func Init() {
 		ModRoot = root
 	}
 
+	if c := cache.Default(); c == nil {
+		// With modules, there are no install locations for packages
+		// other than the build cache.
+		base.Fatalf("go: cannot use modules with build cache disabled")
+	}
+
 	enabled = true
 	load.ModBinDir = BinDir
 	load.ModLookup = Lookup
@@ -214,8 +221,9 @@ func InitMod() {
 
 	if CmdModInit {
 		// Running go mod -init: do legacy module conversion
-		// (go.mod does not exist yet).
+		// (go.mod does not exist yet, and it's not our job to write it).
 		legacyModInit()
+		modFileToBuildList()
 		return
 	}
 
@@ -224,6 +232,8 @@ func InitMod() {
 	if err != nil {
 		if os.IsNotExist(err) {
 			legacyModInit()
+			modFileToBuildList()
+			WriteGoMod()
 			return
 		}
 		base.Fatalf("go: %v", err)
@@ -255,8 +265,18 @@ func InitMod() {
 	for _, x := range f.Exclude {
 		excluded[x.Mod] = true
 	}
-	Target = f.Module.Mod
+	modFileToBuildList()
 	WriteGoMod()
+}
+
+// modFileToBuildList initializes buildList from the modFile.
+func modFileToBuildList() {
+	Target = modFile.Module.Mod
+	list := []module.Version{Target}
+	for _, r := range modFile.Require {
+		list = append(list, r.Mod)
+	}
+	buildList = list
 }
 
 // Allowed reports whether module m is allowed (not excluded) by the main module's go.mod.
@@ -275,7 +295,6 @@ func legacyModInit() {
 		modFile.AddModuleStmt(path)
 	}
 
-	Target = modFile.Module.Mod
 	for _, name := range altConfigs {
 		cfg := filepath.Join(ModRoot, name)
 		data, err := ioutil.ReadFile(cfg)
@@ -445,14 +464,14 @@ func findImportComment(file string) string {
 func WriteGoMod() {
 	modfetch.WriteGoSum()
 
-	if buildList != nil {
+	if loaded != nil {
 		var direct []string
 		for _, m := range buildList[1:] {
 			if loaded.direct[m.Path] {
 				direct = append(direct, m.Path)
 			}
 		}
-		min, err := mvs.Req(Target, buildList, direct, newReqs(buildList))
+		min, err := mvs.Req(Target, buildList, direct, Reqs())
 		if err != nil {
 			base.Fatalf("go: %v", err)
 		}
