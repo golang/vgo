@@ -73,10 +73,14 @@ func listModules(args []string) []*modinfo.ModulePublic {
 
 		// Module path or pattern.
 		var match func(string) bool
+		var literal bool
 		if arg == "all" {
 			match = func(string) bool { return true }
-		} else {
+		} else if strings.Contains(arg, "...") {
 			match = search.MatchPattern(arg)
+		} else {
+			match = func(p string) bool { return arg == p }
+			literal = true
 		}
 		matched := false
 		for i, m := range buildList {
@@ -89,7 +93,16 @@ func listModules(args []string) []*modinfo.ModulePublic {
 			}
 		}
 		if !matched {
-			fmt.Fprintf(os.Stderr, "warning: pattern %q matched no module dependencies\n", arg)
+			if literal {
+				mods = append(mods, &modinfo.ModulePublic{
+					Path: arg,
+					Error: &modinfo.ModuleError{
+						Err: fmt.Sprintf("module %q is not a known dependency", arg),
+					},
+				})
+			} else {
+				fmt.Fprintf(os.Stderr, "warning: pattern %q matched no module dependencies\n", arg)
+			}
 		}
 	}
 

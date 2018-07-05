@@ -374,9 +374,10 @@ func runList(cmd *base.Command, args []string) {
 		if !*listE {
 			for _, m := range mods {
 				if m.Error != nil {
-					base.Fatalf("go list -m %s: %v", m.Path, m.Error.Err)
+					base.Errorf("go list -m %s: %v", m.Path, m.Error.Err)
 				}
 			}
+			base.ExitIfErrors()
 		}
 		for _, m := range mods {
 			do(m)

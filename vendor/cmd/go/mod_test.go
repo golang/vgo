@@ -865,8 +865,24 @@ func TestModList(t *testing.T) {
 	tg.run("list", "-m", "-f={{.Dir}}", "rsc.io/quote") // now module list should find it too
 	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
 
-	tg.run("list", "std")
+	// check that list std works; also check that rsc.io/quote/buggy is a listable package
+	tg.run("list", "std", "rsc.io/quote/buggy")
 	tg.grepStdout("^math/big", "expected standard library")
+
+	tg.run("list", "-m", "-e", "-f={{.Path}} {{.Error.Err}}", "nonexist", "rsc.io/quote/buggy")
+	tg.grepStdout(`^nonexist module "nonexist" is not a known dependency`, "expected error via template")
+	tg.grepStdout(`^rsc.io/quote/buggy module "rsc.io/quote/buggy" is not a known dependency`, "expected error via template")
+
+	tg.runFail("list", "-m", "nonexist", "rsc.io/quote/buggy")
+	tg.grepStderr(`go list -m nonexist: module "nonexist" is not a known dependency`, "expected error on stderr")
+	tg.grepStderr(`go list -m rsc.io/quote/buggy: module "rsc.io/quote/buggy" is not a known dependency`, "expected error on stderr")
+
+	// Check that module loader does not interfere with list -e (golang.org/issue/24149).
+	tg.run("list", "-e", "-f={{.ImportPath}} {{.Error.Err}}", "database")
+	tg.grepStdout(`^database no Go files in `, "expected error via template")
+	tg.runFail("list", "database")
+	tg.grepStderr(`package database: no Go files`, "expected error on stderr")
+
 }
 
 func TestModInitLegacy(t *testing.T) {
