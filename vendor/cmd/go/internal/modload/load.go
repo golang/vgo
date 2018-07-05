@@ -98,7 +98,9 @@ func ImportPaths(args []string) []string {
 				paths = append(paths, "all") // will expand after load completes
 
 			case search.IsMetaPackage(pkg): // std, cmd
-				fmt.Fprintf(os.Stderr, "go: warning: %q matches no packages when using modules\n", pkg)
+				list := search.AllPackages(pkg)
+				roots = append(roots, list...)
+				paths = append(paths, list...)
 
 			case strings.Contains(pkg, "..."):
 				// TODO: Don't we need to reevaluate this one last time once the build list stops changing?
@@ -830,11 +832,13 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 			gomod := filepath.Join(dir, "go.mod")
 			data, err := ioutil.ReadFile(gomod)
 			if err != nil {
-				return nil, err
+				base.Errorf("go: parsing %s: %v", base.ShortPath(gomod), err)
+				return nil, ErrRequire
 			}
 			f, err := modfile.Parse(gomod, data, nil)
 			if err != nil {
-				return nil, err
+				base.Errorf("go: parsing %s: %v", base.ShortPath(gomod), err)
+				return nil, ErrRequire
 			}
 			var list []module.Version
 			for _, r := range f.Require {
@@ -851,39 +855,40 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 
 	if !semver.IsValid(mod.Version) {
 		// Disallow the broader queries supported by fetch.Lookup.
-		panic(fmt.Errorf("invalid semantic version %q for %s", mod.Version, mod.Path))
-		// TODO: return nil, fmt.Errorf("invalid semantic version %q", mod.Version)
+		base.Fatalf("go: internal error: %s@%s: unexpected invalid semantic version", mod.Path, mod.Version)
 	}
 
 	data, err := modfetch.GoMod(mod.Path, mod.Version)
 	if err != nil {
-		base.Errorf("go: %s %s: %v\n", mod.Path, mod.Version, err)
-		return nil, err
+		base.Errorf("go: %s@%s: %v\n", mod.Path, mod.Version, err)
+		return nil, ErrRequire
 	}
 	f, err := modfile.Parse("go.mod", data, nil)
 	if err != nil {
-		return nil, fmt.Errorf("parsing downloaded go.mod: %v", err)
+		base.Errorf("go: %s@%s: parsing go.mod: %v", mod.Path, mod.Version, err)
+		return nil, ErrRequire
 	}
 
 	if f.Module == nil {
-		return nil, fmt.Errorf("%v@%v go.mod: missing module line", mod.Path, mod.Version)
+		base.Errorf("go: %s@%s: parsing go.mod: missing module line", mod.Path, mod.Version)
+		return nil, ErrRequire
 	}
 	if mpath := f.Module.Mod.Path; mpath != origPath && mpath != mod.Path {
-		return nil, fmt.Errorf("downloaded %q and got module %q", mod.Path, mpath)
+		base.Errorf("go: %s@%s: parsing go.mod: unexpected module path %q", mod.Path, mod.Version, mpath)
+		return nil, ErrRequire
 	}
 
 	var list []module.Version
 	for _, req := range f.Require {
 		list = append(list, req.Mod)
 	}
-	if false {
-		fmt.Fprintf(os.Stderr, "REQLIST %v:\n", mod)
-		for _, req := range list {
-			fmt.Fprintf(os.Stderr, "\t%v\n", req)
-		}
-	}
 	return list, nil
 }
+
+// ErrRequire is the sentinel error returned when Require encounters problems.
+// It prints the problems directly to standard error, so that multiple errors
+// can be displayed easily.
+var ErrRequire = errors.New("error loading module requirements")
 
 func (*mvsReqs) Max(v1, v2 string) string {
 	if v1 != "" && semver.Compare(v1, v2) == -1 {

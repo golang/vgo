@@ -842,7 +842,7 @@ func TestModList(t *testing.T) {
 		require rsc.io/quote v1.2.0
 	`), 0666))
 	tg.cd(tg.path("x"))
-	
+
 	tg.run("list", "-m", "-f={{.Main}}: {{.Dir}}")
 	tg.grepStdout(`^true: `, "expected main module to have Main=true")
 	tg.grepStdout(regexp.QuoteMeta(tg.path("x")), "expected Dir of main module to be present")
@@ -856,7 +856,10 @@ func TestModList(t *testing.T) {
 
 	tg.run("list", "-m", "-f={{.Dir}}", "rsc.io/quote") // now module list should find it too
 	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
-}	
+
+	tg.run("list", "std")
+	tg.grepStdout("^math/big", "expected standard library")
+}
 
 func TestModInitLegacy(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
