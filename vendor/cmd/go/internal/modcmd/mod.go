@@ -57,7 +57,7 @@ The -exclude=path@version and -dropexclude=path@version flags
 add and drop an exclusion for the given module path and version.
 Note that -exclude=path@version is a no-op if that exclusion already exists.
 
-The -replace=old@v=>new@w and -dropreplace=old@v flags
+The -replace=old@v=new@w and -dropreplace=old@v flags
 add and drop a replacement of the given module path and version pair.
 If the @v in old@v is omitted, the replacement applies to all versions
 with the old module path. If the @v in new@v is omitted, the
@@ -397,10 +397,13 @@ func flagDropExclude(arg string) {
 // flagReplace implements the -replace flag.
 func flagReplace(arg string) {
 	var i int
-	if i = strings.Index(arg, "=>"); i < 0 {
-		base.Fatalf("go mod: -replace=%s: need old@v=>new[@v] (missing =>)", arg)
+	if i = strings.Index(arg, "="); i < 0 {
+		base.Fatalf("go mod: -replace=%s: need old@v=new[@v] (missing =)", arg)
 	}
 	old, new := strings.TrimSpace(arg[:i]), strings.TrimSpace(arg[i+2:])
+	if strings.HasPrefix(new, ">") {
+		base.Fatalf("go mod: -replace=%s: separator between old and new is =, not =>", arg)
+	}
 	var oldPath, oldVersion string
 	if i = strings.Index(old, "@"); i < 0 {
 		oldPath = old
