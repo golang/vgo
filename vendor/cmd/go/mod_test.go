@@ -208,6 +208,7 @@ func TestModEdit(t *testing.T) {
 	tg.must(ioutil.WriteFile(tg.path("w/w.go"), []byte("package w\n"), 0666))
 
 	mustHaveGoMod := func(text string) {
+		t.Helper()
 		data, err := ioutil.ReadFile(tg.path("go.mod"))
 		tg.must(err)
 		if string(data) != text {
@@ -305,6 +306,33 @@ require x.3 v1.99.0
 		t.Fatalf("go mod -json mismatch:\nhave:<<<\n%s>>>\nwant:<<<\n%s\n", have, want)
 	}
 
+	tg.run("mod",
+		"-replace=x.1@v1.3.0=>y.1/v2@v2.3.5",
+		"-replace=x.1@v1.4.0=>y.1/v2@v2.3.5",
+	)
+	mustHaveGoMod(`module x.x/y/z
+
+exclude x.1 v1.2.0
+
+replace (
+	x.1 v1.3.0 => y.1/v2 v2.3.5
+	x.1 v1.4.0 => y.1/v2 v2.3.5
+)
+
+require x.3 v1.99.0
+`)
+	tg.run("mod",
+		"-replace=x.1=>y.1/v2@v2.3.6",
+	)
+	mustHaveGoMod(`module x.x/y/z
+
+exclude x.1 v1.2.0
+
+replace x.1 => y.1/v2 v2.3.6
+
+require x.3 v1.99.0
+`)
+
 	tg.run("mod", "-packages")
 	want = `x.x/y/z
 x.x/y/z/w
@@ -324,7 +352,7 @@ x.x/y/z/w
 
 exclude x.1 v1.2.0
 
-replace x.1 v1.4.0 => ../z
+replace x.1 => y.1/v2 v2.3.6
 
 require x.3 v1.99.0
 `)
@@ -696,8 +724,7 @@ replace x.1 v1.0.0 => ../x
 replace y.1 v1.0.0 => ../y
 replace z.1 v1.1.0 => ../z
 replace z.1 v1.2.0 => ../z
-replace w.1 v1.1.0 => ../w
-replace w.1 v1.2.0 => ../w
+replace w.1 => ../w
 `)
 	write("m/m.go", `
 package m

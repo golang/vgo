@@ -646,7 +646,7 @@ func Replacement(mod module.Version) module.Version {
 	}
 	var found *modfile.Replace
 	for _, r := range modFile.Replace {
-		if r.Old == mod {
+		if r.Old.Path == mod.Path && (r.Old.Version == "" || r.Old.Version == mod.Version) {
 			found = r // keep going
 		}
 	}
