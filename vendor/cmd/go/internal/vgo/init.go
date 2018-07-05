@@ -342,16 +342,22 @@ func FindModulePath(dir string) (string, error) {
 		// Running go mod -init -module=x/y/z; return x/y/z.
 		return CmdModModule, nil
 	}
-	if path, err := filepath.EvalSymlinks(dir); err == nil {
-		dir = path
-	}
+	xdir, errdir := filepath.EvalSymlinks(dir)
 	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
-		if path, err := filepath.EvalSymlinks(gpdir); err == nil {
-			gpdir = path
-		}
+		xgpdir, errgpdir := filepath.EvalSymlinks(gpdir)
 		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
+		xsrc := filepath.Join(xgpdir, "src") + string(filepath.Separator)
 		if strings.HasPrefix(dir, src) {
 			return filepath.ToSlash(dir[len(src):]), nil
+		}
+		if errdir == nil && strings.HasPrefix(xdir, src) {
+			return filepath.ToSlash(xdir[len(src):]), nil
+		}
+		if errgpdir == nil && strings.HasPrefix(dir, xsrc) {
+			return filepath.ToSlash(dir[len(xsrc):]), nil
+		}
+		if errdir == nil && errgpdir == nil && strings.HasPrefix(xdir, xsrc) {
+			return filepath.ToSlash(xdir[len(xsrc):]), nil
 		}
 	}
 

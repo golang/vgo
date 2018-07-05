@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"cmd/go/internal/cfg"
 	"cmd/go/internal/modconv"
 	"cmd/go/internal/vgo"
 )
@@ -58,28 +59,172 @@ func TestFindModuleRoot(t *testing.T) {
 }
 
 func TestFindModulePath(t *testing.T) {
-	tg := testgo(t)
-	defer tg.cleanup()
-	tg.makeTempdir()
-
-	tg.must(os.MkdirAll(tg.path("x"), 0777))
-	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\n"), 0666))
-	path, err := vgo.FindModulePath(tg.path("x"))
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		dir     []string
+		want    string
+		wantErr bool
+		setup   func(*testgoData)
+	}{
+		{
+			name:    "find import comment",
+			dir:     []string{"x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("x"), 0777))
+				tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\n"), 0666))
+			},
+		},
+		{
+			name:    "find import comment (windows line-ending)",
+			dir:     []string{"x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("x"), 0777))
+				tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\r\n"), 0666))
+			},
+		},
+		{
+			name:    "empry dirs outside GOPATH",
+			dir:     []string{"x"},
+			want:    "",
+			wantErr: true,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp"), 0777))
+				tg.must(os.MkdirAll(tg.path("x"), 0777))
+				cfg.BuildContext.GOPATH = tg.path("gp")
+			},
+		},
+		{
+			name:    "empty dir inside GOPATH",
+			dir:     []string{"gp/src/x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src/x"), 0777))
+				cfg.BuildContext.GOPATH = tg.path("gp")
+			},
+		},
+		{
+			// GOPATH = gp
+			// gplink -> gp
+			name:    "empty dir inside GOPATH, dir has symlink",
+			dir:     []string{"gplink/src/x", "gp/src/x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src/x"), 0777))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("gplink")))
+				cfg.BuildContext.GOPATH = tg.path("gp")
+			},
+		},
+		{
+			// GOPATH = gp
+			// gp/src/x -> x/x
+			name: "empty dir inside GOPATH, dir has symlink 2",
+			dir: []string{
+				"gp/src/x",
+				// "x/x", // TODO: fix me if you can, now it's failing
+			},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src"), 0777))
+				tg.must(os.MkdirAll(tg.path("x/x"), 0777))
+				tg.must(os.Symlink(tg.path("x/x"), tg.path("gp/src/x")))
+				cfg.BuildContext.GOPATH = tg.path("gp")
+			},
+		},
+		{
+			// GOPATH = gplink
+			// gplink -> gp
+			name:    "empty dir inside GOPATH, GOPATH has symlink",
+			dir:     []string{"gplink/src/x", "gp/src/x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src/x"), 0777))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("gplink")))
+				cfg.BuildContext.GOPATH = tg.path("gplink")
+			},
+		},
+		{
+			// GOPATH = gp
+			// gplink -> gp
+			// dirlink -> gp
+			name:    "empty dir inside GOPATH, GOPATH has symlink, dir has symlink",
+			dir:     []string{"dirlink/src/x", "gp/src/x", "gplink/src/x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src/x"), 0777))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("gplink")))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("dirlink")))
+				cfg.BuildContext.GOPATH = tg.path("gp")
+			},
+		},
+		{
+			// GOPATH = gplink
+			// gplink -> gp
+			// dirlink -> gp
+			name:    "empty dir inside GOPATH, GOPATH has symlink, dir has symlink 2",
+			dir:     []string{"dirlink/src/x", "gp/src/x", "gplink/src/x"},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src/x"), 0777))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("gplink")))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("dirlink")))
+				cfg.BuildContext.GOPATH = tg.path("gplink")
+			},
+		},
+		{
+			// GOPATH = gplink
+			// gplink -> gp
+			// dirlink -> gp
+			// gp/src/x -> x/x
+			name: "empty dir inside GOPATH, GOPATH has symlink, dir has symlink 3",
+			dir: []string{
+				"gplink/src/x",
+				"gp/src/x",
+				// "dirlink/src/x", // TODO: fix me if you can, now it's failing
+				// "x/x", // TODO: fix me if you can, now it's failing
+			},
+			want:    "x",
+			wantErr: false,
+			setup: func(tg *testgoData) {
+				tg.must(os.MkdirAll(tg.path("gp/src"), 0777))
+				tg.must(os.MkdirAll(tg.path("x/x"), 0777))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("gplink")))
+				tg.must(os.Symlink(tg.path("gp"), tg.path("dirlink")))
+				tg.must(os.Symlink(tg.path("x/x"), tg.path("gp/src/x")))
+				cfg.BuildContext.GOPATH = tg.path("gplink")
+			},
+		},
 	}
-	if path != "x" {
-		t.Fatalf("FindModulePath = %q, want %q", path, "x")
-	}
-
-	// Windows line-ending.
-	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\r\n"), 0666))
-	path, err = vgo.FindModulePath(tg.path("x"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if path != "x" {
-		t.Fatalf("FindModulePath = %q, want %q", path, "x")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tg := testgo(t)
+			tg.makeTempdir()
+			oldGopath := cfg.BuildContext.GOPATH
+			tt.setup(tg)
+			defer func() {
+				cfg.BuildContext.GOPATH = oldGopath
+				tg.cleanup()
+			}()
+			for _, dir := range tt.dir {
+				got, err := vgo.FindModulePath(tg.path(dir))
+				if (err != nil) != tt.wantErr {
+					t.Errorf("FindModulePath() error = `%v`, wantErr `%v`", err, tt.wantErr)
+					return
+				}
+				if got != tt.want {
+					t.Errorf("FindModulePath() = `%v`, want `%v`", got, tt.want)
+				}
+			}
+		})
 	}
 }
 
