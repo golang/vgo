@@ -352,7 +352,7 @@ func CleanImportPaths(args []string) []string {
 
 // ImportPathsNoDotExpansion returns the import paths to use for the given
 // command line, but it does no ... expansion.
-// TODO(vgo): Delete once old go get is gone.
+// TODO(rsc): Delete once old go get is gone.
 func ImportPathsNoDotExpansion(args []string) []string {
 	args = CleanImportPaths(args)
 	var out []string

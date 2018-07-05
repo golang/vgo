@@ -131,11 +131,6 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 	// replace and exclude either. They don't matter, and it will work better for
 	// forward compatibility if we can depend on modules that have local changes.
 
-	// TODO: For the target module (not dependencies), maybe we should
-	// relax the semver requirement and rewrite the file with updated info
-	// after resolving any versions. That would let people type commit hashes
-	// or tags or branch names, and then vgo would fix them.
-
 	switch verb {
 	default:
 		fmt.Fprintf(errs, "%s:%d: unknown directive: %s\n", f.Syntax.Name, line.Start.Line, verb)

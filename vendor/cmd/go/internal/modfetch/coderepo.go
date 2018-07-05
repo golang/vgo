@@ -318,7 +318,7 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 	subdir := strings.Trim(strings.TrimPrefix(dir, actualDir), "/")
 
 	// Spool to local file.
-	f, err := ioutil.TempFile(tmpdir, "vgo-codehost-")
+	f, err := ioutil.TempFile(tmpdir, "go-codehost-")
 	if err != nil {
 		dl.Close()
 		return "", err
@@ -345,7 +345,7 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 	if err != nil {
 		return "", err
 	}
-	f2, err := ioutil.TempFile(tmpdir, "vgo-")
+	f2, err := ioutil.TempFile(tmpdir, "go-codezip-")
 	if err != nil {
 		return "", err
 	}

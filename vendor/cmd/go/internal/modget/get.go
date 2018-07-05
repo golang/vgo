@@ -161,10 +161,10 @@ func init() {
 
 func runGet(cmd *base.Command, args []string) {
 	if modload.GetU && len(args) > 0 {
-		base.Fatalf("vgo get: -u not supported with argument list")
+		base.Fatalf("go get: -u not supported with argument list")
 	}
 	if !modload.GetU && len(args) == 0 {
-		base.Fatalf("vgo get: need arguments or -u")
+		base.Fatalf("go get: need arguments or -u")
 	}
 
 	if modload.GetU {
@@ -184,7 +184,7 @@ func runGet(cmd *base.Command, args []string) {
 			i := strings.Index(pkg, "(")
 			j := strings.Index(pkg, ")")
 			if n != 2 || i < 0 || j <= i+1 || j != len(pkg)-1 && pkg[j+1] != '/' {
-				base.Errorf("vgo get: invalid module version syntax: %s", pkg)
+				base.Errorf("go get: invalid module version syntax: %s", pkg)
 				continue
 			}
 			path, vers = pkg[:i], pkg[i+1:j]
@@ -193,7 +193,7 @@ func runGet(cmd *base.Command, args []string) {
 		if i := strings.Index(pkg, "@"); i >= 0 {
 			path, pkg, vers = pkg[:i], pkg[:i], pkg[i+1:]
 			if strings.Contains(vers, "@") {
-				base.Errorf("vgo get: invalid module version syntax: %s", pkg)
+				base.Errorf("go get: invalid module version syntax: %s", pkg)
 				continue
 			}
 		} else {
@@ -205,7 +205,7 @@ func runGet(cmd *base.Command, args []string) {
 		} else {
 			info, err := modfetch.Query(path, vers, modload.Allowed)
 			if err != nil {
-				base.Errorf("vgo get %v: %v", pkg, err)
+				base.Errorf("go get %v: %v", pkg, err)
 				continue
 			}
 			upgrade = append(upgrade, module.Version{Path: path, Version: info.Version})
@@ -218,7 +218,7 @@ func runGet(cmd *base.Command, args []string) {
 	var err error
 	list, err := mvs.Upgrade(modload.Target, modload.Reqs(), upgrade...)
 	if err != nil {
-		base.Fatalf("vgo get: %v", err)
+		base.Fatalf("go get: %v", err)
 	}
 	modload.SetBuildList(list)
 
@@ -238,7 +238,7 @@ func runGet(cmd *base.Command, args []string) {
 	if len(downgrade) > 0 {
 		list, err := mvs.Downgrade(modload.Target, modload.Reqs(), downgrade...)
 		if err != nil {
-			base.Fatalf("vgo get: %v", err)
+			base.Fatalf("go get: %v", err)
 		}
 		modload.SetBuildList(list)
 

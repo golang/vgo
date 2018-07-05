@@ -85,7 +85,7 @@ func ImportPaths(args []string) []string {
 							pkg = Target.Path + suffix
 						}
 					} else {
-						base.Errorf("vgo: package %s outside module root", pkg)
+						base.Errorf("go: package %s outside module root", pkg)
 						continue
 					}
 					roots = append(roots, pkg)
@@ -101,7 +101,7 @@ func ImportPaths(args []string) []string {
 				paths = append(paths, "all") // will expand after load completes
 
 			case search.IsMetaPackage(pkg): // std, cmd
-				fmt.Fprintf(os.Stderr, "vgo: warning: %q matches no packages when using modules\n", pkg)
+				fmt.Fprintf(os.Stderr, "go: warning: %q matches no packages when using modules\n", pkg)
 
 			case strings.Contains(pkg, "..."):
 				// TODO: Don't we need to reevaluate this one last time once the build list stops changing?
@@ -161,7 +161,7 @@ func ImportFromFiles(gofiles []string) {
 
 	imports, testImports, err := imports.ScanFiles(gofiles, imports.Tags())
 	if err != nil {
-		base.Fatalf("vgo: %v", err)
+		base.Fatalf("go: %v", err)
 	}
 
 	loaded = newLoader()
@@ -181,7 +181,7 @@ func ImportFromFiles(gofiles []string) {
 // no particular package).
 func LoadBuildList() []module.Version {
 	if Init(); !Enabled() {
-		base.Fatalf("vgo: LoadBuildList called but vgo not enabled")
+		base.Fatalf("go: LoadBuildList called but modules not enabled")
 	}
 	InitMod()
 	loaded = newLoader()
@@ -210,7 +210,7 @@ func LoadVendor() []string {
 
 func loadAll(testAll bool) []string {
 	if Init(); !Enabled() {
-		panic("vgo: misuse of LoadALL/LoadVendor")
+		panic("go: misuse of LoadALL/LoadVendor")
 	}
 	InitMod()
 
@@ -391,7 +391,7 @@ func (ld *loader) load(roots func() []string) {
 	ld.buildList = buildList
 	ld.buildList, err = mvsOp(Target, newReqs(ld.buildList))
 	if err != nil {
-		base.Fatalf("vgo: %v", err)
+		base.Fatalf("go: %v", err)
 	}
 
 	for {
@@ -413,7 +413,7 @@ func (ld *loader) load(roots func() []string) {
 				}
 				ld.missing.Add(pkg)
 			} else if pkg.err != nil {
-				base.Errorf("vgo: %s: %s", pkg.stackText(), pkg.err)
+				base.Errorf("go: %s: %s", pkg.stackText(), pkg.err)
 			}
 		}
 		if ld.missing == nil {
@@ -424,7 +424,7 @@ func (ld *loader) load(roots func() []string) {
 
 		ld.buildList, err = mvsOp(Target, newReqs(ld.buildList))
 		if err != nil {
-			base.Fatalf("vgo: %v", err)
+			base.Fatalf("go: %v", err)
 		}
 	}
 	base.ExitIfErrors()
@@ -621,7 +621,7 @@ func (ld *loader) findMissing(item interface{}) {
 	pkg := item.(*loadPkg)
 	path := pkg.path
 	if build.IsLocalImport(path) {
-		base.Errorf("vgo: relative import is not supported: %s", path)
+		base.Errorf("go: relative import is not supported: %s", path)
 	}
 
 	// TODO: This is wrong (if path = foo/v2/bar and m.Path is foo,
@@ -638,7 +638,7 @@ func (ld *loader) findMissing(item interface{}) {
 	fmt.Fprintf(os.Stderr, "resolving import %q\n", path)
 	repo, info, err := modfetch.Import(path, Allowed)
 	if err != nil {
-		base.Errorf("vgo: %s: %v", pkg.stackText(), err)
+		base.Errorf("go: %s: %v", pkg.stackText(), err)
 		return
 	}
 
@@ -654,19 +654,19 @@ func (ld *loader) findMissing(item interface{}) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "vgo: finding %s (latest)\n", root)
+	fmt.Fprintf(os.Stderr, "go: finding %s (latest)\n", root)
 
 	if ld.found[path] {
 		base.Fatalf("internal error: findMissing loop on %s", path)
 	}
 	ld.found[path] = true
-	fmt.Fprintf(os.Stderr, "vgo: adding %s %s\n", root, info.Version)
+	fmt.Fprintf(os.Stderr, "go: adding %s %s\n", root, info.Version)
 	ld.buildList = append(ld.buildList, module.Version{Path: root, Version: info.Version})
 	modFile.AddRequire(root, info.Version)
 }
 
 // scanDir is like imports.ScanDir but elides known magic imports from the list,
-// so that vgo does not go looking for packages that don't really exist.
+// so that we do not go looking for packages that don't really exist.
 //
 // The standard magic import is "C", for cgo.
 //
@@ -674,7 +674,7 @@ func (ld *loader) findMissing(item interface{}) {
 // These are so old that they predate "go get" and did not use URL-like paths.
 // Most code today now uses google.golang.org/appengine instead,
 // but not all code has been so updated. When we mostly ignore build tags
-// during "vgo vendor", we look into "// +build appengine" files and
+// during "go vendor", we look into "// +build appengine" files and
 // may see these legacy imports. We drop them so that the module
 // search does not look for modules to try to satisfy them.
 func scanDir(dir string, tags map[string]bool) (imports_, testImports []string, err error) {
@@ -771,7 +771,7 @@ func Replacement(mod module.Version) module.Version {
 	return found.New
 }
 
-// mvsReqs implements mvs.Reqs for vgo's semantic versions,
+// mvsReqs implements mvs.Reqs for module semantic versions,
 // with any exclusions or replacements applied internally.
 type mvsReqs struct {
 	buildList []module.Version
@@ -875,7 +875,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 
 	data, err := modfetch.GoMod(mod.Path, mod.Version)
 	if err != nil {
-		base.Errorf("vgo: %s %s: %v\n", mod.Path, mod.Version, err)
+		base.Errorf("go: %s %s: %v\n", mod.Path, mod.Version, err)
 		return nil, err
 	}
 	f, err := modfile.Parse("go.mod", data, nil)
@@ -924,7 +924,7 @@ func (*mvsReqs) Upgrade(m module.Version) (module.Version, error) {
 	// if nothing is tagged. The Latest method
 	// only ever returns untagged versions,
 	// which is not what we want.
-	fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", m.Path)
+	fmt.Fprintf(os.Stderr, "go: finding %s latest\n", m.Path)
 	info, err := modfetch.Query(m.Path, "latest", Allowed)
 	if err != nil {
 		return module.Version{}, err

@@ -230,8 +230,8 @@ func buildModeInit() {
 	case "":
 		// ok
 	case "local", "vendor":
-		// ok but check for vgo
-		if load.VgoLookup == nil {
+		// ok but check for modules
+		if load.ModLookup == nil {
 			base.Fatalf("build flag -getmode=%s only valid when using modules", cfg.BuildGetmode)
 		}
 	default:

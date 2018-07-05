@@ -28,14 +28,14 @@ import (
 )
 
 var (
-	// module (vgo) hooks; nil if vgo is disabled
-	VgoBinDir            func() string                                                   // return effective bin directory
-	VgoLookup            func(parentPath, path string) (dir, realPath string, err error) // lookup effective meaning of import
-	VgoPackageModuleInfo func(path string) *modinfo.ModulePublic                         // return module info for Package struct
-	VgoImportPaths       func(args []string) []string                                    // expand import paths
-	VgoPackageBuildInfo  func(main string, deps []string) string                         // return module info to embed in binary
-	VgoModInfoProg       func(info string) []byte                                        // wrap module info in .go code for binary
-	VgoImportFromFiles   func([]string)                                                  // update go.mod to add modules for imports in these files
+	// module hooks; nil if module use is disabled
+	ModBinDir            func() string                                                   // return effective bin directory
+	ModLookup            func(parentPath, path string) (dir, realPath string, err error) // lookup effective meaning of import
+	ModPackageModuleInfo func(path string) *modinfo.ModulePublic                         // return module info for Package struct
+	ModImportPaths       func(args []string) []string                                    // expand import paths
+	ModPackageBuildInfo  func(main string, deps []string) string                         // return module info to embed in binary
+	ModInfoProg          func(info string) []byte                                        // wrap module info in .go code for binary
+	ModImportFromFiles   func([]string)                                                  // update go.mod to add modules for imports in these files
 )
 
 var IgnoreImports bool // control whether we ignore imports in packages
@@ -450,18 +450,18 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 	importPath := path
 	origPath := path
 	isLocal := build.IsLocalImport(path)
-	var vgoDir string
-	var vgoErr error
+	var modDir string
+	var modErr error
 	if isLocal {
 		importPath = dirToImportPath(filepath.Join(srcDir, path))
-	} else if VgoLookup != nil {
+	} else if ModLookup != nil {
 		parentPath := ""
 		if parent != nil {
 			parentPath = parent.ImportPath
 		}
 		var p string
-		vgoDir, p, vgoErr = VgoLookup(parentPath, path)
-		if vgoErr == nil {
+		modDir, p, modErr = ModLookup(parentPath, path)
+		if modErr == nil {
 			importPath = p
 		}
 	} else if mode&ResolveImport != 0 {
@@ -490,11 +490,11 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		// in order to return partial information.
 		var bp *build.Package
 		var err error
-		if vgoDir != "" {
-			bp, err = cfg.BuildContext.ImportDir(vgoDir, 0)
-		} else if vgoErr != nil {
+		if modDir != "" {
+			bp, err = cfg.BuildContext.ImportDir(modDir, 0)
+		} else if modErr != nil {
 			bp = new(build.Package)
-			err = fmt.Errorf("unknown import path %q: %v", importPath, vgoErr)
+			err = fmt.Errorf("unknown import path %q: %v", importPath, modErr)
 		} else {
 			buildMode := build.ImportComment
 			if mode&ResolveImport == 0 || path != origPath {
@@ -506,10 +506,10 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		bp.ImportPath = importPath
 		if cfg.GOBIN != "" {
 			bp.BinDir = cfg.GOBIN
-		} else if VgoBinDir != nil {
-			bp.BinDir = VgoBinDir()
+		} else if ModBinDir != nil {
+			bp.BinDir = ModBinDir()
 		}
-		if vgoDir == "" && err == nil && !isLocal && bp.ImportComment != "" && bp.ImportComment != path &&
+		if modDir == "" && err == nil && !isLocal && bp.ImportComment != "" && bp.ImportComment != path &&
 			!strings.Contains(path, "/vendor/") && !strings.HasPrefix(path, "vendor/") {
 			err = fmt.Errorf("code in directory %s expects import %q", bp.Dir, bp.ImportComment)
 		}
@@ -518,7 +518,7 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 			p = setErrorPos(p, importPos)
 		}
 
-		if vgoDir == "" && origPath != cleanImport(origPath) {
+		if modDir == "" && origPath != cleanImport(origPath) {
 			p.Error = &PackageError{
 				ImportStack: stk.Copy(),
 				Err:         fmt.Sprintf("non-canonical import path: %q should be %q", origPath, pathpkg.Clean(origPath)),
@@ -594,14 +594,14 @@ func isDir(path string) bool {
 // There are two different resolutions applied.
 // First, there is Go 1.5 vendoring (golang.org/s/go15vendor).
 // If vendor expansion doesn't trigger, then the path is also subject to
-// Go 1.11 vgo legacy conversion (golang.org/issue/25069).
+// Go 1.11 module legacy conversion (golang.org/issue/25069).
 func ResolveImportPath(parent *Package, path string) (found string) {
-	if VgoLookup != nil {
+	if ModLookup != nil {
 		parentPath := ""
 		if parent != nil {
 			parentPath = parent.ImportPath
 		}
-		if _, p, e := VgoLookup(parentPath, path); e == nil {
+		if _, p, e := ModLookup(parentPath, path); e == nil {
 			return p
 		}
 		return path
@@ -1184,8 +1184,8 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 			// Install cross-compiled binaries to subdirectories of bin.
 			elem = full
 		}
-		if p.Internal.Build.BinDir == "" && VgoBinDir != nil {
-			p.Internal.Build.BinDir = VgoBinDir()
+		if p.Internal.Build.BinDir == "" && ModBinDir != nil {
+			p.Internal.Build.BinDir = ModBinDir()
 		}
 		if p.Internal.Build.BinDir != "" {
 			// Install to GOBIN or bin of GOPATH entry.
@@ -1438,10 +1438,10 @@ func (p *Package) load(stk *ImportStack, bp *build.Package, err error) {
 		return
 	}
 
-	if VgoPackageModuleInfo != nil {
-		p.Module = VgoPackageModuleInfo(p.ImportPath)
+	if ModPackageModuleInfo != nil {
+		p.Module = ModPackageModuleInfo(p.ImportPath)
 		if p.Name == "main" {
-			p.Internal.BuildInfo = VgoPackageBuildInfo(p.ImportPath, p.Deps)
+			p.Internal.BuildInfo = ModPackageBuildInfo(p.ImportPath, p.Deps)
 		}
 	}
 }
@@ -1722,8 +1722,8 @@ func ImportPaths(args []string) []string {
 	if cmdlineMatchers == nil {
 		SetCmdlinePatterns(search.CleanImportPaths(args))
 	}
-	if VgoImportPaths != nil {
-		return VgoImportPaths(args)
+	if ModImportPaths != nil {
+		return ModImportPaths(args)
 	}
 	return search.ImportPaths(args)
 }
@@ -1820,8 +1820,8 @@ func GoFilesPackage(gofiles []string) *Package {
 	}
 	ctxt.ReadDir = func(string) ([]os.FileInfo, error) { return dirent, nil }
 
-	if VgoImportFromFiles != nil {
-		VgoImportFromFiles(gofiles)
+	if ModImportFromFiles != nil {
+		ModImportFromFiles(gofiles)
 	}
 
 	var err error
@@ -1852,8 +1852,8 @@ func GoFilesPackage(gofiles []string) *Package {
 		}
 		if cfg.GOBIN != "" {
 			pkg.Target = filepath.Join(cfg.GOBIN, exe)
-		} else if VgoBinDir != nil {
-			pkg.Target = filepath.Join(VgoBinDir(), exe)
+		} else if ModBinDir != nil {
+			pkg.Target = filepath.Join(ModBinDir(), exe)
 		}
 	}
 

@@ -23,7 +23,7 @@ func runVendor() {
 
 	vdir := filepath.Join(modload.ModRoot, "vendor")
 	if err := os.RemoveAll(vdir); err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+		base.Fatalf("go vendor: %v", err)
 	}
 
 	modpkgs := make(map[module.Version][]string)
@@ -59,7 +59,7 @@ func runVendor() {
 		}
 	}
 	if buf.Len() == 0 {
-		fmt.Fprintf(os.Stderr, "vgo: no dependencies to vendor\n")
+		fmt.Fprintf(os.Stderr, "go: no dependencies to vendor\n")
 		return
 	}
 	if err := ioutil.WriteFile(filepath.Join(vdir, "modules.txt"), buf.Bytes(), 0666); err != nil {
@@ -150,10 +150,10 @@ func matchNonTest(info os.FileInfo) bool {
 func copyDir(dst, src string, match func(os.FileInfo) bool) {
 	files, err := ioutil.ReadDir(src)
 	if err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+		base.Fatalf("go vendor: %v", err)
 	}
 	if err := os.MkdirAll(dst, 0777); err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+		base.Fatalf("go vendor: %v", err)
 	}
 	for _, file := range files {
 		if file.IsDir() || !file.Mode().IsRegular() || !match(file) {
@@ -161,18 +161,18 @@ func copyDir(dst, src string, match func(os.FileInfo) bool) {
 		}
 		r, err := os.Open(filepath.Join(src, file.Name()))
 		if err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 		w, err := os.Create(filepath.Join(dst, file.Name()))
 		if err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 		if _, err := io.Copy(w, r); err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 		r.Close()
 		if err := w.Close(); err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 	}
 }

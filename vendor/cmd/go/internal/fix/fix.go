@@ -36,7 +36,7 @@ func runFix(cmd *base.Command, args []string) {
 	for _, pkg := range load.Packages(args) {
 		if modload.Enabled() && !pkg.Module.Main {
 			if !printed {
-				fmt.Fprintf(os.Stderr, "vgo: not fixing packages in dependency modules\n")
+				fmt.Fprintf(os.Stderr, "go: not fixing packages in dependency modules\n")
 				printed = true
 			}
 			continue

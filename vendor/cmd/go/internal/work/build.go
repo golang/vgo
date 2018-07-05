@@ -282,16 +282,16 @@ var RuntimeVersion = runtimeVersion
 func getRuntimeVersion() string {
 	data, err := ioutil.ReadFile(filepath.Join(cfg.GOROOT, "src/runtime/internal/sys/zversion.go"))
 	if err != nil {
-		base.Fatalf("vgo: %v", err)
+		base.Fatalf("go: %v", err)
 	}
 	i := bytes.Index(data, []byte("TheVersion = `"))
 	if i < 0 {
-		base.Fatalf("vgo: cannot find TheVersion")
+		base.Fatalf("go: cannot find TheVersion")
 	}
 	data = data[i+len("TheVersion = `"):]
 	j := bytes.IndexByte(data, '`')
 	if j < 0 {
-		base.Fatalf("vgo: cannot find TheVersion")
+		base.Fatalf("go: cannot find TheVersion")
 	}
 	return string(data[:j])
 }

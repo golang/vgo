@@ -46,7 +46,7 @@ func matchPackages(pattern string, tags map[string]bool, modules []module.Versio
 			var err error
 			root, err = fetch(mod)
 			if err != nil {
-				base.Errorf("vgo: %v", err)
+				base.Errorf("go: %v", err)
 				continue
 			}
 		}

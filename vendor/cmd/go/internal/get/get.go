@@ -114,9 +114,9 @@ func init() {
 }
 
 func runGet(cmd *base.Command, args []string) {
-	if load.VgoLookup != nil {
-		// Should not happen: main.go should install the separate vgo-enabled get code.
-		base.Fatalf("go get: vgo not implemented")
+	if load.ModLookup != nil {
+		// Should not happen: main.go should install the separate module-enabled get code.
+		base.Fatalf("go get: modules not implemented")
 	}
 
 	work.BuildInit()

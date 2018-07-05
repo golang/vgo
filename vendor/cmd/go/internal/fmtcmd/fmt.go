@@ -62,7 +62,7 @@ func runFmt(cmd *base.Command, args []string) {
 	for _, pkg := range load.PackagesAndErrors(args) {
 		if modload.Enabled() && !pkg.Module.Main {
 			if !printed {
-				fmt.Fprintf(os.Stderr, "vgo: not formatting packages in dependency modules\n")
+				fmt.Fprintf(os.Stderr, "go: not formatting packages in dependency modules\n")
 				printed = true
 			}
 			continue

@@ -135,7 +135,7 @@ func (p *proxyRepo) Zip(version string, tmpdir string) (tmpfile string, err erro
 	defer body.Close()
 
 	// Spool to local file.
-	f, err := ioutil.TempFile(tmpdir, "vgo-proxy-download-")
+	f, err := ioutil.TempFile(tmpdir, "go-proxy-download-")
 	if err != nil {
 		return "", err
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func TestWriteDiskCache(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "vgo-writeCache-test-")
+	tmpdir, err := ioutil.TempDir("", "go-writeCache-test-")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -85,8 +85,8 @@ func Main() {
 		base.Usage()
 	}
 
-	if modload.MustBeVgo {
-		// If running as vgo or with -vgo, change get now to change help message.
+	if modload.MustUseModules {
+		// If running with modules force-enabled, change get now to change help message.
 		*get.CmdGet = *modget.CmdGet
 	}
 
@@ -142,7 +142,8 @@ func Main() {
 		os.Exit(2)
 	default:
 		// Run modload.Init so that each subcommand doesn't have to worry about it.
-		// Also install the vgo get command instead of the old go get command in vgo mode.
+		// Also install the module get command instead of the GOPATH go get command
+		// if modules are enabled.
 		modload.Init()
 		if modload.Enabled() {
 			// Might not have done this above, so do it now.

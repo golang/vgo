@@ -268,7 +268,7 @@ func Import(path string, allowed func(module.Version) bool) (Repo, *RevInfo, err
 		// TODO(rsc): Do what the docs promise: download the module
 		// source code and check that it actually contains code for the
 		// target import path. To do that efficiently we will need to move
-		// the unzipped code cache out of ../vgo into this package.
+		// the unzipped code cache out of ../modload into this package.
 		return r, info, nil
 	}
 

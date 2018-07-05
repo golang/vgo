@@ -20,7 +20,7 @@ import (
 
 var QuietLookup bool // do not print about lookups
 
-var SrcMod string // $GOPATH/src/mod; set by package vgo
+var SrcMod string // $GOPATH/src/mod; set by package modload
 
 // A cachingRepo is a cache around an underlying Repo,
 // avoiding redundant calls to ModulePath, Versions, Stat, Latest, and GoMod (but not Zip).
@@ -73,7 +73,7 @@ func (r *cachingRepo) Stat(rev string) (*RevInfo, error) {
 		}
 
 		if !QuietLookup {
-			fmt.Fprintf(os.Stderr, "vgo: finding %s %s\n", r.path, rev)
+			fmt.Fprintf(os.Stderr, "go: finding %s %s\n", r.path, rev)
 		}
 		info, err = r.r.Stat(rev)
 		if err == nil {
@@ -101,7 +101,7 @@ func (r *cachingRepo) Stat(rev string) (*RevInfo, error) {
 func (r *cachingRepo) Latest() (*RevInfo, error) {
 	c := r.cache.Do("latest:", func() interface{} {
 		if !QuietLookup {
-			fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", r.path)
+			fmt.Fprintf(os.Stderr, "go: finding %s latest\n", r.path)
 		}
 		info, err := r.r.Latest()
 
