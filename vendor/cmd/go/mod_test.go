@@ -1019,6 +1019,35 @@ github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 	tg.run("mod", "-sync") // ignores missing ziphash file for ordinary go.sum validation
 
 	tg.runFail("mod", "-verify") // explicit verify fails with missing ziphash
+
+	tg.run("mod", "-droprequire", "rsc.io/quote")
+	tg.run("list", "rsc.io/quote/buggy")
+	data, err = ioutil.ReadFile(tg.path("x/go.sum"))
+	if strings.Contains(string(data), "buggy") {
+		t.Fatalf("did not expect buggy in go.sum:\n%s", data)
+	}
+	if !strings.Contains(string(data), "rsc.io/quote v1.5.2/go.mod") {
+		t.Fatalf("did expect rsc.io/quote go.mod in go.sum:\n%s", data)
+	}
+
+	tg.run("mod", "-droprequire", "rsc.io/quote")
+	tg.runFail("list", "rsc.io/quote/buggy/foo")
+	data, err = ioutil.ReadFile(tg.path("x/go.sum"))
+	if strings.Contains(string(data), "buggy") {
+		t.Fatalf("did not expect buggy in go.sum:\n%s", data)
+	}
+	if !strings.Contains(string(data), "rsc.io/quote v1.5.2/go.mod") {
+		t.Fatalf("did expect rsc.io/quote go.mod in go.sum:\n%s", data)
+	}
+
+	tg.run("mod", "-droprequire", "rsc.io/quote")
+	tg.runFail("list", "rsc.io/quote/morebuggy")
+	if strings.Contains(string(data), "morebuggy") {
+		t.Fatalf("did not expect morebuggy in go.sum:\n%s", data)
+	}
+	if !strings.Contains(string(data), "rsc.io/quote v1.5.2/go.mod") {
+		t.Fatalf("did expect rsc.io/quote go.mod in go.sum:\n%s", data)
+	}
 }
 
 func TestModVendorNoDeps(t *testing.T) {

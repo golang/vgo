@@ -146,8 +146,8 @@ func (r *cachingRepo) GoMod(rev string) ([]byte, error) {
 		rev = info.Version
 
 		text, err = r.r.GoMod(rev)
-		checkGoMod(r.path, rev, text)
 		if err == nil {
+			checkGoMod(r.path, rev, text)
 			if err := writeDiskGoMod(file, text); err != nil {
 				fmt.Fprintf(os.Stderr, "go: writing go.mod cache: %v\n", err)
 			}

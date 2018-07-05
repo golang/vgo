@@ -153,6 +153,11 @@ func initGoSum() bool {
 	return true
 }
 
+// emptyGoModHash is the hash of a 1-file tree containing a 0-length go.mod.
+// A bug caused us to write these into go.sum files for non-modules.
+// We detect and remove them.
+const emptyGoModHash = "h1:G7mAYYxgmS0lVkHyy2hEOLQCFB0DlQFTMLWggykrydY="
+
 // readGoSum parses data, which is the content of file,
 // and adds it to goSum.m. The goSum lock must be held.
 func readGoSum(file string, data []byte) {
@@ -173,6 +178,10 @@ func readGoSum(file string, data []byte) {
 		}
 		if len(f) != 3 {
 			base.Fatalf("go: malformed go.sum:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
+		}
+		if f[2] == emptyGoModHash {
+			// Old bug; drop it.
+			continue
 		}
 		mod := module.Version{Path: f[0], Version: f[1]}
 		goSum.m[mod] = append(goSum.m[mod], f[2])
