@@ -91,6 +91,7 @@ func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 			Path:    m.Path,
 			Version: m.Version,
 			Main:    true,
+			Dir:     ModRoot,
 		}
 	}
 

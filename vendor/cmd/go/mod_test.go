@@ -825,6 +825,39 @@ func TestModVendor(t *testing.T) {
 	}
 }
 
+func TestModList(t *testing.T) {
+	testenv.MustHaveExternalNetwork(t)
+	tg := testgo(t)
+	tg.setenv("GO111MODULE", "on")
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.setenv(homeEnvName(), tg.path("."))
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`
+		package x
+	`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
+		module x
+		require rsc.io/quote v1.2.0
+	`), 0666))
+	tg.cd(tg.path("x"))
+	
+	tg.run("list", "-m", "-f={{.Main}}: {{.Dir}}")
+	tg.grepStdout(`^true: `, "expected main module to have Main=true")
+	tg.grepStdout(regexp.QuoteMeta(tg.path("x")), "expected Dir of main module to be present")
+
+	tg.run("list", "-m", "-f={{.Main}}: {{.Dir}}", "rsc.io/quote")
+	tg.grepStdout(`^false: `, "expected non-main module to have Main=false")
+	tg.grepStdoutNot(`quote@`, "should not have local copy of code")
+
+	tg.run("list", "-f={{.Dir}}", "rsc.io/quote") // downloads code to load package
+	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
+
+	tg.run("list", "-m", "-f={{.Dir}}", "rsc.io/quote") // now module list should find it too
+	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
+}	
+
 func TestModInitLegacy(t *testing.T) {
 	testenv.MustHaveExternalNetwork(t)
 	tg := testgo(t)
