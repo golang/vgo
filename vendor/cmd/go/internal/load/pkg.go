@@ -442,6 +442,24 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		}
 	}
 
+	if strings.Contains(path, "@") {
+		var text string
+		if cfg.ModulesEnabled {
+			text = "can only use path@version syntax with 'go get'"
+		} else {
+			text = "cannot use path@version syntax in GOPATH mode"
+		}
+		return &Package{
+			PackagePublic: PackagePublic{
+				ImportPath: path,
+				Error: &PackageError{
+					ImportStack: stk.Copy(),
+					Err:         text,
+				},
+			},
+		}
+	}
+
 	// Determine canonical identifier for this package.
 	// For a local import the identifier is the pseudo-import path
 	// we create from the full directory to the package.

@@ -6232,12 +6232,12 @@ func TestBadCommandLines(t *testing.T) {
 	tg.tempFile("src/@x/x.go", "package x\n")
 	tg.setenv("GOPATH", tg.path("."))
 	tg.runFail("build", "@x")
-	tg.grepStderr("invalid input directory name \"@x\"", "did not reject @x directory")
+	tg.grepStderr("invalid input directory name \"@x\"|cannot use path@version syntax", "did not reject @x directory")
 
 	tg.tempFile("src/@x/y/y.go", "package y\n")
 	tg.setenv("GOPATH", tg.path("."))
 	tg.runFail("build", "@x/y")
-	tg.grepStderr("invalid import path \"@x/y\"", "did not reject @x/y import path")
+	tg.grepStderr("invalid import path \"@x/y\"|cannot use path@version syntax", "did not reject @x/y import path")
 
 	tg.tempFile("src/-x/x.go", "package x\n")
 	tg.setenv("GOPATH", tg.path("."))

@@ -533,6 +533,11 @@ func importPathInModule(path, mpath string) bool {
 // It is also possible to return successfully with a zero module.Version,
 // for packages in the standard library or when using vendored code.
 func (ld *loader) findDir(path string) (dir string, mod module.Version, err error) {
+	if strings.Contains(path, "@") {
+		// Leave for error during load.
+		return
+	}
+
 	// Is the package in the standard library?
 	if search.IsStandardImportPath(path) {
 		if path == "C" || path == "unsafe" {

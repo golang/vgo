@@ -199,6 +199,12 @@ func runGet(cmd *base.Command, args []string) {
 // in the hope that we can figure out the repository from the
 // initial ...-free prefix.
 func downloadPaths(args []string) []string {
+	for _, arg := range args {
+		if strings.Contains(arg, "@") {
+			base.Fatalf("go: cannot use path@version syntax in GOPATH mode")
+		}
+	}
+
 	args = load.ImportPathsForGoGet(args)
 	var out []string
 	for _, a := range args {

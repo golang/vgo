@@ -92,6 +92,25 @@ func TestModGO111MODULE(t *testing.T) {
 	tg.grepStdout(`"GOMOD": ""`, "expected module mode disabled")
 }
 
+func TestModVersionsInGOPATHMode(t *testing.T) {
+	tg := testgo(t)
+	tg.setenv("GO111MODULE", "off") // GOPATH mode
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.runFail("get", "rsc.io/quote@v1.5.1")
+	tg.grepStderr(`go: cannot use path@version syntax in GOPATH mode`, "expected path@version error")
+
+	tg.runFail("build", "rsc.io/quote@v1.5.1")
+	tg.grepStderr(`can't load package:.* cannot use path@version syntax in GOPATH mode`, "expected path@version error")
+
+	tg.setenv("GO111MODULE", "on") // GOPATH mode
+	tg.tempFile("x/go.mod", "module x")
+	tg.cd(tg.path("x"))
+	tg.runFail("build", "rsc.io/quote@v1.5.1")
+	tg.grepStderr(`can't load package:.* can only use path@version syntax with 'go get'`, "expected path@version error")
+}
+
 func TestModFindModuleRoot(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")
