@@ -1155,6 +1155,45 @@ github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 	}
 }
 
+func TestModProxy(t *testing.T) {
+	tg := testgo(t)
+	tg.setenv("GO111MODULE", "on")
+	defer tg.cleanup()
+	tg.makeTempdir()
+
+	tg.setenv("GOPATH", tg.path("gp1"))
+
+	tg.must(os.MkdirAll(tg.path("x"), 0777))
+	tg.must(ioutil.WriteFile(tg.path("x/main.go"), []byte(`package x; import _ "rsc.io/quote"`), 0666))
+	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`module x
+		require rsc.io/quote v1.5.1`), 0666))
+	tg.cd(tg.path("x"))
+	tg.run("list", "all")
+	tg.run("list", "-getmode=local", "all")
+	tg.mustExist(tg.path("gp1/src/mod/cache/download/rsc.io/quote/@v/list"))
+
+	// @v/list should contain version list.
+	data, err := ioutil.ReadFile(tg.path("gp1/src/mod/cache/download/rsc.io/quote/@v/list"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "v1.5.1\n") {
+		t.Fatalf("cannot find v1.5.1 in @v/list:\n%s", data)
+	}
+
+	tg.setenv("GOPROXY", "file:///nonexist")
+	tg.run("list", "-getmode=local", "all")
+
+	tg.setenv("GOPATH", tg.path("gp2"))
+	tg.runFail("list", "-getmode=local", "all")
+	tg.runFail("list", "all") // because GOPROXY is bogus
+
+	tg.setenv("GOPROXY", "file://"+filepath.ToSlash(tg.path("gp1/src/mod/cache/download")))
+	tg.runFail("list", "-getmode=local", "all")
+	tg.run("list", "all")
+	tg.mustExist(tg.path("gp2/src/mod/cache/download/rsc.io/quote/@v/list"))
+}
+
 func TestModVendorNoDeps(t *testing.T) {
 	tg := testgo(t)
 	tg.setenv("GO111MODULE", "on")

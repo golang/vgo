@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cmd/go/internal/base"
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/par"
 	"cmd/go/internal/semver"
@@ -345,5 +346,59 @@ func writeDiskCache(file string, data []byte) error {
 	}
 	// Rename temp file onto cache file,
 	// so that the cache file is always a complete file.
-	return os.Rename(f.Name(), file)
+	if err := os.Rename(f.Name(), file); err != nil {
+		return err
+	}
+
+	if strings.HasSuffix(file, ".mod") {
+		rewriteVersionList(filepath.Dir(file))
+	}
+	return nil
+}
+
+// rewriteVersionList rewrites the version list in dir
+// after a new *.mod file has been written.
+func rewriteVersionList(dir string) {
+	if filepath.Base(dir) != "@v" {
+		base.Fatalf("go: internal error: misuse of rewriteVersionList")
+	}
+
+	// TODO(rsc): We should do some kind of directory locking here,
+	// to avoid lost updates.
+
+	infos, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	var list []string
+	for _, info := range infos {
+		// We look for *.mod files on the theory that if we can't supply
+		// the .mod file then there's no point in listing that version,
+		// since it's unusable. (We can have *.info without *.mod.)
+		// We don't require *.zip files on the theory that for code only
+		// involved in module graph construction, many *.zip files
+		// will never be requested.
+		name := info.Name()
+		if strings.HasSuffix(name, ".mod") {
+			v := strings.TrimSuffix(name, ".mod")
+			if semver.IsValid(v) && semver.Canonical(v) == v {
+				list = append(list, v)
+			}
+		}
+	}
+	SortVersions(list)
+
+	var buf bytes.Buffer
+	for _, v := range list {
+		buf.WriteString(v)
+		buf.WriteString("\n")
+	}
+	listFile := filepath.Join(dir, "list")
+	old, _ := ioutil.ReadFile(listFile)
+	if bytes.Equal(buf.Bytes(), old) {
+		return
+	}
+	// TODO: Use rename to install file,
+	// so that readers never see an incomplete file.
+	ioutil.WriteFile(listFile, buf.Bytes(), 0666)
 }
