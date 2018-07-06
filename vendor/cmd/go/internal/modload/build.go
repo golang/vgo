@@ -101,6 +101,11 @@ func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 		Indirect: fromBuildList && loaded != nil && !loaded.direct[m.Path],
 	}
 
+	if cfg.BuildGetmode == "vendor" {
+		info.Dir = filepath.Join(ModRoot, "vendor", m.Path)
+		return info
+	}
+
 	// complete fills in the extra fields in m.
 	complete := func(m *modinfo.ModulePublic) {
 		if m.Version != "" {

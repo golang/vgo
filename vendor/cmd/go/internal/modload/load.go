@@ -819,11 +819,37 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 	return c.list, c.err
 }
 
+var vendorOnce sync.Once
+var vendorList []module.Version
+
+// readVendorList reads the list of vendored modules from vendor/modules.txt.
+func readVendorList() {
+	var list []module.Version
+	data, _ := ioutil.ReadFile(filepath.Join(ModRoot, "vendor/modules.txt"))
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "# ") {
+			f := strings.Fields(line)
+			if len(f) == 3 && semver.IsValid(f[2]) {
+				list = append(list, module.Version{Path: f[1], Version: f[2]})
+			}
+		}
+	}
+	vendorList = list
+}
+
 func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if mod == Target {
 		var list []module.Version
 		list = append(list, r.buildList[1:]...)
 		return list, nil
+	}
+
+	if cfg.BuildGetmode == "vendor" {
+		// For every module other than the target,
+		// return the full list of modules from modules.txt.
+		// But only read vendor/modules.txt once.
+		vendorOnce.Do(readVendorList)
+		return vendorList, nil
 	}
 
 	origPath := mod.Path

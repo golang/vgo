@@ -634,6 +634,21 @@ func TestModGetUpgrade(t *testing.T) {
 	tg.grepStdout(`rsc.io/quote v1.2.1`, "expected quote v1.2.1") // -u=patch with no args applies to deps of main module
 	tg.grepStdout(`rsc.io/sampler v1.3.1`, "expected sampler line to stay")
 	tg.grepStdout(`golang.org/x/text v0.0.0-`, "expected x/text pseudo-version") // even though x/text v0.3.0 is tagged
+
+	tg.run("get", "-m", "rsc.io/quote@v1.5.1")
+	tg.run("mod", "-vendor")
+	tg.setenv("GOPATH", tg.path("empty"))
+	tg.setenv("GOPROXY", "file:///nonexist")
+
+	tg.run("list", "-getmode=vendor", "all")
+	tg.run("list", "-getmode=vendor", "-m", "-f={{.Path}} {{.Version}} {{.Dir}}", "all")
+	tg.grepStdout(`rsc.io/quote v1.5.1 .*vendor[\\/]rsc.io[\\/]quote`, "expected vendored rsc.io/quote")
+	tg.grepStdout(`golang.org/x/text v0.0.0.* .*vendor[\\/]golang.org[\\/]x[\\/]text`, "expected vendored golang.org/x/text")
+
+	tg.runFail("list", "-getmode=vendor", "-m", "rsc.io/quote@latest")
+	tg.grepStderr(`module lookup disabled by -getmode=vendor`, "expected disabled")
+	tg.runFail("get", "-getmode=vendor", "-u")
+	tg.grepStderr(`go get: disabled by -getmode=vendor`, "expected disabled")
 }
 
 func TestModBadDomain(t *testing.T) {
@@ -855,10 +870,12 @@ func TestModList(t *testing.T) {
 	tg.must(os.MkdirAll(tg.path("x"), 0777))
 	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`
 		package x
+		import _ "rsc.io/quote"
 	`), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte(`
 		module x
-		require rsc.io/quote v1.2.0
+		require rsc.io/quote v1.5.1
+		replace rsc.io/sampler v1.3.0 => rsc.io/sampler v1.3.1
 	`), 0666))
 	tg.cd(tg.path("x"))
 
@@ -871,7 +888,7 @@ func TestModList(t *testing.T) {
 	tg.grepStdoutNot(`quote@`, "should not have local copy of code")
 
 	tg.run("list", "-f={{.Dir}}", "rsc.io/quote") // downloads code to load package
-	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
+	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.5.1`, "expected cached copy of code")
 	dir := strings.TrimSpace(tg.getStdout())
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -881,8 +898,9 @@ func TestModList(t *testing.T) {
 		t.Fatalf("%s should be unwritable", dir)
 	}
 
-	tg.run("list", "-m", "-f={{.Dir}}", "rsc.io/quote") // now module list should find it too
-	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.2.0`, "expected cached copy of code")
+	tg.run("list", "-m", "-f={{.Path}} {{.Version}} {{.Dir}}{{with .Replace}} => {{.Version}} {{.Dir}}{{end}}", "all")
+	tg.grepStdout(`mod[\\/]rsc.io[\\/]quote@v1.5.1`, "expected cached copy of code")
+	tg.grepStdout(`v1.3.0 .*mod[\\/]rsc.io[\\/]sampler@v1.3.1 => v1.3.1 .*@v1.3.1`, "expected v1.3.1 replacement")
 
 	// check that list std works; also check that rsc.io/quote/buggy is a listable package
 	tg.run("list", "std", "rsc.io/quote/buggy")
