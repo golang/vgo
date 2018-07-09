@@ -986,7 +986,7 @@ func TestModSyncPrintJson(t *testing.T) {
 		package x
 		import "github.com/gorilla/mux"
 		func main() {
-			_ := mux.NewRouter()
+			_ = mux.NewRouter()
 		}`), 0666))
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), []byte("module x"), 0666))
 	tg.cd(tg.path("x"))
