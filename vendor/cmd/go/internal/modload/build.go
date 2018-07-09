@@ -70,7 +70,7 @@ func ModuleInfo(path string) *modinfo.ModulePublic {
 // addUpdate fills in m.Update if an updated version is available.
 func addUpdate(m *modinfo.ModulePublic) {
 	if m.Version != "" {
-		if info, err := modfetch.Query(m.Path, "latest", Allowed); err == nil && info.Version != m.Version {
+		if info, err := Query(m.Path, "latest", Allowed); err == nil && info.Version != m.Version {
 			m.Update = &modinfo.ModulePublic{
 				Path:    m.Path,
 				Version: info.Version,
@@ -109,7 +109,7 @@ func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 	// complete fills in the extra fields in m.
 	complete := func(m *modinfo.ModulePublic) {
 		if m.Version != "" {
-			if q, err := modfetch.Query(m.Path, m.Version, nil); err != nil {
+			if q, err := Query(m.Path, m.Version, nil); err != nil {
 				m.Error = &modinfo.ModuleError{Err: err.Error()}
 			} else {
 				m.Version = q.Version

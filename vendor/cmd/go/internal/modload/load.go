@@ -636,7 +636,7 @@ func (ld *loader) findMissing(item interface{}) {
 	ld.missingMu.Unlock()
 
 	fmt.Fprintf(os.Stderr, "resolving import %q\n", path)
-	repo, info, err := modfetch.Import(path, Allowed)
+	repo, info, err := Import(path, Allowed)
 	if err != nil {
 		base.Errorf("go: %s: %v", pkg.stackText(), err)
 		return

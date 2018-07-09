@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"cmd/go/internal/base"
-	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modinfo"
 	"cmd/go/internal/module"
 	"cmd/go/internal/par"
@@ -56,7 +55,7 @@ func listModules(args []string) []*modinfo.ModulePublic {
 			base.Fatalf("go: cannot use relative path %s to specify module", arg)
 		}
 		if i := strings.Index(arg, "@"); i >= 0 {
-			info, err := modfetch.Query(arg[:i], arg[i+1:], nil)
+			info, err := Query(arg[:i], arg[i+1:], nil)
 			if err != nil {
 				mods = append(mods, &modinfo.ModulePublic{
 					Path:    arg[:i],

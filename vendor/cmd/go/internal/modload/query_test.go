@@ -2,15 +2,35 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package modfetch
+package modload
 
 import (
-	"cmd/go/internal/module"
 	"internal/testenv"
+	"io/ioutil"
+	"log"
+	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"cmd/go/internal/modfetch/codehost"
+	"cmd/go/internal/module"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(testMain(m))
+}
+
+func testMain(m *testing.M) int {
+	dir, err := ioutil.TempDir("", "gitrepo-test-")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	codehost.WorkRoot = dir
+	return m.Run()
+}
 
 var (
 	queryRepo   = "vcs-test.golang.org/git/querytest.git"

@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package modfetch
+package modload
 
 import (
+	"cmd/go/internal/modfetch"
 	"cmd/go/internal/module"
 	"cmd/go/internal/semver"
 	"fmt"
@@ -28,14 +29,14 @@ import (
 //
 // If the allowed function is non-nil, Query excludes any versions for which allowed returns false.
 //
-func Query(path, query string, allowed func(module.Version) bool) (*RevInfo, error) {
+func Query(path, query string, allowed func(module.Version) bool) (*modfetch.RevInfo, error) {
 	if allowed == nil {
 		allowed = func(module.Version) bool { return true }
 	}
 
 	// Parse query to detect parse errors (and possibly handle query)
 	// before any network I/O.
-	badVersion := func(v string) (*RevInfo, error) {
+	badVersion := func(v string) (*modfetch.RevInfo, error) {
 		return nil, fmt.Errorf("invalid semantic version %q in range %q", v, query)
 	}
 	var ok func(module.Version) bool
@@ -100,11 +101,11 @@ func Query(path, query string, allowed func(module.Version) bool) (*RevInfo, err
 		if !allowed(module.Version{Path: path, Version: vers}) {
 			return nil, fmt.Errorf("%s@%s excluded", path, vers)
 		}
-		return Stat(path, vers)
+		return modfetch.Stat(path, vers)
 
 	default:
 		// Direct lookup of semantic version or commit identifier.
-		info, err := Stat(path, query)
+		info, err := modfetch.Stat(path, query)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +116,7 @@ func Query(path, query string, allowed func(module.Version) bool) (*RevInfo, err
 	}
 
 	// Load versions and execute query.
-	repo, err := Lookup(path)
+	repo, err := modfetch.Lookup(path)
 	if err != nil {
 		return nil, err
 	}

@@ -501,7 +501,7 @@ func getQuery(path, vers string, forceModulePath bool) (module.Version, error) {
 
 	// First choice is always to assume path is a module path.
 	// If that works out, we're done.
-	info, err := modfetch.Query(path, vers, modload.Allowed)
+	info, err := modload.Query(path, vers, modload.Allowed)
 	if err == nil {
 		return module.Version{Path: path, Version: info.Version}, nil
 	}
@@ -518,13 +518,13 @@ func getQuery(path, vers string, forceModulePath bool) (module.Version, error) {
 	// If this behavior is wrong, the user can always specify the
 	// desired module path instead of a package path,
 	// and then the code above will handle it.
-	repo, info, err := modfetch.Import(path, modload.Allowed)
+	repo, info, err := modload.Import(path, modload.Allowed)
 	if err != nil {
 		return module.Version{}, err
 	}
 	if vers != "latest" {
-		// modfetch.Import returned "latest" version. Look up requested version.
-		if info, err = modfetch.Query(repo.ModulePath(), vers, modload.Allowed); err != nil {
+		// modload.Import returned "latest" version. Look up requested version.
+		if info, err = modload.Query(repo.ModulePath(), vers, modload.Allowed); err != nil {
 			return module.Version{}, err
 		}
 	}
@@ -534,7 +534,7 @@ func getQuery(path, vers string, forceModulePath bool) (module.Version, error) {
 // isModulePath reports whether path names an actual module,
 // defined as one with an accessible latest version.
 func isModulePath(path string) bool {
-	_, err := modfetch.Query(path, "latest", modload.Allowed)
+	_, err := modload.Query(path, "latest", modload.Allowed)
 	return err == nil
 }
 
@@ -579,7 +579,7 @@ func (u *upgrader) Upgrade(m module.Version) (module.Version, error) {
 		// For patch upgrade, query "v1.2".
 		query = semver.MajorMinor(m.Version)
 	}
-	info, err := modfetch.Query(m.Path, query, modload.Allowed)
+	info, err := modload.Query(m.Path, query, modload.Allowed)
 	if err != nil {
 		// Report error but return m, to let version selection continue.
 		// (Reporting the error will fail the command at the next base.ExitIfErrors.)
