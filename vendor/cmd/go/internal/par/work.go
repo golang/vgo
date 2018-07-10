@@ -55,6 +55,7 @@ func (w *Work) Do(n int, f func(item interface{})) {
 	if n < 1 {
 		panic("par.Work.Do: n < 1")
 	}
+	n = 1
 	if w.running >= 1 {
 		panic("par.Work.Do: already called Do")
 	}

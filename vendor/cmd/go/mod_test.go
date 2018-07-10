@@ -9,6 +9,7 @@ import (
 	"internal/testenv"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -590,8 +591,9 @@ func TestModGetUpgrade(t *testing.T) {
 		module x
 	`), 0666))
 	tg.run("list")
-	tg.grepStderr(`adding rsc.io/quote v1.5.2`, "should have added quote v1.5.2")
-	tg.grepStderrNot(`v1.5.3-pre1`, "should not mention v1.5.3-pre1")
+	tg.run("list", "-m", "all")
+	tg.grepStdout(`quote v1.5.2$`, "should have added quote v1.5.2")
+	tg.grepStdoutNot(`v1.5.3-pre1`, "should not mention v1.5.3-pre1")
 
 	tg.run("list", "-m", "-versions", "rsc.io/quote")
 	want := "rsc.io/quote v1.0.0 v1.1.0 v1.2.0 v1.2.1 v1.3.0 v1.4.0 v1.5.0 v1.5.1 v1.5.2 v1.5.3-pre1\n"
@@ -659,13 +661,13 @@ func TestModBadDomain(t *testing.T) {
 	tg.cd(filepath.Join(wd, "testdata/badmod"))
 
 	tg.runFail("get", "appengine")
-	tg.grepStderr(`unrecognized import path \"appengine\"`, "expected appengine error ")
+	tg.grepStderr(`cannot find module providing package appengine`, "expected module error ")
 	tg.runFail("get", "x/y.z")
-	tg.grepStderr(`unrecognized import path \"x/y.z\" \(import path does not begin with hostname\)`, "expected domain error")
+	tg.grepStderr(`cannot find module providing package x/y.z`, "expected module error")
 
 	tg.runFail("build")
 	tg.grepStderrNot("unknown module appengine: not a domain name", "expected nothing about appengine")
-	tg.grepStderr("tcp.*nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
+	tg.grepStderr("cannot find module providing package nonexistent.rsc.io", "expected error for nonexistent.rsc.io")
 }
 
 func TestModSync(t *testing.T) {
@@ -1288,4 +1290,68 @@ func TestModSyncPrintJson(t *testing.T) {
 	if count != 1 {
 		t.Fatal("produces duplicate imports")
 	}
+}
+
+func TestModMultiVersion(t *testing.T) {
+	// TODO: Add tg.useGoModules, tg.mustHaveGoGet.
+	testenv.MustHaveExternalNetwork(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("skipping because git binary not found")
+	}
+	tg := testgo(t)
+	tg.setenv("GO111MODULE", "on")
+	defer tg.cleanup()
+	tg.makeTempdir()
+	tg.setenv("GOPATH", tg.path("gp1"))
+
+	tg.must(os.MkdirAll(tg.path("quote"), 0777))
+	tg.cd(tg.path("quote"))
+
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tg.path("quote")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+
+	checkModules := func(dirs ...string) {
+		t.Helper()
+		tg.run("list", "-deps", "-f", "{{.ImportPath}}: {{.Dir}}")
+		for _, line := range strings.Split(tg.getStdout(), "\n") {
+			line = strings.Replace(line, `\`, `/`, -1) // windows!
+			if strings.HasPrefix(line, "rsc.io/quote: ") {
+				if strings.Contains(line, "/src/mod/") {
+					t.Fatalf("rsc.io/quote should not be from module cache: %v", line)
+				}
+			} else if strings.Contains(line, "rsc.io/quote") {
+				if !strings.Contains(line, "/src/mod/") {
+					t.Fatalf("rsc.io/quote/* should be from module cache: %v", line)
+				}
+			}
+		}
+		git("reset", "--hard") // reset go.mod to make git happy
+		git("clean", "-f")     // delete go.sum to make git happy
+	}
+
+	git("clone", "https://github.com/rsc/quote", ".")
+	git("checkout", "v1.5.2")
+	checkModules()
+
+	git("checkout", "0d003b9") // wraps v2
+	checkModules()             // looks up v2 from internet
+
+	git("checkout", "b44a0b1") // adds go.mod
+	checkModules()             // knows which v2 to use (still needs download from internet, cached from last step)
+
+	git("checkout", "fe488b8") // adds broken v3 subdirectory
+	tg.run("list", "./...")    // should ignore v3 because v3/go.mod exists
+
+	git("checkout", "a91498b") // wraps v3
+	checkModules()             // looks up v3 from internet, not v3 subdirectory
+
+	git("checkout", "5d9f230") // adds go.mod
+	checkModules()             // knows which v3 to use (still needs download from internet, cached from last step)
 }

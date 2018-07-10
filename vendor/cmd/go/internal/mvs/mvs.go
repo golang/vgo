@@ -11,6 +11,7 @@ import (
 	"sort"
 	"sync"
 
+	"cmd/go/internal/base"
 	"cmd/go/internal/module"
 	"cmd/go/internal/par"
 )
@@ -99,11 +100,20 @@ func buildList(target module.Version, reqs Reqs, upgrade func(module.Version) mo
 		mu.Unlock()
 
 		for _, r := range required {
+			if r.Path == "" {
+				base.Errorf("Required(%v) returned zero module in list", m)
+				continue
+			}
 			work.Add(r)
 		}
 
 		if upgrade != nil {
-			work.Add(upgrade(m))
+			u := upgrade(m)
+			if u.Path == "" {
+				base.Errorf("Upgrade(%v) returned zero module", m)
+				return
+			}
+			work.Add(u)
 		}
 	})
 

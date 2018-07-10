@@ -511,24 +511,22 @@ func getQuery(path, vers string, forceModulePath bool) (module.Version, error) {
 		return module.Version{}, err
 	}
 
-	// Otherwise fall back to resolving package path as of today
-	// and applying the version to the resulting module.
-	// We could do more subtle things when older versions are
-	// specified, but this seems good enough and more predictable.
-	// If this behavior is wrong, the user can always specify the
-	// desired module path instead of a package path,
-	// and then the code above will handle it.
-	repo, info, err := modload.Import(path, modload.Allowed)
+	// Otherwise, interpret the package path as an import
+	// and determine what module that import would address
+	// if found in the current source code.
+	// Then apply the version to that module.
+	m, _, err := modload.Import(path)
 	if err != nil {
 		return module.Version{}, err
 	}
-	if vers != "latest" {
-		// modload.Import returned "latest" version. Look up requested version.
-		if info, err = modload.Query(repo.ModulePath(), vers, modload.Allowed); err != nil {
-			return module.Version{}, err
-		}
+	if m.Path == "" {
+		return module.Version{}, fmt.Errorf("package %q is not in a module", path)
 	}
-	return module.Version{Path: repo.ModulePath(), Version: info.Version}, nil
+	info, err = modload.Query(m.Path, vers, modload.Allowed)
+	if err != nil {
+		return module.Version{}, err
+	}
+	return module.Version{Path: m.Path, Version: info.Version}, nil
 }
 
 // isModulePath reports whether path names an actual module,

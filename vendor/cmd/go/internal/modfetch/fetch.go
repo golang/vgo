@@ -28,6 +28,11 @@ var downloadCache par.Cache
 // local download cache and returns the name of the directory
 // corresponding to the root of the module's file tree.
 func Download(mod module.Version) (dir string, err error) {
+	if SrcMod == "" {
+		// Do not download to current directory.
+		return "", fmt.Errorf("missing modfetch.SrcMod")
+	}
+
 	// The par.Cache here avoids duplicate work but also
 	// avoids conflicts from simultaneous calls by multiple goroutines
 	// for the same version.
@@ -190,6 +195,11 @@ func readGoSum(file string, data []byte) {
 
 // checkSum checks the given module's checksum.
 func checkSum(mod module.Version) {
+	if SrcMod == "" {
+		// Do not use current directory.
+		return
+	}
+
 	// Do the file I/O before acquiring the go.sum lock.
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
@@ -245,6 +255,11 @@ func checkOneSum(mod module.Version, h string) {
 // Sum returns the checksum for the downloaded copy of the given module,
 // if present in the download cache.
 func Sum(mod module.Version) string {
+	if SrcMod == "" {
+		// Do not use current directory.
+		return ""
+	}
+
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
 		return ""

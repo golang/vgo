@@ -513,6 +513,9 @@ func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPo
 		} else if modErr != nil {
 			bp = new(build.Package)
 			err = fmt.Errorf("unknown import path %q: %v", importPath, modErr)
+		} else if cfg.ModulesEnabled && path != "unsafe" {
+			bp = new(build.Package)
+			err = fmt.Errorf("unknown import path %q: internal error: module loader did not resolve import", importPath)
 		} else {
 			buildMode := build.ImportComment
 			if mode&ResolveImport == 0 || path != origPath {

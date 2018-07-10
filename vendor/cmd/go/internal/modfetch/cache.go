@@ -236,6 +236,11 @@ func readDiskStat(path, rev string) (file string, info *RevInfo, err error) {
 // just to find out about a commit we already know about
 // (and have cached under its pseudo-version).
 func readDiskStatByHash(path, rev string) (file string, info *RevInfo, err error) {
+	if SrcMod == "" {
+		// Do not download to current directory.
+		return "", nil, errNotCached
+	}
+
 	if !codehost.AllHex(rev) || len(rev) < 12 {
 		return "", nil, errNotCached
 	}

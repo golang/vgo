@@ -117,7 +117,7 @@ func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 			}
 
 			if semver.IsValid(m.Version) {
-				dir := filepath.Join(SrcMod, m.Path+"@"+m.Version)
+				dir := filepath.Join(modfetch.SrcMod, m.Path+"@"+m.Version)
 				if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
 					m.Dir = dir
 				}
@@ -194,11 +194,12 @@ func PackageBuildInfo(path string, deps []string) string {
 }
 
 func findModule(target, path string) module.Version {
+	// TODO: This should use loaded.
 	if path == "." {
 		return buildList[0]
 	}
 	for _, mod := range buildList {
-		if importPathInModule(path, mod.Path) {
+		if maybeInModule(path, mod.Path) {
 			return mod
 		}
 	}

@@ -332,16 +332,11 @@ type loader struct {
 	isALL     bool            // created with LoadALL
 	testAll   bool            // include tests for all packages
 
-	// missingMu protects found, but also buildList, modFile
-	missingMu sync.Mutex
-	found     map[string]bool
-
 	// reset on each iteration
 	roots    []*loadPkg
 	pkgs     []*loadPkg
 	work     *par.Work  // current work queue
 	pkgCache *par.Cache // map from string to *loadPkg
-	missing  *par.Work  // missing work queue
 
 	// computed at end of iterations
 	direct map[string]bool // imported directly by main module
@@ -350,7 +345,6 @@ type loader struct {
 func newLoader() *loader {
 	ld := new(loader)
 	ld.tags = imports.Tags()
-	ld.found = make(map[string]bool)
 
 	switch cfg.CmdName {
 	case "test", "vet":
@@ -364,7 +358,6 @@ func (ld *loader) reset() {
 	ld.pkgs = nil
 	ld.work = new(par.Work)
 	ld.pkgCache = new(par.Cache)
-	ld.missing = nil
 }
 
 // A loadPkg records information about a single loaded package.
@@ -392,6 +385,7 @@ func (ld *loader) load(roots func() []string) {
 		base.Fatalf("go: %v", err)
 	}
 
+	added := make(map[string]bool)
 	for {
 		ld.reset()
 		if roots != nil {
@@ -404,22 +398,34 @@ func (ld *loader) load(roots func() []string) {
 		}
 		ld.work.Do(10, ld.doPkg)
 		ld.buildStacks()
+		numAdded := 0
+		haveMod := make(map[module.Version]bool)
+		for _, m := range buildList {
+			haveMod[m] = true
+		}
 		for _, pkg := range ld.pkgs {
-			if pkg.err == errMissing {
-				if ld.missing == nil {
-					ld.missing = new(par.Work)
+			if err, ok := pkg.err.(*ImportMissingError); ok && err.Module.Path != "" {
+				if added[pkg.path] {
+					base.Fatalf("go: %s: looping trying to add package", pkg.stackText())
 				}
-				ld.missing.Add(pkg)
-			} else if pkg.err != nil {
+				added[pkg.path] = true
+				numAdded++
+				if !haveMod[err.Module] {
+					haveMod[err.Module] = true
+					buildList = append(buildList, err.Module)
+				}
+				continue
+			}
+			if pkg.err != nil {
 				base.Errorf("go: %s: %s", pkg.stackText(), pkg.err)
 			}
 		}
-		if ld.missing == nil {
+		base.ExitIfErrors()
+		if numAdded == 0 {
 			break
 		}
-		ld.missing.Do(10, ld.findMissing)
-		base.ExitIfErrors()
 
+		// Recompute buildList with all our additions.
 		buildList, err = mvs.BuildList(Target, Reqs())
 		if err != nil {
 			base.Fatalf("go: %v", err)
@@ -449,6 +455,9 @@ func (ld *loader) load(roots func() []string) {
 			}
 		}
 	}
+
+	// Check for visibility violations.
+	// TODO!
 }
 
 // pkg returns the *loadPkg for path, creating and queuing it if needed.
@@ -485,7 +494,7 @@ func (ld *loader) doPkg(item interface{}) {
 		pkg.mod = pkg.testOf.mod
 		imports = pkg.testOf.testImports
 	} else {
-		pkg.dir, pkg.mod, pkg.err = ld.findDir(pkg.path)
+		pkg.mod, pkg.dir, pkg.err = ld.doImport(pkg.path)
 		if pkg.dir == "" {
 			return
 		}
@@ -517,152 +526,24 @@ func (ld *loader) doPkg(item interface{}) {
 	}
 }
 
-// importPathInModule reports whether, syntactically,
-// a package with the given import path could be supplied
-// by a module with the given module path (mpath).
-func importPathInModule(path, mpath string) bool {
-	return mpath == path ||
-		len(path) > len(mpath) && path[len(mpath)] == '/' && path[:len(mpath)] == mpath
-}
-
-// findDir finds the directory holding source code for the given import path.
-// It returns the directory, the module containing the directory,
+// doImport finds the directory holding source code for the given import path.
+// It returns the module containing the package (if any),
+// the directory containing the package (if any),
 // and any error encountered.
-// It is possible to return successfully (err == nil) with an empty directory,
-// for built-in packages like "unsafe" and "C".
-// It is also possible to return successfully with a zero module.Version,
-// for packages in the standard library or when using vendored code.
-func (ld *loader) findDir(path string) (dir string, mod module.Version, err error) {
+// Not all packages have modules: the ones in the standard library do not.
+// Not all packages have directories: "unsafe" and "C" do not.
+func (ld *loader) doImport(path string) (mod module.Version, dir string, err error) {
 	if strings.Contains(path, "@") {
 		// Leave for error during load.
-		return
+		return module.Version{}, "", nil
 	}
-
-	// Is the package in the standard library?
-	if search.IsStandardImportPath(path) {
-		if path == "C" || path == "unsafe" {
-			// There's no directory for import "C" or import "unsafe".
-			return "", module.Version{}, nil
-		}
-		if strings.HasPrefix(path, "golang_org/") {
-			return filepath.Join(cfg.GOROOT, "src/vendor", path), module.Version{}, nil
-		}
-		dir := filepath.Join(cfg.GOROOT, "src", path)
-		if _, err := os.Stat(dir); err == nil {
-			return dir, module.Version{}, nil
-		}
-	}
-
-	// Is the package in the main module?
-	// Note that having the main module path as a prefix
-	// does not guarantee that the package is in the
-	// main module. It might still be supplied by some
-	// other module. For example, this might be
-	// module x/y, and we might be looking for x/y/v2/z.
-	// or maybe x/y/z/w in separate module x/y/z.
-	var mainDir string
-	if importPathInModule(path, Target.Path) {
-		mainDir = ModRoot
-		if len(path) > len(Target.Path) {
-			mainDir = filepath.Join(ModRoot, path[len(Target.Path)+1:])
-		}
-		if _, err := os.Stat(mainDir); err == nil {
-			return mainDir, Target, nil
-		}
-	}
-
-	// With -getmode=vendor, we expect everything else to be in vendor.
-	if cfg.BuildGetmode == "vendor" {
-		// Using -getmode=vendor, everything the module needs
-		// (beyond the current module and standard library)
-		// must be in the module's vendor directory.
-		// If the package exists in vendor, use it.
-		// If the package is not covered by the main module (mainDir == ""), use vendor.
-		// Otherwise, if the package could be in either place but is in neither, report the main module.
-		vendorDir := filepath.Join(ModRoot, "vendor", path)
-		if _, err := os.Stat(vendorDir); err == nil || mainDir == "" {
-			// TODO(rsc): We could look up the module information from vendor/modules.txt.
-			return vendorDir, module.Version{}, nil
-		}
-		return mainDir, Target, nil
-	}
-
-	// Scan all the possible modules that might contain this package,
-	// and complain if there are multiple choices. This correctly handles
-	// module boundaries that change over time, detecting mismatched
-	// module version pairings.
-	// (See comment about module paths in modfetch/repo.go.)
-	var mod1 module.Version
-	var dir1 string
-	for _, mod := range buildList {
-		if !importPathInModule(path, mod.Path) {
-			continue
-		}
-		dir, err := fetch(mod)
-		if err != nil {
-			return "", module.Version{}, err
-		}
-		if len(path) > len(mod.Path) {
-			dir = filepath.Join(dir, path[len(mod.Path)+1:])
-		}
-		if dir1 != "" {
-			return "", module.Version{}, fmt.Errorf("found in both %v@%v and %v@%v", mod1.Path, mod1.Version, mod.Path, mod.Version)
-		}
-		dir1 = dir
-		mod1 = mod
-	}
-	if dir1 != "" {
-		return dir1, mod1, nil
-	}
-	return "", module.Version{}, errMissing
-}
-
-func (ld *loader) findMissing(item interface{}) {
-	pkg := item.(*loadPkg)
-	path := pkg.path
 	if build.IsLocalImport(path) {
-		base.Errorf("go: relative import is not supported: %s", path)
+		// Leave for error during load.
+		// (Module mode does not allow local imports.)
+		return module.Version{}, "", nil
 	}
 
-	// TODO: This is wrong (if path = foo/v2/bar and m.Path is foo,
-	// maybe we should fall through to the loop at the bottom and check foo/v2).
-	ld.missingMu.Lock()
-	for _, m := range buildList {
-		if importPathInModule(path, m.Path) {
-			ld.missingMu.Unlock()
-			return
-		}
-	}
-	ld.missingMu.Unlock()
-
-	fmt.Fprintf(os.Stderr, "resolving import %q\n", path)
-	repo, info, err := Import(path, Allowed)
-	if err != nil {
-		base.Errorf("go: %s: %v", pkg.stackText(), err)
-		return
-	}
-
-	root := repo.ModulePath()
-
-	ld.missingMu.Lock()
-	defer ld.missingMu.Unlock()
-
-	// Double-check before adding repo twice.
-	for _, m := range buildList {
-		if importPathInModule(path, m.Path) {
-			return
-		}
-	}
-
-	fmt.Fprintf(os.Stderr, "go: finding %s (latest)\n", root)
-
-	if ld.found[path] {
-		base.Fatalf("internal error: findMissing loop on %s", path)
-	}
-	ld.found[path] = true
-	fmt.Fprintf(os.Stderr, "go: adding %s %s\n", root, info.Version)
-	buildList = append(buildList, module.Version{Path: root, Version: info.Version})
-	modFile.AddRequire(root, info.Version)
+	return Import(path)
 }
 
 // scanDir is like imports.ScanDir but elides known magic imports from the list,
@@ -759,6 +640,10 @@ func (pkg *loadPkg) stackText() string {
 // If there is no replacement for mod, Replacement returns
 // a module.Version with Path == "".
 func Replacement(mod module.Version) module.Version {
+	if modFile == nil {
+		// Happens during testing.
+		return module.Version{}
+	}
 	var found *modfile.Replace
 	for _, r := range modFile.Replace {
 		if r.Old == mod {
@@ -820,21 +705,35 @@ func (r *mvsReqs) Required(mod module.Version) ([]module.Version, error) {
 }
 
 var vendorOnce sync.Once
-var vendorList []module.Version
+
+var (
+	vendorList []module.Version
+	vendorMap  map[string]module.Version
+)
 
 // readVendorList reads the list of vendored modules from vendor/modules.txt.
 func readVendorList() {
-	var list []module.Version
-	data, _ := ioutil.ReadFile(filepath.Join(ModRoot, "vendor/modules.txt"))
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "# ") {
-			f := strings.Fields(line)
-			if len(f) == 3 && semver.IsValid(f[2]) {
-				list = append(list, module.Version{Path: f[1], Version: f[2]})
+	vendorOnce.Do(func() {
+		vendorList = nil
+		vendorMap = make(map[string]module.Version)
+		data, _ := ioutil.ReadFile(filepath.Join(ModRoot, "vendor/modules.txt"))
+		var m module.Version
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(line, "# ") {
+				f := strings.Fields(line)
+				m = module.Version{}
+				if len(f) == 3 && semver.IsValid(f[2]) {
+					m = module.Version{Path: f[1], Version: f[2]}
+					vendorList = append(vendorList, m)
+				}
+			} else if m.Path != "" {
+				f := strings.Fields(line)
+				if len(f) == 1 {
+					vendorMap[f[0]] = m
+				}
 			}
 		}
-	}
-	vendorList = list
+	})
 }
 
 func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
@@ -847,8 +746,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if cfg.BuildGetmode == "vendor" {
 		// For every module other than the target,
 		// return the full list of modules from modules.txt.
-		// But only read vendor/modules.txt once.
-		vendorOnce.Do(readVendorList)
+		readVendorList()
 		return vendorList, nil
 	}
 
@@ -973,17 +871,21 @@ func (*mvsReqs) next(m module.Version) (module.Version, error) {
 	return module.Version{Path: m.Path, Version: "none"}, nil
 }
 
-func fetch(mod module.Version) (dir string, err error) {
+func fetch(mod module.Version) (dir string, isLocal bool, err error) {
+	if mod == Target {
+		return ModRoot, true, nil
+	}
 	if r := Replacement(mod); r.Path != "" {
 		if r.Version == "" {
 			dir = r.Path
 			if !filepath.IsAbs(dir) {
 				dir = filepath.Join(ModRoot, dir)
 			}
-			return dir, nil
+			return dir, true, nil
 		}
 		mod = r
 	}
 
-	return modfetch.Download(mod)
+	dir, err = modfetch.Download(mod)
+	return dir, false, err
 }

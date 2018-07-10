@@ -13,6 +13,7 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/dirhash"
+	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modload"
 	"cmd/go/internal/module"
 )
@@ -29,9 +30,9 @@ func runVerify() {
 
 func verifyMod(mod module.Version) bool {
 	ok := true
-	zip := filepath.Join(modload.SrcMod, "cache/download", mod.Path, "/@v/", mod.Version+".zip")
+	zip := filepath.Join(modfetch.SrcMod, "cache/download", mod.Path, "/@v/", mod.Version+".zip")
 	_, zipErr := os.Stat(zip)
-	dir := filepath.Join(modload.SrcMod, mod.Path+"@"+mod.Version)
+	dir := filepath.Join(modfetch.SrcMod, mod.Path+"@"+mod.Version)
 	_, dirErr := os.Stat(dir)
 	data, err := ioutil.ReadFile(zip + "hash")
 	if err != nil {
