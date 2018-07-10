@@ -95,7 +95,7 @@ func TestConvertLegacyConfig(t *testing.T) {
 			require (
 				github.com/AdRoll/goamz v0.0.0-20150130162828-d3664b76d905
 				github.com/MSOpenTech/azure-sdk-for-go v0.0.0-20150323223030-d90753bcad2e
-				github.com/Sirupsen/logrus v0.0.0-20150409230825-55eb11d21d2a
+				github.com/Sirupsen/logrus v0.7.3
 				github.com/bugsnag/bugsnag-go v0.0.0-20141110184014-b1d153021fcd
 				github.com/bugsnag/osext v0.0.0-20130617224835-0dd3f918b21b
 				github.com/bugsnag/panicwrap v0.0.0-20141110184334-e5f9854865b9

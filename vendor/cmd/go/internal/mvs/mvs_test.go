@@ -166,6 +166,13 @@ D2:
 build A: A B1 C1 D1
 upgrade* A: A B2 C2
 
+name: simplify
+A: B1 C1
+B1: C2
+C1: D1
+C2:
+build A: A B1 C2
+
 name: up1
 A: B1 C1
 B1:
@@ -259,6 +266,22 @@ C2:
 D2:
 build A: A B1
 upgrade* A: A B2
+
+# Requirement minimization.
+
+name: req1
+A: B1 C1 D1 E1 F1
+B1: C1 E1 F1
+req A: B1 D1
+req A C: B1 C1 D1
+
+name: req2
+A: G1 H1
+G1: H1
+H1: G1
+req A: G1
+req A G: G1
+req A H: H1
 `
 
 func Test(t *testing.T) {
@@ -341,19 +364,19 @@ func Test(t *testing.T) {
 			continue
 		case "upgradereq":
 			if len(kf) < 2 {
-				t.Fatalf("upgrade takes at least one arguments: %q", line)
+				t.Fatalf("upgrade takes at least one argument: %q", line)
 			}
 			fns = append(fns, func(t *testing.T) {
 				list, err := Upgrade(m(kf[1]), reqs, ms(kf[2:])...)
 				if err == nil {
-					list, err = Req(m(kf[1]), list, reqs)
+					list, err = Req(m(kf[1]), list, nil, reqs)
 				}
 				checkList(t, key, list, err, val)
 			})
 			continue
 		case "upgrade":
 			if len(kf) < 2 {
-				t.Fatalf("upgrade takes at least one arguments: %q", line)
+				t.Fatalf("upgrade takes at least one argument: %q", line)
 			}
 			fns = append(fns, func(t *testing.T) {
 				list, err := Upgrade(m(kf[1]), reqs, ms(kf[2:])...)
@@ -362,10 +385,23 @@ func Test(t *testing.T) {
 			continue
 		case "downgrade":
 			if len(kf) < 2 {
-				t.Fatalf("downgrade takes at least one arguments: %q", line)
+				t.Fatalf("downgrade takes at least one argument: %q", line)
 			}
 			fns = append(fns, func(t *testing.T) {
 				list, err := Downgrade(m(kf[1]), reqs, ms(kf[1:])...)
+				checkList(t, key, list, err, val)
+			})
+			continue
+		case "req":
+			if len(kf) < 2 {
+				t.Fatalf("req takes at least one argument: %q", line)
+			}
+			fns = append(fns, func(t *testing.T) {
+				list, err := BuildList(m(kf[1]), reqs)
+				if err != nil {
+					t.Fatal(err)
+				}
+				list, err = Req(m(kf[1]), list, kf[2:], reqs)
 				checkList(t, key, list, err, val)
 			})
 			continue

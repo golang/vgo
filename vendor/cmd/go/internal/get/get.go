@@ -23,7 +23,7 @@ import (
 )
 
 var CmdGet = &base.Command{
-	UsageLine: "get [-d] [-f] [-fix] [-insecure] [-t] [-u] [-v] [build flags] [packages]",
+	UsageLine: "get [-d] [-f] [-t] [-u] [-v] [-fix] [-insecure] [build flags] [packages]",
 	Short:     "download and install packages and dependencies",
 	Long: `
 Get downloads the packages named by the import paths, along with their
@@ -74,20 +74,43 @@ For more about specifying packages, see 'go help packages'.
 For more about how 'go get' finds source code to
 download, see 'go help importpath'.
 
+This text describes the behavior of get when using GOPATH
+to manage source code and dependencies.
+If instead the go command is running in module-aware mode,
+the details of get's flags and effects change, as does 'go help get'.
+See 'go help modules' and 'go help module-get'.
+
 See also: go build, go install, go clean.
 	`,
 }
 
-var getD = CmdGet.Flag.Bool("d", false, "")
-var getF = CmdGet.Flag.Bool("f", false, "")
-var getT = CmdGet.Flag.Bool("t", false, "")
-var getU = CmdGet.Flag.Bool("u", false, "")
-var getFix = CmdGet.Flag.Bool("fix", false, "")
-var getInsecure = CmdGet.Flag.Bool("insecure", false, "")
+var HelpGopathGet = &base.Command{
+	UsageLine: "gopath-get",
+	Short:     "legacy GOPATH go get",
+	Long: `
+The 'go get' command changes behavior depending on whether the
+go command is running in module-aware mode or legacy GOPATH mode.
+This help text, accessible as 'go help gopath-get' even in module-aware mode,
+describes 'go get' as it operates in legacy GOPATH mode.
+
+Usage: ` + CmdGet.UsageLine + `
+` + CmdGet.Long,
+}
+
+var (
+	getD   = CmdGet.Flag.Bool("d", false, "")
+	getF   = CmdGet.Flag.Bool("f", false, "")
+	getT   = CmdGet.Flag.Bool("t", false, "")
+	getU   = CmdGet.Flag.Bool("u", false, "")
+	getFix = CmdGet.Flag.Bool("fix", false, "")
+
+	Insecure bool
+)
 
 func init() {
 	work.AddBuildFlags(CmdGet)
 	CmdGet.Run = runGet // break init loop
+	CmdGet.Flag.BoolVar(&Insecure, "insecure", Insecure, "")
 }
 
 func runGet(cmd *base.Command, args []string) {
@@ -379,7 +402,7 @@ func downloadPackage(p *load.Package) error {
 	)
 
 	security := web.Secure
-	if *getInsecure {
+	if Insecure {
 		security = web.Insecure
 	}
 
@@ -425,7 +448,7 @@ func downloadPackage(p *load.Package) error {
 		}
 		vcs, repo, rootPath = rr.vcs, rr.Repo, rr.Root
 	}
-	if !blindRepo && !vcs.isSecure(repo) && !*getInsecure {
+	if !blindRepo && !vcs.isSecure(repo) && !Insecure {
 		return fmt.Errorf("cannot download, %v uses insecure protocol", repo)
 	}
 

@@ -84,9 +84,20 @@ Go types:
 
 	type GoMod struct {
 		Module Module
-		Require []Module
+		Require []Require
 		Exclude []Module
-		Replace []struct{ Old, New Module }
+		Replace []Replace
+	}
+	
+	type Require struct {
+		Path string
+		Version string
+		Indirect bool
+	}
+	
+	type Replace string {
+		Old Module
+		New Module
 	}
 
 Note that this only describes the go.mod file itself, not other modules
@@ -143,8 +154,8 @@ packages and dependencies, and it removes unused modules that
 don't provide any relevant packages.
 
 The -vendor flag resets the module's vendor directory to include all
-packages needed to build and test all the module's packages and
-their dependencies.
+packages needed to build and test all the module's packages.
+It does not include any test code for the vendored packages.
 
 The -verify flag checks that the dependencies of the current module,
 which are stored in a local downloaded source cache, have not been
@@ -250,12 +261,12 @@ func runMod(cmd *base.Command, args []string) {
 	if *modSync || *modVendor || needBuildList {
 		var pkgs []string
 		if *modSync || *modVendor {
-			pkgs = vgo.ImportPaths([]string{"ALL"})
+			pkgs = vgo.LoadALL()
 		} else {
 			vgo.LoadBuildList()
 		}
 		if *modSync {
-			// ImportPaths(ALL) already added missing modules.
+			// LoadALL already added missing modules.
 			// Remove unused modules.
 			used := map[module.Version]bool{vgo.Target: true}
 			for _, pkg := range pkgs {
@@ -432,9 +443,15 @@ func flagDropReplace(arg string) {
 // fileJSON is the -json output data structure.
 type fileJSON struct {
 	Module  module.Version
-	Require []module.Version
+	Require []requireJSON
 	Exclude []module.Version
 	Replace []replaceJSON
+}
+
+type requireJSON struct {
+	Path     string
+	Version  string `json:",omitempty"`
+	Indirect bool   `json:",omitempty"`
 }
 
 type replaceJSON struct {
@@ -449,7 +466,7 @@ func modPrintJSON() {
 	var f fileJSON
 	f.Module = modFile.Module.Mod
 	for _, r := range modFile.Require {
-		f.Require = append(f.Require, r.Mod)
+		f.Require = append(f.Require, requireJSON{Path: r.Mod.Path, Version: r.Mod.Version, Indirect: r.Indirect})
 	}
 	for _, x := range modFile.Exclude {
 		f.Exclude = append(f.Exclude, x.Mod)

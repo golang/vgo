@@ -77,7 +77,6 @@ func Unzip(dir, zipfile, prefix string, maxSize int64) error {
 		}
 		r, err := zf.Open()
 		if err != nil {
-			r.Close()
 			w.Close()
 			return fmt.Errorf("unzip %v: %v", zipfile, err)
 		}

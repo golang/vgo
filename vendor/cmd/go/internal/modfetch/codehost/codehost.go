@@ -68,8 +68,9 @@ type Repo interface {
 type RevInfo struct {
 	Name    string    // complete ID in underlying repository
 	Short   string    // shortened ID, for use in pseudo-version
-	Version string    // TODO what is this?
+	Version string    // version used in lookup
 	Time    time.Time // commit time
+	Tags    []string  // known tags for commit
 }
 
 // AllHex reports whether the revision rev is entirely lower-case hexadecimal digits.

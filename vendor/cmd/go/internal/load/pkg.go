@@ -35,7 +35,7 @@ var (
 	VgoImportPaths       func(args []string) []string                                    // expand import paths
 	VgoPackageBuildInfo  func(main string, deps []string) string                         // return module info to embed in binary
 	VgoModInfoProg       func(info string) []byte                                        // wrap module info in .go code for binary
-	VgoAddImports        func([]string)                                                  // update go.mod to add modules for imports in these files
+	VgoImportFromFiles   func([]string)                                                  // update go.mod to add modules for imports in these files
 )
 
 var IgnoreImports bool // control whether we ignore imports in packages
@@ -424,6 +424,23 @@ const (
 func LoadImport(path, srcDir string, parent *Package, stk *ImportStack, importPos []token.Position, mode int) *Package {
 	stk.Push(path)
 	defer stk.Pop()
+
+	if strings.HasPrefix(path, "mod/") {
+		// Paths beginning with "mod/" might accidentally
+		// look in the module cache directory tree in $GOPATH/src/mod/.
+		// This prefix is owned by the Go core for possible use in the
+		// standard library (since it does not begin with a domain name),
+		// so it's OK to disallow entirely.
+		return &Package{
+			PackagePublic: PackagePublic{
+				ImportPath: path,
+				Error: &PackageError{
+					ImportStack: stk.Copy(),
+					Err:         fmt.Sprintf("disallowed import path %q", path),
+				},
+			},
+		}
+	}
 
 	// Determine canonical identifier for this package.
 	// For a local import the identifier is the pseudo-import path
@@ -1803,8 +1820,8 @@ func GoFilesPackage(gofiles []string) *Package {
 	}
 	ctxt.ReadDir = func(string) ([]os.FileInfo, error) { return dirent, nil }
 
-	if VgoAddImports != nil {
-		VgoAddImports(gofiles)
+	if VgoImportFromFiles != nil {
+		VgoImportFromFiles(gofiles)
 	}
 
 	var err error

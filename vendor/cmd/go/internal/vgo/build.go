@@ -41,7 +41,7 @@ func PackageModuleInfo(pkgpath string) *modinfo.ModulePublic {
 	if isStandardImportPath(pkgpath) || !Enabled() {
 		return nil
 	}
-	return moduleInfo(findModule(pkgpath, pkgpath))
+	return moduleInfo(findModule(pkgpath, pkgpath), true)
 }
 
 func ModuleInfo(path string) *modinfo.ModulePublic {
@@ -50,12 +50,12 @@ func ModuleInfo(path string) *modinfo.ModulePublic {
 	}
 
 	if i := strings.Index(path, "@"); i >= 0 {
-		return moduleInfo(module.Version{Path: path[:i], Version: path[i+1:]})
+		return moduleInfo(module.Version{Path: path[:i], Version: path[i+1:]}, false)
 	}
 
-	for _, m := range buildList {
+	for _, m := range BuildList() {
 		if m.Path == path {
-			return moduleInfo(m)
+			return moduleInfo(m, true)
 		}
 	}
 
@@ -67,14 +67,7 @@ func ModuleInfo(path string) *modinfo.ModulePublic {
 	}
 }
 
-// AddUpdate fills in m.Update if an updated version is available.
-func AddUpdate(m *modinfo.ModulePublic) {
-	addUpdate(m)
-	if m.Replace != nil {
-		addUpdate(m.Replace)
-	}
-}
-
+// addUpdate fills in m.Update if an updated version is available.
 func addUpdate(m *modinfo.ModulePublic) {
 	if m.Version != "" {
 		if info, err := modfetch.Query(m.Path, "latest", allowed); err == nil && info.Version != m.Version {
@@ -87,7 +80,12 @@ func addUpdate(m *modinfo.ModulePublic) {
 	}
 }
 
-func moduleInfo(m module.Version) *modinfo.ModulePublic {
+// addVersions fills in m.Versions with the list of known versions.
+func addVersions(m *modinfo.ModulePublic) {
+	m.Versions, _ = versions(m.Path)
+}
+
+func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 	if m == Target {
 		return &modinfo.ModulePublic{
 			Path:    m.Path,
@@ -97,8 +95,9 @@ func moduleInfo(m module.Version) *modinfo.ModulePublic {
 	}
 
 	info := &modinfo.ModulePublic{
-		Path:    m.Path,
-		Version: m.Version,
+		Path:     m.Path,
+		Version:  m.Version,
+		Indirect: fromBuildList && loaded != nil && !loaded.direct[m.Path],
 	}
 
 	// complete fills in the extra fields in m.

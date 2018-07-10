@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -84,6 +85,18 @@ func TestFindModulePath(t *testing.T) {
 			setup: func(tg *testgoData) {
 				tg.must(os.MkdirAll(tg.path("x"), 0777))
 				tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte("package x // import \"x\"\r\n"), 0666))
+			},
+		},
+		{
+			name: "Explicit setting in Godeps.json takes priority over implicit setting from GOPATH location",
+			dir:   []string{"gp/src/example.com/x/y/z"},
+			want: "unexpected.com/z",
+			setup: func(tg *testgoData) {
+				tg.tempFile("gp/src/example.com/x/y/z/z.go", "package z")
+				tg.tempFile("gp/src/example.com/x/y/z/Godeps/Godeps.json", `
+					{"ImportPath": "unexpected.com/z"}
+				`)
+				cfg.BuildContext.GOPATH = tg.path("gp")
 			},
 		},
 		{
@@ -228,6 +241,15 @@ func TestFindModulePath(t *testing.T) {
 	}
 }
 
+func TestImportModFails(t *testing.T) {
+	tg := testgo(t)
+	tg.setenv("GO111MODULE", "off") // testing GOPATH mode
+	defer tg.cleanup()
+
+	tg.runFail("list", "mod/foo")
+	tg.grepStderr(`disallowed import path`, "expected disallowed because of module cache")
+}
+
 func TestModEdit(t *testing.T) {
 	// Test that local replacements work
 	// and that they can use a dummy name
@@ -308,8 +330,7 @@ require x.3 v1.99.0
 	tg.run("-vgo", "mod", "-json")
 	want := `{
 	"Module": {
-		"Path": "x.x/y/z",
-		"Version": ""
+		"Path": "x.x/y/z"
 	},
 	"Require": [
 		{
@@ -330,8 +351,7 @@ require x.3 v1.99.0
 				"Version": "v1.4.0"
 			},
 			"New": {
-				"Path": "../z",
-				"Version": ""
+				"Path": "../z"
 			}
 		}
 	]
@@ -537,8 +557,69 @@ func TestGetModuleUpgrade(t *testing.T) {
 	`), 0666))
 
 	tg.run("-vgo", "get", "-x", "-u")
-	tg.run("-vgo", "list", "-m", "all")
+	tg.run("-vgo", "list", "-m", "-f={{.Path}} {{.Version}}{{if .Indirect}} // indirect{{end}}", "all")
 	tg.grepStdout(`quote v1.5.2$`, "should have upgraded only to v1.5.2")
+	tg.grepStdout(`x/text [v0-9a-f.\-]+ // indirect`, "should list golang.org/x/text as indirect")
+
+	var gomod string
+	readGoMod := func() {
+		data, err := ioutil.ReadFile(tg.path("x/go.mod"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gomod = string(data)
+	}
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.2\n") {
+		t.Fatalf("expected rsc.io/quote direct requirement:\n%s", gomod)
+	}
+	if !regexp.MustCompile(`(?m)golang.org/x/text.* // indirect`).MatchString(gomod) {
+		t.Fatalf("expected golang.org/x/text indirect requirement:\n%s", gomod)
+	}
+
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "golang.org/x/text"`), 0666))
+	tg.run("-vgo", "list") // rescans directory
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.2\n") {
+		t.Fatalf("expected rsc.io/quote direct requirement:\n%s", gomod)
+	}
+	if !regexp.MustCompile(`(?m)golang.org/x/text[^/]+\n`).MatchString(gomod) {
+		t.Fatalf("expected golang.org/x/text DIRECT requirement:\n%s", gomod)
+	}
+
+	tg.must(ioutil.WriteFile(tg.path("x/x.go"), []byte(`package x; import _ "rsc.io/quote"`), 0666))
+	tg.run("-vgo", "mod", "-sync") // rescans everything, can put // indirect marks back
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.2\n") {
+		t.Fatalf("expected rsc.io/quote direct requirement:\n%s", gomod)
+	}
+	if !regexp.MustCompile(`(?m)golang.org/x/text.* // indirect\n`).MatchString(gomod) {
+		t.Fatalf("expected golang.org/x/text indirect requirement:\n%s", gomod)
+	}
+
+	tg.run("-vgo", "get", "rsc.io/quote@v0.0.0-20180214005840-23179ee8a569") // should record as (time-corrected) pseudo-version
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v0.0.0-20180214005840-23179ee8a569\n") {
+		t.Fatalf("expected rsc.io/quote v0.0.0-20180214005840-23179ee8a569 (not v1.5.1)\n%s", gomod)
+	}
+
+	tg.run("-vgo", "get", "rsc.io/quote@23179ee") // should record as v1.5.1
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.1\n") {
+		t.Fatalf("expected rsc.io/quote v1.5.1 (not 23179ee)\n%s", gomod)
+	}
+
+	tg.run("-vgo", "mod", "-require", "rsc.io/quote@23179ee") // should record as 23179ee
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote 23179ee\n") {
+		t.Fatalf("expected rsc.io/quote 23179ee\n%s", gomod)
+	}
+
+	tg.run("-vgo", "mod", "-fix") // fixup in any future vgo command should find v1.5.1 again
+	readGoMod()
+	if !strings.Contains(gomod, "rsc.io/quote v1.5.1\n") {
+		t.Fatalf("expected rsc.io/quote v1.5.1\n%s", gomod)
+	}
 
 	tg.run("-vgo", "get", "-m", "rsc.io/quote@dd9747d")
 	tg.run("-vgo", "list", "-m", "all")
@@ -548,9 +629,9 @@ func TestGetModuleUpgrade(t *testing.T) {
 	tg.run("-vgo", "list", "-m", "all")
 	tg.grepStdout(`quote v0.0.0-20180628003336-dd9747d19b04$`, "should have stayed on pseudo-commit")
 
-	tg.run("-vgo", "get", "-m", "rsc.io/quote@23179ee8a")
+	tg.run("-vgo", "get", "-m", "rsc.io/quote@e7a685a342")
 	tg.run("-vgo", "list", "-m", "all")
-	tg.grepStdout(`quote v0.0.0-20180214005840-23179ee8a569$`, "should have moved to new pseudo-commit")
+	tg.grepStdout(`quote v0.0.0-20180214005133-e7a685a342c0$`, "should have moved to new pseudo-commit")
 
 	tg.run("-vgo", "get", "-m", "-u")
 	tg.run("-vgo", "list", "-m", "all")
@@ -562,6 +643,23 @@ func TestGetModuleUpgrade(t *testing.T) {
 	tg.run("-vgo", "list")
 	tg.grepStderr(`adding rsc.io/quote v1.5.2`, "should have added quote v1.5.2")
 	tg.grepStderrNot(`v1.5.3-pre1`, "should not mention v1.5.3-pre1")
+
+	tg.run("-vgo", "list", "-m", "-versions", "rsc.io/quote")
+	want := "rsc.io/quote v1.0.0 v1.1.0 v1.2.0 v1.2.1 v1.3.0 v1.4.0 v1.5.0 v1.5.1 v1.5.2 v1.5.3-pre1\n"
+	if tg.getStdout() != want {
+		t.Errorf("vgo list versions:\nhave:\n%s\nwant:\n%s", tg.getStdout(), want)
+	}
+
+	tg.run("-vgo", "list", "-m", "rsc.io/quote@>v1.5.2")
+	tg.grepStdout(`v1.5.3-pre1`, "expected to find v1.5.3-pre1")
+	tg.run("-vgo", "list", "-m", "rsc.io/quote@<v1.5.4")
+	tg.grepStdout(`v1.5.2$`, "expected to find v1.5.2 (NOT v1.5.3-pre1)")
+
+	tg.runFail("-vgo", "list", "-m", "rsc.io/quote@>v1.5.3")
+	tg.grepStderr(`go list -m rsc.io/quote: no matching versions for query ">v1.5.3"`, "expected no matching version")
+
+	tg.run("-vgo", "list", "-m", "-e", "-f={{.Error.Err}}", "rsc.io/quote@>v1.5.3")
+	tg.grepStdout(`no matching versions for query ">v1.5.3"`, "expected no matching version")
 }
 
 func TestVgoBadDomain(t *testing.T) {
@@ -678,6 +776,39 @@ func TestVgoVendor(t *testing.T) {
 	tg.run("-vgo", "list", "-f={{.Dir}}", "x")
 	tg.grepStdout(`vendormod[/\\]x$`, "expected x in vendormod/x")
 
+	var toRemove []string
+	defer func() {
+		for _, file := range toRemove {
+			os.Remove(file)
+		}
+	}()
+
+	write := func(name string) {
+		file := filepath.Join(wd, "testdata/vendormod", name)
+		toRemove = append(toRemove, file)
+		tg.must(ioutil.WriteFile(file, []byte("file!"), 0666))
+	}
+	mustHaveVendor := func(name string) {
+		t.Helper()
+		tg.mustExist(filepath.Join(wd, "testdata/vendormod/vendor", name))
+	}
+	mustNotHaveVendor := func(name string) {
+		t.Helper()
+		tg.mustNotExist(filepath.Join(wd, "testdata/vendormod/vendor", name))
+	}
+
+	write("a/foo/AUTHORS.txt")
+	write("a/foo/CONTRIBUTORS")
+	write("a/foo/LICENSE")
+	write("a/foo/PATENTS")
+	write("a/foo/COPYING")
+	write("a/foo/COPYLEFT")
+	write("a/foo/licensed-to-kill")
+	write("w/LICENSE")
+	write("x/NOTICE!")
+	write("x/x2/LICENSE")
+	write("mypkg/LICENSE.txt")
+
 	tg.run("-vgo", "mod", "-vendor", "-v")
 	tg.grepStderr(`^# x v1.0.0 => ./x`, "expected to see module x with replacement")
 	tg.grepStderr(`^x`, "expected to see package x")
@@ -710,13 +841,30 @@ func TestVgoVendor(t *testing.T) {
 	tg.runFail("-vgo", "list", "-getmode=local", "-f={{.Dir}}", "newpkg")
 	tg.grepStderr(`disabled by -getmode=local`, "expected -getmode=local to avoid network")
 
+	mustNotHaveVendor("x/testdata")
+	mustNotHaveVendor("a/foo/bar/b/main_test.go")
+
+	mustHaveVendor("a/foo/AUTHORS.txt")
+	mustHaveVendor("a/foo/CONTRIBUTORS")
+	mustHaveVendor("a/foo/LICENSE")
+	mustHaveVendor("a/foo/PATENTS")
+	mustHaveVendor("a/foo/COPYING")
+	mustHaveVendor("a/foo/COPYLEFT")
+	mustHaveVendor("x/NOTICE!")
+	mustHaveVendor("mysite/myname/mypkg/LICENSE.txt")
+
+	mustNotHaveVendor("a/foo/licensed-to-kill")
+	mustNotHaveVendor("w")
+	mustNotHaveVendor("w/LICENSE") // w wasn't copied at all
+	mustNotHaveVendor("x/x2")
+	mustNotHaveVendor("x/x2/LICENSE") // x/x2 wasn't copied at all
+
 	if !testing.Short() {
 		tg.run("-vgo", "build")
 		tg.run("-vgo", "build", "-getmode=vendor")
+		tg.cd(filepath.Join(wd, "testdata/vendormod/vendor"))
+		tg.run("-vgo", "test", "-getmode=vendor", "./...")
 	}
-	//test testdata copy
-	tg.cd(filepath.Join(wd, "testdata/vendormod/vendor"))
-	tg.run("-vgo", "test", "./...")
 }
 
 func TestFillGoMod(t *testing.T) {
@@ -784,8 +932,9 @@ func TestQueryExcluded(t *testing.T) {
 	tg.grepStderr("finding github.com/gorilla/mux v1.6.1", "find version 1.6.1")
 
 	tg.must(ioutil.WriteFile(tg.path("x/go.mod"), gomod, 0666))
-	tg.runFail("-vgo", "get", "github.com/gorilla/mux@v1.6")
-	tg.grepStderr("github.com/gorilla/mux@v1.6.0 excluded", "print version excluded")
+	tg.run("-vgo", "get", "github.com/gorilla/mux@>=v1.6")
+	tg.run("-vgo", "list", "-m", "...mux")
+	tg.grepStdout("github.com/gorilla/mux v1.6.[1-9]", "expected version 1.6.1 or later")
 }
 
 func TestRequireExcluded(t *testing.T) {

@@ -89,7 +89,7 @@ and test commands:
 	-gcflags '[pattern=]arg list'
 		arguments to pass on each go tool compile invocation.
 	-getmode mode
-		module download mode to use. See 'go help module' for more.
+		module download mode to use. See 'go help modules' for more.
 	-installsuffix suffix
 		a suffix to use in the name of the package installation directory,
 		in order to keep output separate from default builds.

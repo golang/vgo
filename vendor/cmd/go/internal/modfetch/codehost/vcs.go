@@ -121,7 +121,7 @@ var vcsCmds = map[string]*vcsCmd{
 		branchRE:      re(`(?m)^[^\n]+$`),
 		badLocalRevRE: re(`(?m)^(tip)$`),
 		statLocal: func(rev, remote string) []string {
-			return []string{"hg", "log", "-l1", "-r", rev, "--template", "{node} {date|hgdate}"}
+			return []string{"hg", "log", "-l1", "-r", rev, "--template", "{node} {date|hgdate} {tags}"}
 		},
 		parseStat: hgParseStat,
 		fetch:     []string{"hg", "pull", "-f"},
@@ -369,7 +369,7 @@ func (d *deleteCloser) Close() error {
 
 func hgParseStat(rev, out string) (*RevInfo, error) {
 	f := strings.Fields(string(out))
-	if len(f) != 3 {
+	if len(f) < 3 {
 		return nil, fmt.Errorf("unexpected response from hg log: %q", out)
 	}
 	hash := f[0]
@@ -382,11 +382,20 @@ func hgParseStat(rev, out string) (*RevInfo, error) {
 		return nil, fmt.Errorf("invalid time from hg log: %q", out)
 	}
 
+	var tags []string
+	for _, tag := range f[3:] {
+		if tag != "tip" {
+			tags = append(tags, tag)
+		}
+	}
+	sort.Strings(tags)
+
 	info := &RevInfo{
 		Name:    hash,
 		Short:   ShortenSHA1(hash),
 		Time:    time.Unix(t, 0).UTC(),
 		Version: version,
+		Tags:    tags,
 	}
 	return info, nil
 }

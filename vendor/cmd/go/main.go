@@ -28,6 +28,7 @@ import (
 	"cmd/go/internal/help"
 	"cmd/go/internal/list"
 	"cmd/go/internal/modcmd"
+	"cmd/go/internal/modget"
 	"cmd/go/internal/run"
 	"cmd/go/internal/test"
 	"cmd/go/internal/tool"
@@ -63,8 +64,10 @@ func init() {
 		help.HelpEnvironment,
 		help.HelpFileType,
 		help.HelpGopath,
+		get.HelpGopathGet,
 		help.HelpImportPath,
-		vgo.HelpModule,
+		vgo.HelpModules,
+		modget.HelpModuleGet,
 		help.HelpPackages,
 		test.HelpTestflag,
 		test.HelpTestfunc,

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"cmd/go/internal/base"
 	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modfile"
 	"cmd/go/internal/module"
@@ -57,7 +58,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 		r := item.(module.Version)
 		repo, info, err := modfetch.ImportRepoRev(r.Path, r.Version)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "vgo: converting %s: stat %s@%s: %v\n", file, r.Path, r.Version, err)
+			fmt.Fprintf(os.Stderr, "vgo: converting %s: stat %s@%s: %v\n", base.ShortPath(file), r.Path, r.Version, err)
 			return
 		}
 		mu.Lock()
@@ -72,7 +73,7 @@ func ConvertLegacyConfig(f *modfile.File, file string, data []byte) error {
 	}
 	sort.Strings(paths)
 	for _, path := range paths {
-		f.AddNewRequire(path, need[path])
+		f.AddNewRequire(path, need[path], false)
 	}
 
 	for _, r := range mf.Replace {

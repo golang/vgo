@@ -74,7 +74,7 @@ func testMain(m *testing.M) int {
 
 func testRepo(remote string) (Repo, error) {
 	if remote == "localGitRepo" {
-		return LocalGitRepo("file://" + filepath.ToSlash(localGitRepo))
+		return LocalGitRepo(filepath.ToSlash(localGitRepo))
 	}
 	kind := "git"
 	for _, k := range []string{"hg"} {
@@ -135,6 +135,7 @@ var latestTests = []struct {
 			Short:   "ede458df7cd0",
 			Version: "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
+			Tags:    []string{"v1.2.3", "v1.2.4-annotated"},
 		},
 	},
 	{
@@ -162,7 +163,7 @@ func TestLatest(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if *info != *tt.info {
+			if !reflect.DeepEqual(info, tt.info) {
 				t.Errorf("Latest: incorrect info\nhave %+v\nwant %+v", *info, *tt.info)
 			}
 		}
@@ -479,6 +480,7 @@ var statTests = []struct {
 			Short:   "ede458df7cd0",
 			Version: "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
+			Tags:    []string{"v1.2.3", "v1.2.4-annotated"},
 		},
 	},
 	{
@@ -489,6 +491,7 @@ var statTests = []struct {
 			Short:   "9d02800338b8",
 			Version: "9d02800338b8a55be062c838d1f02e0c5780b9eb",
 			Time:    time.Date(2018, 4, 17, 20, 00, 32, 0, time.UTC),
+			Tags:    []string{"v2.0.2"},
 		},
 	},
 	{
@@ -499,6 +502,7 @@ var statTests = []struct {
 			Short:   "76a00fb249b7",
 			Version: "76a00fb249b7f93091bc2c89a789dab1fc1bc26f",
 			Time:    time.Date(2018, 4, 17, 19, 45, 48, 0, time.UTC),
+			Tags:    []string{"v2.0.1", "v2.3"},
 		},
 	},
 	{
@@ -509,6 +513,7 @@ var statTests = []struct {
 			Short:   "76a00fb249b7",
 			Version: "v2.3",
 			Time:    time.Date(2018, 4, 17, 19, 45, 48, 0, time.UTC),
+			Tags:    []string{"v2.0.1", "v2.3"},
 		},
 	},
 	{
@@ -519,6 +524,7 @@ var statTests = []struct {
 			Short:   "ede458df7cd0",
 			Version: "v1.2.3",
 			Time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
+			Tags:    []string{"v1.2.3", "v1.2.4-annotated"},
 		},
 	},
 	{
@@ -529,6 +535,7 @@ var statTests = []struct {
 			Short:   "ede458df7cd0",
 			Version: "ede458df7cd0fdca520df19a33158086a8a68e81",
 			Time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
+			Tags:    []string{"v1.2.3", "v1.2.4-annotated"},
 		},
 	},
 	{
@@ -549,6 +556,7 @@ var statTests = []struct {
 			Short:   "ede458df7cd0",
 			Version: "v1.2.4-annotated",
 			Time:    time.Date(2018, 4, 17, 19, 43, 22, 0, time.UTC),
+			Tags:    []string{"v1.2.3", "v1.2.4-annotated"},
 		},
 	},
 	{
@@ -581,7 +589,7 @@ func TestStat(t *testing.T) {
 				}
 				return
 			}
-			if *info != *tt.info {
+			if !reflect.DeepEqual(info, tt.info) {
 				t.Errorf("Stat: incorrect info\nhave %+v\nwant %+v", *info, *tt.info)
 			}
 		}

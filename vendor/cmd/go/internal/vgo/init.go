@@ -48,11 +48,6 @@ var (
 
 )
 
-// TargetPackages returns the list of packages in the target (top-level) module.
-func TargetPackages() []string {
-	return matchPackages("ALL", []module.Version{Target})
-}
-
 // ModFile returns the parsed go.mod file.
 //
 // Note that after calling ImportPaths or LoadBuildList,
@@ -154,7 +149,7 @@ func Init() {
 	load.VgoImportPaths = ImportPaths
 	load.VgoPackageBuildInfo = PackageBuildInfo
 	load.VgoModInfoProg = ModInfoProg
-	load.VgoAddImports = AddImports
+	load.VgoImportFromFiles = ImportFromFiles
 
 	search.SetModRoot(ModRoot)
 }
@@ -263,7 +258,7 @@ func legacyModInit() {
 			if convert == nil {
 				return
 			}
-			fmt.Fprintf(os.Stderr, "vgo: copying requirements from %s\n", cfg)
+			fmt.Fprintf(os.Stderr, "vgo: copying requirements from %s\n", base.ShortPath(cfg))
 			cfg = filepath.ToSlash(cfg)
 			if err := modconv.ConvertLegacyConfig(modFile, cfg, data); err != nil {
 				base.Fatalf("vgo: %v", err)
@@ -342,24 +337,6 @@ func FindModulePath(dir string) (string, error) {
 		// Running go mod -init -module=x/y/z; return x/y/z.
 		return CmdModModule, nil
 	}
-	xdir, errdir := filepath.EvalSymlinks(dir)
-	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
-		xgpdir, errgpdir := filepath.EvalSymlinks(gpdir)
-		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
-		xsrc := filepath.Join(xgpdir, "src") + string(filepath.Separator)
-		if strings.HasPrefix(dir, src) {
-			return filepath.ToSlash(dir[len(src):]), nil
-		}
-		if errdir == nil && strings.HasPrefix(xdir, src) {
-			return filepath.ToSlash(xdir[len(src):]), nil
-		}
-		if errgpdir == nil && strings.HasPrefix(dir, xsrc) {
-			return filepath.ToSlash(dir[len(xsrc):]), nil
-		}
-		if errdir == nil && errgpdir == nil && strings.HasPrefix(xdir, xsrc) {
-			return filepath.ToSlash(xdir[len(xsrc):]), nil
-		}
-	}
 
 	// Cast about for import comments,
 	// first in top-level directory, then in subdirectories.
@@ -386,10 +363,10 @@ func FindModulePath(dir string) (string, error) {
 
 	// Look for Godeps.json declaring import path.
 	data, _ := ioutil.ReadFile(filepath.Join(dir, "Godeps/Godeps.json"))
-	var cfg struct{ ImportPath string }
-	json.Unmarshal(data, &cfg)
-	if cfg.ImportPath != "" {
-		return cfg.ImportPath, nil
+	var cfg1 struct{ ImportPath string }
+	json.Unmarshal(data, &cfg1)
+	if cfg1.ImportPath != "" {
+		return cfg1.ImportPath, nil
 	}
 
 	// Look for vendor.json declaring import path.
@@ -398,6 +375,26 @@ func FindModulePath(dir string) (string, error) {
 	json.Unmarshal(data, &cfg2)
 	if cfg2.RootPath != "" {
 		return cfg2.RootPath, nil
+	}
+
+	// Look for path in GOPATH.
+	xdir, errdir := filepath.EvalSymlinks(dir)
+	for _, gpdir := range filepath.SplitList(cfg.BuildContext.GOPATH) {
+		xgpdir, errgpdir := filepath.EvalSymlinks(gpdir)
+		src := filepath.Join(gpdir, "src") + string(filepath.Separator)
+		xsrc := filepath.Join(xgpdir, "src") + string(filepath.Separator)
+		if strings.HasPrefix(dir, src) {
+			return filepath.ToSlash(dir[len(src):]), nil
+		}
+		if errdir == nil && strings.HasPrefix(xdir, src) {
+			return filepath.ToSlash(xdir[len(src):]), nil
+		}
+		if errgpdir == nil && strings.HasPrefix(dir, xsrc) {
+			return filepath.ToSlash(dir[len(xsrc):]), nil
+		}
+		if errdir == nil && errgpdir == nil && strings.HasPrefix(xdir, xsrc) {
+			return filepath.ToSlash(xdir[len(xsrc):]), nil
+		}
 	}
 
 	// Look for .git/config with github origin as last resort.
@@ -435,11 +432,24 @@ func WriteGoMod() {
 	modfetch.WriteGoSum()
 
 	if buildList != nil {
-		min, err := mvs.Req(Target, buildList, newReqs())
+		var direct []string
+		for _, m := range buildList[1:] {
+			if loaded.direct[m.Path] {
+				direct = append(direct, m.Path)
+			}
+		}
+		min, err := mvs.Req(Target, buildList, direct, newReqs(buildList))
 		if err != nil {
 			base.Fatalf("vgo: %v", err)
 		}
-		modFile.SetRequire(min)
+		var list []*modfile.Require
+		for _, m := range min {
+			list = append(list, &modfile.Require{
+				Mod:      m,
+				Indirect: !loaded.direct[m.Path],
+			})
+		}
+		modFile.SetRequire(list)
 	}
 
 	file := filepath.Join(ModRoot, "go.mod")
