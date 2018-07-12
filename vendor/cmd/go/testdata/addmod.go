@@ -111,7 +111,11 @@ func main() {
 		}
 
 		a := new(txtar.Archive)
-		a.Comment = []byte(fmt.Sprintf("module %s@%s\n\n", path, vers))
+		title := arg
+		if !strings.Contains(arg, "@") {
+			title += "@" + vers
+		}
+		a.Comment = []byte(fmt.Sprintf("module %s\n\n", title))
 		a.Files = []txtar.File{
 			{Name: ".mod", Data: mod},
 			{Name: ".info", Data: info},
