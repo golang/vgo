@@ -5,6 +5,7 @@
 package imports
 
 import (
+	"internal/testenv"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -12,6 +13,8 @@ import (
 )
 
 func TestScan(t *testing.T) {
+	testenv.MustHaveGoBuild(t)
+
 	imports, testImports, err := ScanDir(filepath.Join(runtime.GOROOT(), "src/encoding/json"), Tags())
 	if err != nil {
 		t.Fatal(err)
@@ -50,6 +53,8 @@ func TestScan(t *testing.T) {
 }
 
 func TestScanStar(t *testing.T) {
+	testenv.MustHaveGoBuild(t)
+
 	imports, _, err := ScanDir("testdata/import1", map[string]bool{"*": true})
 	if err != nil {
 		t.Fatal(err)

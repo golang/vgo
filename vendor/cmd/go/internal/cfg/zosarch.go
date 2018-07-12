@@ -26,6 +26,7 @@ var OSArchSupportsCgo = map[string]bool{
 	"linux/mipsle":    true,
 	"linux/ppc64":     false,
 	"linux/ppc64le":   true,
+	"linux/riscv64":   true,
 	"linux/s390x":     true,
 	"nacl/386":        false,
 	"nacl/amd64p32":   false,

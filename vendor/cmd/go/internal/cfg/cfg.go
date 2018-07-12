@@ -74,6 +74,11 @@ var (
 	// in module-aware mode (as opposed to GOPATH mode).
 	// It is equal to modload.Enabled, but not all packages can import modload.
 	ModulesEnabled bool
+
+	// GoModInGOPATH records whether we've found a go.mod in GOPATH/src
+	// in GO111MODULE=auto mode. In that case, we don't use modules
+	// but people might expect us to, so 'go get' warns.
+	GoModInGOPATH string
 )
 
 func init() {
@@ -182,6 +187,11 @@ func findGOROOT1() string {
 		return filepath.Clean(env)
 	}
 	def := filepath.Clean(runtime.GOROOT())
+	if runtime.Compiler == "gccgo" {
+		// gccgo has no real GOROOT, and it certainly doesn't
+		// depend on the executable's location.
+		return def
+	}
 	exe, err := os.Executable()
 	if err == nil {
 		exe, err = filepath.Abs(exe)
@@ -231,6 +241,8 @@ func isSameDir(dir1, dir2 string) bool {
 // It does this by looking for the path/pkg/tool directory,
 // which is necessary for useful operation of the cmd/go tool,
 // and is not typically present in a GOPATH.
+//
+// There is a copy of this code in x/tools/cmd/godoc/goroot.go.
 func isGOROOT(path string) bool {
 	stat, err := os.Stat(filepath.Join(path, "pkg", "tool"))
 	if err != nil {

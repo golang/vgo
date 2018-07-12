@@ -98,8 +98,9 @@ type PackagePublic struct {
 	CgoPkgConfig []string `json:",omitempty"` // cgo: pkg-config names
 
 	// Dependency information
-	Imports []string `json:",omitempty"` // import paths used by this package
-	Deps    []string `json:",omitempty"` // all (recursively) imported dependencies
+	Imports   []string          `json:",omitempty"` // import paths used by this package
+	ImportMap map[string]string `json:",omitempty"` // map from source import to ImportPath (identity entries omitted)
+	Deps      []string          `json:",omitempty"` // all (recursively) imported dependencies
 
 	// Error information
 	Incomplete bool            `json:",omitempty"` // was there an error loading this package or dependencies?
@@ -1595,7 +1596,7 @@ func (p *Package) UsesCgo() bool {
 	return len(p.CgoFiles) > 0
 }
 
-// packageList returns the list of packages in the dag rooted at roots
+// PackageList returns the list of packages in the dag rooted at roots
 // as visited in a depth-first post-order traversal.
 func PackageList(roots []*Package) []*Package {
 	seen := map[*Package]bool{}
@@ -1613,6 +1614,42 @@ func PackageList(roots []*Package) []*Package {
 	}
 	for _, root := range roots {
 		walk(root)
+	}
+	return all
+}
+
+// TestPackageList returns the list of packages in the dag rooted at roots
+// as visited in a depth-first post-order traversal, including the test
+// imports of the roots. This ignores errors in test packages.
+func TestPackageList(roots []*Package) []*Package {
+	seen := map[*Package]bool{}
+	all := []*Package{}
+	var walk func(*Package)
+	walk = func(p *Package) {
+		if seen[p] {
+			return
+		}
+		seen[p] = true
+		for _, p1 := range p.Internal.Imports {
+			walk(p1)
+		}
+		all = append(all, p)
+	}
+	walkTest := func(root *Package, path string) {
+		var stk ImportStack
+		p1 := LoadImport(path, root.Dir, root, &stk, root.Internal.Build.TestImportPos[path], ResolveImport)
+		if p1.Error == nil {
+			walk(p1)
+		}
+	}
+	for _, root := range roots {
+		walk(root)
+		for _, path := range root.TestImports {
+			walkTest(root, path)
+		}
+		for _, path := range root.XTestImports {
+			walkTest(root, path)
+		}
 	}
 	return all
 }

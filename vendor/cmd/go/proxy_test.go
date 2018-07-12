@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"testing"
 
 	"cmd/go/internal/modfetch"
 	"cmd/go/internal/modfetch/codehost"
@@ -77,7 +78,12 @@ func readModList() {
 		if i < 0 {
 			continue
 		}
-		path := strings.Replace(name[:i], "_", "/", -1)
+		enc := strings.Replace(name[:i], "_", "/", -1)
+		path, err := module.DecodePath(enc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "go proxy_test: %v", err)
+			continue
+		}
 		vers := name[i+1:]
 		modList = append(modList, module.Version{Path: path, Version: vers})
 	}
@@ -98,7 +104,13 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	path, file := path[:i], path[i+len("/@v/"):]
+	enc, file := path[:i], path[i+len("/@v/"):]
+	path, err := module.DecodePath(enc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "go proxy_test: %v\n", err)
+		http.NotFound(w, r)
+		return
+	}
 	if file == "list" {
 		n := 0
 		for _, m := range modList {
@@ -147,6 +159,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	a := readArchive(path, vers)
 	if a == nil {
+		fmt.Fprintf(os.Stderr, "go proxy: no archive %s %s\n", path, vers)
 		http.Error(w, "cannot load archive", 500)
 		return
 	}
@@ -188,6 +201,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}).(cached)
 
 		if c.err != nil {
+			fmt.Fprintf(os.Stderr, "go proxy: %v\n", c.err)
 			http.Error(w, c.err.Error(), 500)
 			return
 		}
@@ -217,13 +231,21 @@ func findHash(m module.Version) string {
 
 var archiveCache par.Cache
 
+var cmdGoDir, _ = os.Getwd()
+
 func readArchive(path, vers string) *txtar.Archive {
-	prefix := strings.Replace(path, "/", "_", -1)
+	enc, err := module.EncodePath(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "go proxy: %v\n", err)
+		return nil
+	}
+
+	prefix := strings.Replace(enc, "/", "_", -1)
 	name := filepath.Join(cmdGoDir, "testdata/mod", prefix+"_"+vers+".txt")
 	a := archiveCache.Do(name, func() interface{} {
 		a, err := txtar.ParseFile(name)
 		if err != nil {
-			if !os.IsNotExist(err) {
+			if testing.Verbose() || !os.IsNotExist(err) {
 				fmt.Fprintf(os.Stderr, "go proxy: %v\n", err)
 			}
 			a = nil

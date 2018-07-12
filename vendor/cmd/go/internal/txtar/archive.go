@@ -22,9 +22,8 @@
 // The comment or file content ends at the next file marker line.
 // The file marker line must begin with the three-byte sequence "-- "
 // and end with the three-byte sequence " --", but the enclosed
-// file name can be surrounded by additional white space,
-// all of which is stripped. The file name may itself contain spaces,
-// which are preserved.
+// file name can be surrounding by additional white space,
+// all of which is stripped.
 //
 // If the txtar file is missing a trailing newline on the final line,
 // parsers should consider a final newline to be present anyway.
@@ -54,8 +53,7 @@ type File struct {
 // Format returns the serialized form of an Archive.
 // It is assumed that the Archive data structure is well-formed:
 // a.Comment and all a.File[i].Data contain no file marker lines,
-// and all a.File[i].Name are non-empty and well-formed
-// (no leading or trailing spaces, no newlines, and so on).
+// and all a.File[i].Name is non-empty.
 func Format(a *Archive) []byte {
 	var buf bytes.Buffer
 	buf.Write(fixNL(a.Comment))

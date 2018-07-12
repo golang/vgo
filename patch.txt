@@ -1,0 +1,568 @@
+diff -u -r ./go11.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go11.go
+--- ./go11.go	2018-05-30 20:46:08.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go11.go	2018-02-20 12:11:43.000000000 -0500
+@@ -4,7 +4,7 @@
+
+ // +build go1.1
+
+-package main
++package Main
+
+ // Test that go1.1 tag above is included in builds. main.go refers to this definition.
+ const go11tag = true
+diff -u -r ./go_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_test.go
+--- ./go_test.go	2018-07-12 00:17:57.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_test.go	2018-07-12 00:09:46.000000000 -0400
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+
+-package main_test
++package Main_test
+
+ import (
+ 	"bytes"
+@@ -120,8 +120,8 @@
+ 	}
+
+ 	if canRun {
+ 		testGo = filepath.Join(testTmpDir, "testgo"+exeSuffix)
+-		args := []string{"build", "-tags", "testgo", "-o", testGo}
++		args := []string{"build", "-tags", "testgo", "-o", testGo, "../../.."}
+ 		if race.Enabled {
+ 			args = append(args, "-race")
+ 		}
+@@ -867,7 +870,9 @@
+ 	tg.grepBoth("FAIL.*badtest/badvar", "test did not run everything")
+ }
+
+ func TestNewReleaseRebuildsStalePackagesInGOPATH(t *testing.T) {
++	t.Skip("vgo")
++
+ 	if testing.Short() {
+ 		t.Skip("don't rebuild the standard library in short mode")
+ 	}
+@@ -1342,6 +1389,8 @@
+ }
+
+ func TestMoveHG(t *testing.T) {
++	t.Skip("vgo") // Failing in main branch too: non-hermetic hg configuration?
++
+ 	testMove(t, "hg", "vcs-test.golang.org/go/custom-hg-hello", "custom-hg-hello", "vcs-test.golang.org/go/custom-hg-hello/.hg/hgrc")
+ }
+
+@@ -1507,6 +1556,8 @@
+ }
+
+ func TestAccidentalGitCheckout(t *testing.T) {
++	t.Skip("vgo") // Failing in main branch too: https://golang.org/issue/22983
++
+ 	testenv.MustHaveExternalNetwork(t)
+ 	if _, err := exec.LookPath("git"); err != nil {
+ 		t.Skip("skipping because git binary not found")
+@@ -2114,6 +2165,8 @@
+ }
+
+ func TestDefaultGOPATH(t *testing.T) {
++	t.Skip("vgo") // Needs a more realistic GOROOT; see RuntimeGoroot below.
++
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+ 	tg.parallel()
+@@ -2172,6 +2225,8 @@
+ // Issue 4186. go get cannot be used to download packages to $GOROOT.
+ // Test that without GOPATH set, go get should fail.
+ func TestGoGetIntoGOROOT(t *testing.T) {
++	t.Skip("vgo")
++
+ 	testenv.MustHaveExternalNetwork(t)
+
+ 	tg := testgo(t)
+@@ -2771,6 +2771,8 @@ func TestTestBuildFailureOutput(t *testing.T) {
+ }
+
+ func TestCoverageFunc(t *testing.T) {
++	t.Skip("vgo")
++
+ 	tooSlow(t)
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+@@ -3395,6 +3450,8 @@
+ }
+
+ func TestGoVetWithExternalTests(t *testing.T) {
++	t.Skip("vgo")
++
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+ 	tg.makeTempdir()
+@@ -3404,6 +3461,8 @@
+ }
+
+ func TestGoVetWithTags(t *testing.T) {
++	t.Skip("vgo")
++
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+ 	tg.makeTempdir()
+@@ -3413,6 +3472,8 @@
+ }
+
+ func TestGoVetWithFlagsOn(t *testing.T) {
++	t.Skip("vgo")
++
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+ 	tg.makeTempdir()
+@@ -4754,6 +4815,8 @@
+ }
+
+ func TestExecutableGOROOT(t *testing.T) {
++	t.Skip("vgo")
++
+ 	skipIfGccgo(t, "gccgo has no GOROOT")
+ 	if runtime.GOOS == "openbsd" {
+ 		t.Skipf("test case does not work on %s, missing os.Executable", runtime.GOOS)
+@@ -4829,6 +4892,8 @@
+ 	// Binaries built in the new tree should report the
+ 	// new tree when they call runtime.GOROOT.
+ 	t.Run("RuntimeGoroot", func(t *testing.T) {
++		t.Skip("vgo") // Needs "new/api" in GOROOT.
++
+ 		// Build a working GOROOT the easy way, with symlinks.
+ 		testenv.MustHaveSymlink(t)
+ 		if err := os.Symlink(filepath.Join(testGOROOT, "src"), tg.path("new/src")); err != nil {
+@@ -4984,6 +5049,8 @@
+ }
+
+ func TestTestRegexps(t *testing.T) {
++	t.Skip("vgo") // fails with Go 1.10 testing package
++
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+ 	tg.setenv("GOPATH", filepath.Join(tg.pwd(), "testdata"))
+@@ -5119,6 +5186,8 @@
+ }
+
+ func TestExecBuildX(t *testing.T) {
++	t.Skip("vgo")
++
+ 	tooSlow(t)
+ 	if !canCgo {
+ 		t.Skip("skipping because cgo not enabled")
+@@ -5761,6 +5830,8 @@
+ }
+
+ func TestTestVet(t *testing.T) {
++	t.Skip("vgo")
++
+ 	tooSlow(t)
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+@@ -5945,6 +6011,8 @@
+ }
+
+ func TestGoTestJSON(t *testing.T) {
++	t.Skip("vgo") // "did not see skip"
++
+ 	skipIfGccgo(t, "gccgo does not have standard packages")
+ 	tooSlow(t)
+
+@@ -5983,6 +6051,8 @@
+ }
+
+ func TestFailFast(t *testing.T) {
++	t.Skip("vgo") // fails with Go 1.10 testing package
++
+ 	tooSlow(t)
+ 	tg := testgo(t)
+ 	defer tg.cleanup()
+diff -u -r ./go_unix_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_unix_test.go
+--- ./go_unix_test.go	2018-06-04 09:24:18.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_unix_test.go	2018-02-20 12:11:43.000000000 -0500
+@@ -4,6 +4,6 @@
+
+ // +build darwin dragonfly freebsd linux netbsd openbsd solaris
+
+-package main_test
++package Main_test
+
+ import (
+diff -u -r ./go_windows_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_windows_test.go
+--- ./go_windows_test.go	2018-06-04 09:24:18.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_windows_test.go	2018-02-20 12:11:43.000000000 -0500
+@@ -2,6 +2,6 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+
+-package main
++package Main
+
+ import (
+diff -u -r ./script_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/script_test.go
+--- ./script_test.go	2018-06-04 09:24:18.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/script_test.go	2018-02-20 12:11:43.000000000 -0500
+@@ -5,6 +5,6 @@
+ // Script-driven tests.
+ // See testdata/script/README for an overview.
+
+-package main_test
++package Main_test
+
+ import (
+diff -u -r ./internal/base/base.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/base/base.go
+--- ./internal/base/base.go	2018-06-04 09:24:18.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/base/base.go	2018-02-23 16:13:50.000000000 -0500
+@@ -15,6 +15,7 @@
+ 	"log"
+ 	"os"
+ 	"os/exec"
++	"runtime/debug"
+ 	"strings"
+ 	"sync"
+
+@@ -86,13 +87,20 @@
+ 	os.Exit(exitStatus)
+ }
+
++var et = flag.Bool("et", false, "print stack traces with errors")
++
+ func Fatalf(format string, args ...interface{}) {
+ 	Errorf(format, args...)
+ 	Exit()
+ }
+
+ func Errorf(format string, args ...interface{}) {
+-	log.Printf(format, args...)
++	if *et {
++		stack := debug.Stack()
++		log.Printf("%s\n%s", fmt.Sprintf(format, args...), stack)
++	} else {
++		log.Printf(format, args...)
++	}
+ 	SetExitStatus(1)
+ }
+
+diff -u -r ./internal/cfg/cfg.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/cfg/cfg.go
+--- ./internal/cfg/cfg.go	2018-07-12 00:17:57.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/cfg/cfg.go	2018-07-12 00:03:05.000000000 -0400
+@@ -7,13 +7,14 @@
+ package cfg
+
+ import (
++	"bytes"
+ 	"fmt"
+ 	"go/build"
++	"io/ioutil"
++	"log"
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
+-
+-	"cmd/internal/objabi"
+ )
+
+ // These are general "build flags" used by build and other commands.
+@@ -90,10 +91,10 @@
+ 	GOROOT_FINAL = findGOROOT_FINAL()
+
+ 	// Used in envcmd.MkEnv and build ID computations.
+-	GOARM    = fmt.Sprint(objabi.GOARM)
+-	GO386    = objabi.GO386
+-	GOMIPS   = objabi.GOMIPS
+-	GOMIPS64 = objabi.GOMIPS64
++	GOARM, GO386, GOMIPS, GOMIPS64 = objabi()
++
++	// C and C++ compilers
++	CC, CXX = compilers()
+ )
+
+ // Update build context to use our computed GOROOT.
+@@ -109,18 +110,75 @@
+ 	}
+ }
+
+-// There is a copy of findGOROOT, isSameDir, and isGOROOT in
+-// x/tools/cmd/godoc/goroot.go.
+-// Try to keep them in sync for now.
+-
+-// findGOROOT returns the GOROOT value, using either an explicitly
+-// provided environment variable, a GOROOT that contains the current
+-// os.Executable value, or else the GOROOT that the binary was built
+-// with from runtime.GOROOT().
+-//
+-// There is a copy of this code in x/tools/cmd/godoc/goroot.go.
++func objabi() (GOARM, GO386, GOMIPS, GOMIPS64 string) {
++	data, err := ioutil.ReadFile(filepath.Join(GOROOT, "src/cmd/internal/objabi/zbootstrap.go"))
++	if err != nil {
++		fmt.Fprintf(os.Stderr, "go objabi: %v\n", err)
++	}
++
++	find := func(key string) string {
++		if env := os.Getenv(key); env != "" {
++			return env
++		}
++		i := bytes.Index(data, []byte("default"+key+" = `"))
++		if i < 0 {
++			if key == "GOMIPS64" { // new in Go 1.11
++				return ""
++			}
++			fmt.Fprintf(os.Stderr, "go objabi: cannot find %s\n", key)
++			os.Exit(2)
++		}
++		line := data[i:]
++		line = line[bytes.IndexByte(line, '`')+1:]
++		return string(line[:bytes.IndexByte(line, '`')])
++	}
++
++	return find("GOARM"), find("GO386"), find("GOMIPS"), find("GOMIPS64")
++}
++
++func compilers() (CC, CXX string) {
++	data, err := ioutil.ReadFile(filepath.Join(GOROOT, "src/cmd/go/internal/cfg/zdefaultcc.go"))
++	if err != nil {
++		fmt.Fprintf(os.Stderr, "go compilers: %v\n", err)
++	}
++
++	find := func(key string) string {
++		if env := os.Getenv(key); env != "" {
++			return env
++		}
++		fi := bytes.Index(data, []byte("Default"+key+"(goos, goarch string)"))
++		if fi < 0 {
++			fmt.Fprintf(os.Stderr, "go compilers: cannot find %s\n", key)
++			os.Exit(2)
++		}
++		i := bytes.Index(data[fi:], []byte("\treturn "))
++		if i < 0 {
++			fmt.Fprintf(os.Stderr, "go compilers: cannot find %s\n", key)
++			os.Exit(2)
++		}
++		line := data[fi+i:]
++		line = line[bytes.IndexByte(line, '"')+1:]
++		return string(line[:bytes.IndexByte(line, '"')])
++	}
++
++	return find("CC"), find("CXX")
++}
++
+ func findGOROOT() string {
++	goroot := findGOROOT1()
++	_, err := os.Stat(filepath.Join(goroot, "api/go1.10.txt"))
++	if err != nil {
++		log.SetFlags(0)
++		log.Fatalf("go requires Go 1.10 but VGOROOT=%s is not a Go 1.10 source tree", goroot)
++	}
++	return goroot
++}
++
++func findGOROOT1() string {
++	if env := os.Getenv("VGOROOT"); env != "" {
++		return filepath.Clean(env)
++	}
+ 	if env := os.Getenv("GOROOT"); env != "" {
+ 		return filepath.Clean(env)
+ 	}
+ 	def := filepath.Clean(runtime.GOROOT())
+diff -u -r ./internal/help/help.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/help/help.go
+--- ./internal/help/help.go	2018-07-12 00:17:57.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/help/help.go	2018-07-12 00:03:05.000000000 -0400
+@@ -72,6 +72,10 @@
+
+ var usageTemplate = `Go is a tool for managing Go source code.
+
++This is vgo, an experimental go command with support for package versioning.
++Even though you are invoking it as vgo, most of the messages printed will
++still say "go", not "vgo". Sorry.
++
+ Usage:
+
+ 	go command [arguments]
+diff -u -r ./internal/version/version.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/version/version.go
+--- ./internal/version/version.go	2018-06-04 09:24:18.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/version/version.go	2018-07-10 16:04:55.000000000 -0400
+@@ -10,8 +10,9 @@
+ 	"runtime"
+
+ 	"cmd/go/internal/base"
++	"cmd/go/internal/work"
+ )
+
+ var CmdVersion = &base.Command{
+ 	Run:       runVersion,
+ 	UsageLine: "version",
+@@ -24,5 +27,5 @@
+ 		cmd.Usage()
+ 	}
+
+-	fmt.Printf("go version %s %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
++	fmt.Printf("go version %s %s/%s vgo:%s\n", work.RuntimeVersion, runtime.GOOS, runtime.GOARCH, version)
+ }
+diff -u -r ./internal/work/build.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/build.go
+--- ./internal/work/build.go	2018-07-12 00:17:57.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/build.go	2018-07-10 17:04:18.000000000 -0400
+@@ -5,9 +5,11 @@
+ package work
+
+ import (
++	"bytes"
+ 	"errors"
+ 	"fmt"
+ 	"go/build"
++	"io/ioutil"
+ 	"os"
+ 	"os/exec"
+ 	"path"
+@@ -274,7 +276,25 @@
+
+ var pkgsFilter = func(pkgs []*load.Package) []*load.Package { return pkgs }
+
+-var runtimeVersion = runtime.Version()
++var runtimeVersion = getRuntimeVersion()
++var RuntimeVersion = runtimeVersion
++
++func getRuntimeVersion() string {
++	data, err := ioutil.ReadFile(filepath.Join(cfg.GOROOT, "src/runtime/internal/sys/zversion.go"))
++	if err != nil {
++		base.Fatalf("go: %v", err)
++	}
++	i := bytes.Index(data, []byte("TheVersion = `"))
++	if i < 0 {
++		base.Fatalf("go: cannot find TheVersion")
++	}
++	data = data[i+len("TheVersion = `"):]
++	j := bytes.IndexByte(data, '`')
++	if j < 0 {
++		base.Fatalf("go: cannot find TheVersion")
++	}
++	return string(data[:j])
++}
+
+ func runBuild(cmd *base.Command, args []string) {
+ 	BuildInit()
+diff -u -r ./internal/work/buildid.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/buildid.go
+--- ./internal/work/buildid.go	2018-07-06 16:52:53.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/buildid.go	2018-06-27 21:01:27.000000000 -0400
+@@ -134,6 +134,8 @@
+ 	return string(dst[:])
+ }
+
++var oldVet = false
++
+ // toolID returns the unique ID to use for the current copy of the
+ // named tool (asm, compile, cover, link).
+ //
+@@ -166,6 +168,10 @@
+ // build setups agree on details like $GOROOT and file name paths, but at least the
+ // tool IDs do not make it impossible.)
+ func (b *Builder) toolID(name string) string {
++	if name == "vet" && oldVet {
++		return ""
++	}
++
+ 	b.id.Lock()
+ 	id := b.toolIDCache[name]
+ 	b.id.Unlock()
+@@ -190,6 +196,10 @@
+ 	cmd.Stdout = &stdout
+ 	cmd.Stderr = &stderr
+ 	if err := cmd.Run(); err != nil {
++		if name == "vet" {
++			oldVet = true
++			return ""
++		}
+ 		base.Fatalf("%s: %v\n%s%s", desc, err, stdout.Bytes(), stderr.Bytes())
+ 	}
+
+diff -u -r ./internal/work/exec.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/exec.go
+--- ./internal/work/exec.go	2018-07-12 00:17:57.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/exec.go	2018-07-12 00:03:05.000000000 -0400
+@@ -972,7 +972,7 @@
+ 	// TODO(rsc,gri): Try to remove this for Go 1.11.
+ 	//
+ 	// Disabled 2018-04-20. Let's see if we can do without it.
+-	// vcfg.SucceedOnTypecheckFailure = cfg.CmdName == "test"
++	vcfg.SucceedOnTypecheckFailure = cfg.CmdName == "test"
+
+ 	js, err := json.MarshalIndent(vcfg, "", "\t")
+ 	if err != nil {
+diff -u -r ./internal/work/gc.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/gc.go
+--- ./internal/work/gc.go	2018-07-06 16:52:53.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/internal/work/gc.go	2018-06-27 21:01:27.000000000 -0400
+@@ -20,7 +20,6 @@
+ 	"cmd/go/internal/cfg"
+ 	"cmd/go/internal/load"
+ 	"cmd/go/internal/str"
+-	"cmd/internal/objabi"
+ 	"crypto/sha1"
+ )
+
+@@ -167,11 +166,6 @@
+ 		}
+ 	}
+
+-	// TODO: Test and delete these conditions.
+-	if objabi.Fieldtrack_enabled != 0 || objabi.Preemptibleloops_enabled != 0 || objabi.Clobberdead_enabled != 0 {
+-		canDashC = false
+-	}
+-
+ 	if !canDashC {
+ 		return 1
+ 	}
+diff -u -r ./main.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/main.go
+--- ./main.go	2018-07-12 00:17:57.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/main.go	2018-07-10 16:04:55.000000000 -0400
+@@ -4,7 +4,7 @@
+
+ //go:generate ./mkalldocs.sh
+
+-package main
++package Main
+
+ import (
+ 	"flag"
+@@ -74,7 +74,7 @@
+ 	}
+ }
+
+-func main() {
++func Main() {
+ 	_ = go11tag
+ 	flag.Usage = base.Usage
+ 	flag.Parse()
+diff -u -r ./note_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/note_test.go
+--- ./note_test.go	2018-07-12 00:14:08.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/note_test.go	2018-07-11 23:25:10.000000000 -0400
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+
+-package main_test
++package Main_test
+
+ import (
+ 	"bytes"
+diff -u -r ./proxy_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/proxy_test.go
+--- ./proxy_test.go	2018-07-12 00:14:08.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/proxy_test.go	2018-07-11 23:25:10.000000000 -0400
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+
+-package main_test
++package Main_test
+
+ import (
+ 	"bytes"
+diff -u -r ./vendor_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/vendor_test.go
+--- ./vendor_test.go	2018-07-12 00:14:08.000000000 -0400
++++ /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/vendor_test.go	2018-07-11 23:25:10.000000000 -0400
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+
+-package main_test
++package Main_test
+
+ import (
+ 	"bytes"
