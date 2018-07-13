@@ -448,7 +448,13 @@ func (r *gitRepo) ReadZip(rev, subdir string, maxSize int64) (zip io.ReadCloser,
 	if err != nil {
 		return nil, "", err
 	}
-	archive, err := Run(r.dir, "git", "archive", "--format=zip", "--prefix=prefix/", info.Name, args)
+
+	// Incredibly, git produces different archives depending on whether
+	// it is running on a Windows system or not, in an attempt to normalize
+	// text file line endings. Setting -c core.autocrlf=input means only
+	// translate files on the way into the repo, not on the way out (archive).
+	// The -c core.eol=lf should be unnecessary but set it anyway.
+	archive, err := Run(r.dir, "git", "-c", "core.autocrlf=input", "-c", "core.eol=lf", "archive", "--format=zip", "--prefix=prefix/", info.Name, args)
 	if err != nil {
 		if bytes.Contains(err.(*RunError).Stderr, []byte("did not match any files")) {
 			return nil, "", os.ErrNotExist

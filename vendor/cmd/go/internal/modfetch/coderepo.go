@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -140,7 +139,6 @@ func (r *codeRepo) Latest() (*RevInfo, error) {
 }
 
 func (r *codeRepo) convert(info *codehost.RevInfo, statVers string) (*RevInfo, error) {
-
 	info2 := &RevInfo{
 		Name:  info.Name,
 		Short: info.Short,
@@ -184,6 +182,17 @@ func (r *codeRepo) convert(info *codehost.RevInfo, statVers string) (*RevInfo, e
 		}
 	}
 
+	// Do not allow a successful stat of a pseudo-version for a subdirectory
+	// unless the subdirectory actually does have a go.mod.
+	if IsPseudoVersion(info2.Version) && r.codeDir != "" {
+		_, _, _, err := r.findDir(info2.Version)
+		if err != nil {
+			// TODO: It would be nice to return an error like "not a module".
+			// Right now we return "missing go.mod", which is a little confusing.
+			return nil, err
+		}
+	}
+
 	return info2, nil
 }
 
@@ -214,60 +223,100 @@ func (r *codeRepo) findDir(version string) (rev, dir string, gomod []byte, err e
 	if err != nil {
 		return "", "", nil, err
 	}
-	if r.pathMajor == "" || strings.HasPrefix(r.pathMajor, ".") {
-		if r.codeDir == "" {
-			return rev, "", nil, nil
-		}
-		file1 := path.Join(r.codeDir, "go.mod")
-		gomod1, err1 := r.code.ReadFile(rev, file1, codehost.MaxGoMod)
-		if err1 != nil {
-			if os.IsNotExist(err1) {
-				return "", "", nil, errors.New("missing go.mod")
-			}
-			return "", "", nil, fmt.Errorf("reading go.mod: %v", err1)
-		}
-		return rev, r.codeDir, gomod1, nil
-	}
 
-	// Suppose pathMajor is "/v2".
-	// Either go.mod should claim v2 and v2/go.mod should not exist,
-	// or v2/go.mod should exist and claim v2. Not both.
-	// Note that we don't check the full path, just the major suffix,
-	// because of replacement modules. This might be a fork of
-	// the real module, found at a different path, usable only in
-	// a replace directive.
+	// Load info about go.mod but delay consideration
+	// (except I/O error) until we rule out v2/go.mod.
 	file1 := path.Join(r.codeDir, "go.mod")
-	file2 := path.Join(r.codeDir, r.pathMajor[1:], "go.mod")
 	gomod1, err1 := r.code.ReadFile(rev, file1, codehost.MaxGoMod)
-	gomod2, err2 := r.code.ReadFile(rev, file2, codehost.MaxGoMod)
-
 	if err1 != nil && !os.IsNotExist(err1) {
-		return "", "", nil, fmt.Errorf("reading %s: %v", file1, err1)
+		return "", "", nil, fmt.Errorf("reading %s/%s at revision %s: %v", r.pathPrefix, file1, rev, err1)
 	}
-	if err2 != nil && !os.IsNotExist(err2) {
-		return "", "", nil, fmt.Errorf("reading %s: %v", file2, err2)
+	mpath1 := modfile.ModulePath(gomod1)
+	found1 := err1 == nil && isMajor(mpath1, r.pathMajor)
+
+	var file2 string
+	if r.pathMajor != "" && !strings.HasPrefix(r.pathMajor, ".") {
+		// Suppose pathMajor is "/v2".
+		// Either go.mod should claim v2 and v2/go.mod should not exist,
+		// or v2/go.mod should exist and claim v2. Not both.
+		// Note that we don't check the full path, just the major suffix,
+		// because of replacement modules. This might be a fork of
+		// the real module, found at a different path, usable only in
+		// a replace directive.
+		dir2 := path.Join(r.codeDir, r.pathMajor[1:])
+		file2 = path.Join(dir2, "go.mod")
+		gomod2, err2 := r.code.ReadFile(rev, file2, codehost.MaxGoMod)
+		if err2 != nil && !os.IsNotExist(err2) {
+			return "", "", nil, fmt.Errorf("reading %s/%s at revision %s: %v", r.pathPrefix, file2, rev, err2)
+		}
+		mpath2 := modfile.ModulePath(gomod2)
+		found2 := err2 == nil && isMajor(mpath2, r.pathMajor)
+
+		if found1 && found2 {
+			return "", "", nil, fmt.Errorf("%s/%s and ...%s/go.mod both have ...%s module paths at revision %s", r.pathPrefix, file1, r.pathMajor, r.pathMajor, rev)
+		}
+		if found2 {
+			return rev, dir2, gomod2, nil
+		}
+		if err2 == nil {
+			if mpath2 == "" {
+				return "", "", nil, fmt.Errorf("%s/%s is missing module path at revision %s", r.pathPrefix, file2, rev)
+			}
+			return "", "", nil, fmt.Errorf("%s/%s has non-...%s module path %q at revision %s", r.pathPrefix, file2, r.pathMajor, mpath2, rev)
+		}
 	}
 
-	found1 := err1 == nil && isMajor(gomod1, r.pathMajor)
-	found2 := err2 == nil && isMajor(gomod2, r.pathMajor)
-
-	if err2 == nil && !found2 {
-		return "", "", nil, fmt.Errorf("%s has non-...%s module path", file2, r.pathMajor)
-	}
-	if found1 && found2 {
-		return "", "", nil, fmt.Errorf("both %s and %s claim ...%s module", file1, file2, r.pathMajor)
-	}
-	if found2 {
-		return rev, filepath.Join(r.codeDir, r.pathMajor), gomod2, nil
-	}
+	// Not v2/go.mod, so it's either go.mod or nothing. Which is it?
 	if found1 {
+		// Explicit go.mod with matching module path OK.
 		return rev, r.codeDir, gomod1, nil
 	}
-	return "", "", nil, fmt.Errorf("missing or invalid go.mod")
+	if err1 == nil {
+		// Explicit go.mod with non-matching module path disallowed.
+		suffix := ""
+		if file2 != "" {
+			suffix = fmt.Sprintf(" (and ...%s/go.mod does not exist)", r.pathMajor)
+		}
+		if mpath1 == "" {
+			return "", "", nil, fmt.Errorf("%s is missing module path%s at revision %s", file1, suffix, rev)
+		}
+		if r.pathMajor != "" { // ".v1", ".v2" for gopkg.in
+			return "", "", nil, fmt.Errorf("%s has non-...%s module path %q%s at revision %s", file1, r.pathMajor, mpath1, suffix, rev)
+		}
+		return "", "", nil, fmt.Errorf("%s has post-%s module path %q%s at revision %s", file1, semver.Major(version), mpath1, suffix, rev)
+	}
+
+	if r.codeDir == "" && (r.pathMajor == "" || strings.HasPrefix(r.pathMajor, ".")) {
+		// Implicit go.mod at root of repo OK for v0/v1 and for gopkg.in.
+		return rev, "", nil, nil
+	}
+
+	// Implicit go.mod below root of repo or at v2+ disallowed.
+	// Be clear about possibility of using either location for v2+.
+	if file2 != "" {
+		return "", "", nil, fmt.Errorf("missing %s/go.mod and ...%s/go.mod at revision %s", r.pathPrefix, r.pathMajor, rev)
+	}
+	return "", "", nil, fmt.Errorf("missing %s/go.mod at revision %s", r.pathPrefix, rev)
 }
 
-func isMajor(gomod []byte, pathMajor string) bool {
-	return strings.HasSuffix(modfile.ModulePath(gomod), pathMajor)
+func isMajor(mpath, pathMajor string) bool {
+	if mpath == "" {
+		return false
+	}
+	if pathMajor == "" {
+		// mpath must NOT have version suffix.
+		i := len(mpath)
+		for i > 0 && '0' <= mpath[i-1] && mpath[i-1] <= '9' {
+			i--
+		}
+		if i < len(mpath) && i >= 2 && mpath[i-1] == 'v' && mpath[i-2] == '/' {
+			// Found valid suffix.
+			return false
+		}
+		return true
+	}
+	// Otherwise pathMajor is ".v1", ".v2" (gopkg.in), or "/v2", "/v3" etc.
+	return strings.HasSuffix(mpath, pathMajor)
 }
 
 func (r *codeRepo) GoMod(version string) (data []byte, err error) {
@@ -318,7 +367,7 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 	subdir := strings.Trim(strings.TrimPrefix(dir, actualDir), "/")
 
 	// Spool to local file.
-	f, err := ioutil.TempFile(tmpdir, "vgo-codehost-")
+	f, err := ioutil.TempFile(tmpdir, "go-codehost-")
 	if err != nil {
 		dl.Close()
 		return "", err
@@ -345,7 +394,7 @@ func (r *codeRepo) Zip(version string, tmpdir string) (tmpfile string, err error
 	if err != nil {
 		return "", err
 	}
-	f2, err := ioutil.TempFile(tmpdir, "vgo-")
+	f2, err := ioutil.TempFile(tmpdir, "go-codezip-")
 	if err != nil {
 		return "", err
 	}

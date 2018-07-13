@@ -329,7 +329,7 @@ func (r *vcsRepo) ReadZip(rev, subdir string, maxSize int64) (zip io.ReadCloser,
 	if rev == "latest" {
 		rev = r.cmd.latest
 	}
-	f, err := ioutil.TempFile("", "vgo-readzip-*.zip")
+	f, err := ioutil.TempFile("", "go-readzip-*.zip")
 	if err != nil {
 		return nil, "", err
 	}

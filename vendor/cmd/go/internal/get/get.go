@@ -114,9 +114,9 @@ func init() {
 }
 
 func runGet(cmd *base.Command, args []string) {
-	if load.VgoLookup != nil {
-		// Should not happen: main.go should install the separate vgo-enabled get code.
-		base.Fatalf("go get: vgo not implemented")
+	if cfg.ModulesEnabled {
+		// Should not happen: main.go should install the separate module-enabled get code.
+		base.Fatalf("go get: modules not implemented")
 	}
 
 	work.BuildInit()
@@ -199,6 +199,12 @@ func runGet(cmd *base.Command, args []string) {
 // in the hope that we can figure out the repository from the
 // initial ...-free prefix.
 func downloadPaths(args []string) []string {
+	for _, arg := range args {
+		if strings.Contains(arg, "@") {
+			base.Fatalf("go: cannot use path@version syntax in GOPATH mode")
+		}
+	}
+
 	args = load.ImportPathsForGoGet(args)
 	var out []string
 	for _, a := range args {

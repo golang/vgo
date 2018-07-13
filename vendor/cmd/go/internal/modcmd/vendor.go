@@ -14,32 +14,32 @@ import (
 	"strings"
 
 	"cmd/go/internal/base"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/module"
-	"cmd/go/internal/vgo"
 )
 
 func runVendor() {
-	pkgs := vgo.LoadVendor()
+	pkgs := modload.LoadVendor()
 
-	vdir := filepath.Join(vgo.ModRoot, "vendor")
+	vdir := filepath.Join(modload.ModRoot, "vendor")
 	if err := os.RemoveAll(vdir); err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+		base.Fatalf("go vendor: %v", err)
 	}
 
 	modpkgs := make(map[module.Version][]string)
 	for _, pkg := range pkgs {
-		m := vgo.PackageModule(pkg)
-		if m == vgo.Target {
+		m := modload.PackageModule(pkg)
+		if m == modload.Target {
 			continue
 		}
 		modpkgs[m] = append(modpkgs[m], pkg)
 	}
 
 	var buf bytes.Buffer
-	for _, m := range vgo.BuildList()[1:] {
+	for _, m := range modload.BuildList()[1:] {
 		if pkgs := modpkgs[m]; len(pkgs) > 0 {
 			repl := ""
-			if r := vgo.Replacement(m); r.Path != "" {
+			if r := modload.Replacement(m); r.Path != "" {
 				repl = " => " + r.Path
 				if r.Version != "" {
 					repl += " " + r.Version
@@ -59,27 +59,27 @@ func runVendor() {
 		}
 	}
 	if buf.Len() == 0 {
-		fmt.Fprintf(os.Stderr, "vgo: no dependencies to vendor\n")
+		fmt.Fprintf(os.Stderr, "go: no dependencies to vendor\n")
 		return
 	}
-	if err := ioutil.WriteFile(filepath.Join(vdir, "vgo.list"), buf.Bytes(), 0666); err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+	if err := ioutil.WriteFile(filepath.Join(vdir, "modules.txt"), buf.Bytes(), 0666); err != nil {
+		base.Fatalf("go vendor: %v", err)
 	}
 }
 
 func vendorPkg(vdir, pkg string) {
-	realPath := vgo.ImportMap(pkg)
-	if realPath != pkg && vgo.ImportMap(realPath) != "" {
+	realPath := modload.ImportMap(pkg)
+	if realPath != pkg && modload.ImportMap(realPath) != "" {
 		fmt.Fprintf(os.Stderr, "warning: %s imported as both %s and %s; making two copies.\n", realPath, realPath, pkg)
 	}
 
 	dst := filepath.Join(vdir, pkg)
-	src := vgo.PackageDir(realPath)
+	src := modload.PackageDir(realPath)
 	if src == "" {
 		fmt.Fprintf(os.Stderr, "internal error: no pkg for %s -> %s\n", pkg, realPath)
 	}
 	copyDir(dst, src, matchNonTest)
-	if m := vgo.PackageModule(realPath); m.Path != "" {
+	if m := modload.PackageModule(realPath); m.Path != "" {
 		copyMetadata(m.Path, realPath, dst, src)
 	}
 }
@@ -150,10 +150,10 @@ func matchNonTest(info os.FileInfo) bool {
 func copyDir(dst, src string, match func(os.FileInfo) bool) {
 	files, err := ioutil.ReadDir(src)
 	if err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+		base.Fatalf("go vendor: %v", err)
 	}
 	if err := os.MkdirAll(dst, 0777); err != nil {
-		base.Fatalf("vgo vendor: %v", err)
+		base.Fatalf("go vendor: %v", err)
 	}
 	for _, file := range files {
 		if file.IsDir() || !file.Mode().IsRegular() || !match(file) {
@@ -161,18 +161,18 @@ func copyDir(dst, src string, match func(os.FileInfo) bool) {
 		}
 		r, err := os.Open(filepath.Join(src, file.Name()))
 		if err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 		w, err := os.Create(filepath.Join(dst, file.Name()))
 		if err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 		if _, err := io.Copy(w, r); err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 		r.Close()
 		if err := w.Close(); err != nil {
-			base.Fatalf("vgo vendor: %v", err)
+			base.Fatalf("go vendor: %v", err)
 		}
 	}
 }

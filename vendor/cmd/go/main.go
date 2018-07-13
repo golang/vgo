@@ -29,12 +29,12 @@ import (
 	"cmd/go/internal/list"
 	"cmd/go/internal/modcmd"
 	"cmd/go/internal/modget"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/run"
 	"cmd/go/internal/test"
 	"cmd/go/internal/tool"
 	"cmd/go/internal/version"
 	"cmd/go/internal/vet"
-	"cmd/go/internal/vgo"
 	"cmd/go/internal/work"
 )
 
@@ -66,7 +66,7 @@ func init() {
 		help.HelpGopath,
 		get.HelpGopathGet,
 		help.HelpImportPath,
-		vgo.HelpModules,
+		modload.HelpModules,
 		modget.HelpModuleGet,
 		help.HelpPackages,
 		test.HelpTestflag,
@@ -85,9 +85,9 @@ func Main() {
 		base.Usage()
 	}
 
-	if vgo.MustBeVgo {
-		// If running as vgo or with -vgo, change get now to change help message.
-		*get.CmdGet = *vgo.CmdGet
+	if modload.MustUseModules {
+		// If running with modules force-enabled, change get now to change help message.
+		*get.CmdGet = *modget.CmdGet
 	}
 
 	cfg.CmdName = args[0] // for error messages
@@ -129,10 +129,10 @@ func Main() {
 
 	switch args[0] {
 	case "mod":
-		// Skip vgo.Init (which may insist on go.mod existing)
+		// Skip modload.Init (which may insist on go.mod existing)
 		// so that go mod -init has a chance to write the file.
 	case "version":
-		// Skip vgo.Init so that users can report bugs against
+		// Skip modload.Init so that users can report bugs against
 		// go mod -init.
 	case "vendor":
 		fmt.Fprintf(os.Stderr, "go vendor is now go mod -vendor\n")
@@ -141,12 +141,13 @@ func Main() {
 		fmt.Fprintf(os.Stderr, "go verify is now go mod -verify\n")
 		os.Exit(2)
 	default:
-		// Run vgo.Init so that each subcommand doesn't have to worry about it.
-		// Also install the vgo get command instead of the old go get command in vgo mode.
-		vgo.Init()
-		if !vgo.MustBeVgo && vgo.Enabled() {
-			// Didn't do this above, so do it now.
-			*get.CmdGet = *vgo.CmdGet
+		// Run modload.Init so that each subcommand doesn't have to worry about it.
+		// Also install the module get command instead of the GOPATH go get command
+		// if modules are enabled.
+		modload.Init()
+		if modload.Enabled() {
+			// Might not have done this above, so do it now.
+			*get.CmdGet = *modget.CmdGet
 		}
 	}
 

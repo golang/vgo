@@ -15,9 +15,9 @@ import (
 
 	"cmd/go/internal/base"
 	"cmd/go/internal/modfile"
+	"cmd/go/internal/modload"
 	"cmd/go/internal/module"
 	"cmd/go/internal/par"
-	"cmd/go/internal/vgo"
 )
 
 var CmdMod = &base.Command{
@@ -57,8 +57,11 @@ The -exclude=path@version and -dropexclude=path@version flags
 add and drop an exclusion for the given module path and version.
 Note that -exclude=path@version is a no-op if that exclusion already exists.
 
-The -replace=old@v=>new@w and -dropreplace=old@v flags
+The -replace=old@v=new@w and -dropreplace=old@v flags
 add and drop a replacement of the given module path and version pair.
+If the @v in old@v is omitted, the replacement applies to all versions
+with the old module path. If the @v in new@v is omitted, the
+new path should be a directory on the local system, not a module path.
 Note that -replace overrides any existing replacements for old@v.
 
 These editing flags (-require, -droprequire, -exclude, -dropexclude,
@@ -189,8 +192,8 @@ func (f flagFunc) Set(s string) error { f(s); return nil }
 func init() {
 	CmdMod.Run = runMod // break init cycle
 
-	CmdMod.Flag.BoolVar(&vgo.CmdModInit, "init", vgo.CmdModInit, "")
-	CmdMod.Flag.StringVar(&vgo.CmdModModule, "module", vgo.CmdModModule, "")
+	CmdMod.Flag.BoolVar(&modload.CmdModInit, "init", modload.CmdModInit, "")
+	CmdMod.Flag.StringVar(&modload.CmdModModule, "module", modload.CmdModModule, "")
 
 	CmdMod.Flag.Var(flagFunc(flagRequire), "require", "")
 	CmdMod.Flag.Var(flagFunc(flagDropRequire), "droprequire", "")
@@ -203,16 +206,16 @@ func init() {
 }
 
 func runMod(cmd *base.Command, args []string) {
-	if vgo.Init(); !vgo.Enabled() {
-		base.Fatalf("vgo mod: cannot use outside module")
+	if modload.Init(); !modload.Enabled() {
+		base.Fatalf("go mod: cannot use outside module")
 	}
 	if len(args) != 0 {
-		base.Fatalf("vgo mod: mod takes no arguments")
+		base.Fatalf("go mod: mod takes no arguments")
 	}
 
 	anyFlags :=
-		vgo.CmdModInit ||
-			vgo.CmdModModule != "" ||
+		modload.CmdModInit ||
+			modload.CmdModModule != "" ||
 			*modVendor ||
 			*modVerify ||
 			*modJSON ||
@@ -224,27 +227,27 @@ func runMod(cmd *base.Command, args []string) {
 			len(modEdits) > 0
 
 	if !anyFlags {
-		base.Fatalf("vgo mod: no flags specified (see 'go help mod').")
+		base.Fatalf("go mod: no flags specified (see 'go help mod').")
 	}
 
-	if vgo.CmdModModule != "" {
-		if err := module.CheckPath(vgo.CmdModModule); err != nil {
-			base.Fatalf("vgo mod: invalid -module: %v", err)
+	if modload.CmdModModule != "" {
+		if err := module.CheckPath(modload.CmdModModule); err != nil {
+			base.Fatalf("go mod: invalid -module: %v", err)
 		}
 	}
 
-	if vgo.CmdModInit {
+	if modload.CmdModInit {
 		if _, err := os.Stat("go.mod"); err == nil {
-			base.Fatalf("vgo mod -init: go.mod already exists")
+			base.Fatalf("go mod -init: go.mod already exists")
 		}
 	}
-	vgo.InitMod()
+	modload.InitMod()
 
 	// Syntactic edits.
 
-	modFile := vgo.ModFile()
-	if vgo.CmdModModule != "" {
-		modFile.AddModuleStmt(vgo.CmdModModule)
+	modFile := modload.ModFile()
+	if modload.CmdModModule != "" {
+		modFile.AddModuleStmt(modload.CmdModModule)
 	}
 
 	if len(modEdits) > 0 {
@@ -252,7 +255,8 @@ func runMod(cmd *base.Command, args []string) {
 			edit(modFile)
 		}
 	}
-	vgo.WriteGoMod() // write back syntactic changes
+	modFile.SortBlocks()
+	modload.WriteGoMod() // write back syntactic changes
 
 	// Semantic edits.
 
@@ -261,34 +265,34 @@ func runMod(cmd *base.Command, args []string) {
 	if *modSync || *modVendor || needBuildList {
 		var pkgs []string
 		if *modSync || *modVendor {
-			pkgs = vgo.LoadALL()
+			pkgs = modload.LoadALL()
 		} else {
-			vgo.LoadBuildList()
+			modload.LoadBuildList()
 		}
 		if *modSync {
 			// LoadALL already added missing modules.
 			// Remove unused modules.
-			used := map[module.Version]bool{vgo.Target: true}
+			used := map[module.Version]bool{modload.Target: true}
 			for _, pkg := range pkgs {
-				used[vgo.PackageModule(pkg)] = true
+				used[modload.PackageModule(pkg)] = true
 			}
 
 			inGoMod := make(map[string]bool)
-			for _, r := range vgo.ModFile().Require {
+			for _, r := range modload.ModFile().Require {
 				inGoMod[r.Mod.Path] = true
 			}
 
 			var keep []module.Version
-			for _, m := range vgo.BuildList() {
+			for _, m := range modload.BuildList() {
 				if used[m] {
 					keep = append(keep, m)
 				} else if *modV && inGoMod[m.Path] {
 					fmt.Fprintf(os.Stderr, "unused %s\n", m.Path)
 				}
 			}
-			vgo.SetBuildList(keep)
+			modload.SetBuildList(keep)
 		}
-		vgo.WriteGoMod()
+		modload.WriteGoMod()
 		if *modVendor {
 			runVendor()
 		}
@@ -305,7 +309,7 @@ func runMod(cmd *base.Command, args []string) {
 	}
 
 	if *modPackages {
-		for _, pkg := range vgo.TargetPackages() {
+		for _, pkg := range modload.TargetPackages() {
 			fmt.Printf("%s\n", pkg)
 		}
 	}
@@ -319,20 +323,20 @@ func runMod(cmd *base.Command, args []string) {
 func parsePathVersion(flag, arg string) (path, version string) {
 	i := strings.Index(arg, "@")
 	if i < 0 {
-		base.Fatalf("vgo mod: -%s=%s: need path@version", flag, arg)
+		base.Fatalf("go mod: -%s=%s: need path@version", flag, arg)
 	}
 	path, version = strings.TrimSpace(arg[:i]), strings.TrimSpace(arg[i+1:])
 	if err := module.CheckPath(path); err != nil {
-		base.Fatalf("vgo mod: -%s=%s: invalid path: %v", flag, arg, err)
+		base.Fatalf("go mod: -%s=%s: invalid path: %v", flag, arg, err)
 	}
 
 	// We don't call modfile.CheckPathVersion, because that insists
 	// on versions being in semver form, but here we want to allow
-	// versions like "master" or "1234abcdef", which vgo will resolve
+	// versions like "master" or "1234abcdef", which the go command will resolve
 	// the next time it runs (or during -fix).
 	// Even so, we need to make sure the version is a valid token.
 	if modfile.MustQuote(version) {
-		base.Fatalf("vgo mod: -%s=%s: invalid version %q", flag, arg, version)
+		base.Fatalf("go mod: -%s=%s: invalid version %q", flag, arg, version)
 	}
 
 	return path, version
@@ -341,11 +345,11 @@ func parsePathVersion(flag, arg string) (path, version string) {
 // parsePath parses -flag=arg expecting arg to be path (not path@version).
 func parsePath(flag, arg string) (path string) {
 	if strings.Contains(arg, "@") {
-		base.Fatalf("vgo mod: -%s=%s: need just path, not path@version", flag, arg)
+		base.Fatalf("go mod: -%s=%s: need just path, not path@version", flag, arg)
 	}
 	path = arg
 	if err := module.CheckPath(path); err != nil {
-		base.Fatalf("vgo mod: -%s=%s: invalid path: %v", flag, arg, err)
+		base.Fatalf("go mod: -%s=%s: invalid path: %v", flag, arg, err)
 	}
 	return path
 }
@@ -355,7 +359,7 @@ func flagRequire(arg string) {
 	path, version := parsePathVersion("require", arg)
 	modEdits = append(modEdits, func(f *modfile.File) {
 		if err := f.AddRequire(path, version); err != nil {
-			base.Fatalf("vgo mod: -require=%s: %v", arg, err)
+			base.Fatalf("go mod: -require=%s: %v", arg, err)
 		}
 	})
 }
@@ -365,7 +369,7 @@ func flagDropRequire(arg string) {
 	path := parsePath("droprequire", arg)
 	modEdits = append(modEdits, func(f *modfile.File) {
 		if err := f.DropRequire(path); err != nil {
-			base.Fatalf("vgo mod: -droprequire=%s: %v", arg, err)
+			base.Fatalf("go mod: -droprequire=%s: %v", arg, err)
 		}
 	})
 }
@@ -375,7 +379,7 @@ func flagExclude(arg string) {
 	path, version := parsePathVersion("exclude", arg)
 	modEdits = append(modEdits, func(f *modfile.File) {
 		if err := f.AddExclude(path, version); err != nil {
-			base.Fatalf("vgo mod: -exclude=%s: %v", arg, err)
+			base.Fatalf("go mod: -exclude=%s: %v", arg, err)
 		}
 	})
 }
@@ -385,7 +389,7 @@ func flagDropExclude(arg string) {
 	path, version := parsePathVersion("dropexclude", arg)
 	modEdits = append(modEdits, func(f *modfile.File) {
 		if err := f.DropExclude(path, version); err != nil {
-			base.Fatalf("vgo mod: -dropexclude=%s: %v", arg, err)
+			base.Fatalf("go mod: -dropexclude=%s: %v", arg, err)
 		}
 	})
 }
@@ -393,39 +397,44 @@ func flagDropExclude(arg string) {
 // flagReplace implements the -replace flag.
 func flagReplace(arg string) {
 	var i int
-	if i = strings.Index(arg, "=>"); i < 0 {
-		base.Fatalf("vgo mod: -replace=%s: need old@v=>new[@v] (missing =>)", arg)
+	if i = strings.Index(arg, "="); i < 0 {
+		base.Fatalf("go mod: -replace=%s: need old@v=new[@v] (missing =)", arg)
 	}
 	old, new := strings.TrimSpace(arg[:i]), strings.TrimSpace(arg[i+2:])
+	if strings.HasPrefix(new, ">") {
+		base.Fatalf("go mod: -replace=%s: separator between old and new is =, not =>", arg)
+	}
+	var oldPath, oldVersion string
 	if i = strings.Index(old, "@"); i < 0 {
-		base.Fatalf("vgo mod: -replace=%s: need old@v=>new[@v] (missing @ in old@v)", arg)
+		oldPath = old
+	} else {
+		oldPath, oldVersion = strings.TrimSpace(old[:i]), strings.TrimSpace(old[i+1:])
 	}
-	oldPath, oldVersion := strings.TrimSpace(old[:i]), strings.TrimSpace(old[i+1:])
 	if err := module.CheckPath(oldPath); err != nil {
-		base.Fatalf("vgo mod: -replace=%s: invalid old path: %v", arg, err)
+		base.Fatalf("go mod: -replace=%s: invalid old path: %v", arg, err)
 	}
-	if modfile.MustQuote(oldVersion) {
-		base.Fatalf("vgo mod: -replace=%s: invalid old version %q", arg, oldVersion)
+	if oldPath != old && modfile.MustQuote(oldVersion) {
+		base.Fatalf("go mod: -replace=%s: invalid old version %q", arg, oldVersion)
 	}
 	var newPath, newVersion string
 	if i = strings.Index(new, "@"); i >= 0 {
 		newPath, newVersion = strings.TrimSpace(new[:i]), strings.TrimSpace(new[i+1:])
 		if err := module.CheckPath(newPath); err != nil {
-			base.Fatalf("vgo mod: -replace=%s: invalid new path: %v", arg, err)
+			base.Fatalf("go mod: -replace=%s: invalid new path: %v", arg, err)
 		}
 		if modfile.MustQuote(newVersion) {
-			base.Fatalf("vgo mod: -replace=%s: invalid new version %q", arg, newVersion)
+			base.Fatalf("go mod: -replace=%s: invalid new version %q", arg, newVersion)
 		}
 	} else {
 		if !modfile.IsDirectoryPath(new) {
-			base.Fatalf("vgo mod: -replace=%s: unversioned new path must be local directory", arg)
+			base.Fatalf("go mod: -replace=%s: unversioned new path must be local directory", arg)
 		}
 		newPath = new
 	}
 
 	modEdits = append(modEdits, func(f *modfile.File) {
 		if err := f.AddReplace(oldPath, oldVersion, newPath, newVersion); err != nil {
-			base.Fatalf("vgo mod: -replace=%s: %v", arg, err)
+			base.Fatalf("go mod: -replace=%s: %v", arg, err)
 		}
 	})
 }
@@ -435,7 +444,7 @@ func flagDropReplace(arg string) {
 	path, version := parsePathVersion("dropreplace", arg)
 	modEdits = append(modEdits, func(f *modfile.File) {
 		if err := f.DropReplace(path, version); err != nil {
-			base.Fatalf("vgo mod: -dropreplace=%s: %v", arg, err)
+			base.Fatalf("go mod: -dropreplace=%s: %v", arg, err)
 		}
 	})
 }
@@ -461,7 +470,7 @@ type replaceJSON struct {
 
 // modPrintJSON prints the -json output.
 func modPrintJSON() {
-	modFile := vgo.ModFile()
+	modFile := modload.ModFile()
 
 	var f fileJSON
 	f.Module = modFile.Module.Mod
@@ -476,7 +485,7 @@ func modPrintJSON() {
 	}
 	data, err := json.MarshalIndent(&f, "", "\t")
 	if err != nil {
-		base.Fatalf("vgo mod -json: internal error: %v", err)
+		base.Fatalf("go mod -json: internal error: %v", err)
 	}
 	data = append(data, '\n')
 	os.Stdout.Write(data)
@@ -484,7 +493,7 @@ func modPrintJSON() {
 
 // modPrintGraph prints the -graph output.
 func modPrintGraph() {
-	reqs := vgo.Reqs()
+	reqs := modload.Reqs()
 
 	format := func(m module.Version) string {
 		if m.Version == "" {
@@ -498,7 +507,7 @@ func modPrintGraph() {
 	var out []string
 	var deps int // index in out where deps start
 	var work par.Work
-	work.Add(vgo.Target)
+	work.Add(modload.Target)
 	work.Do(1, func(item interface{}) {
 		m := item.(module.Version)
 		list, _ := reqs.Required(m)
@@ -506,7 +515,7 @@ func modPrintGraph() {
 			work.Add(r)
 			out = append(out, format(m)+" "+format(r)+"\n")
 		}
-		if m == vgo.Target {
+		if m == modload.Target {
 			deps = len(out)
 		}
 	})

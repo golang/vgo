@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cmd/go/internal/base"
 	"cmd/go/internal/modfetch/codehost"
 	"cmd/go/internal/par"
 	"cmd/go/internal/semver"
@@ -20,7 +21,7 @@ import (
 
 var QuietLookup bool // do not print about lookups
 
-var SrcMod string // $GOPATH/src/mod; set by package vgo
+var SrcMod string // $GOPATH/src/mod; set by package modload
 
 // A cachingRepo is a cache around an underlying Repo,
 // avoiding redundant calls to ModulePath, Versions, Stat, Latest, and GoMod (but not Zip).
@@ -73,7 +74,7 @@ func (r *cachingRepo) Stat(rev string) (*RevInfo, error) {
 		}
 
 		if !QuietLookup {
-			fmt.Fprintf(os.Stderr, "vgo: finding %s %s\n", r.path, rev)
+			fmt.Fprintf(os.Stderr, "go: finding %s %s\n", r.path, rev)
 		}
 		info, err = r.r.Stat(rev)
 		if err == nil {
@@ -101,7 +102,7 @@ func (r *cachingRepo) Stat(rev string) (*RevInfo, error) {
 func (r *cachingRepo) Latest() (*RevInfo, error) {
 	c := r.cache.Do("latest:", func() interface{} {
 		if !QuietLookup {
-			fmt.Fprintf(os.Stderr, "vgo: finding %s latest\n", r.path)
+			fmt.Fprintf(os.Stderr, "go: finding %s latest\n", r.path)
 		}
 		info, err := r.r.Latest()
 
@@ -146,8 +147,8 @@ func (r *cachingRepo) GoMod(rev string) ([]byte, error) {
 		rev = info.Version
 
 		text, err = r.r.GoMod(rev)
-		checkGoMod(r.path, rev, text)
 		if err == nil {
+			checkGoMod(r.path, rev, text)
 			if err := writeDiskGoMod(file, text); err != nil {
 				fmt.Fprintf(os.Stderr, "go: writing go.mod cache: %v\n", err)
 			}
@@ -235,6 +236,11 @@ func readDiskStat(path, rev string) (file string, info *RevInfo, err error) {
 // just to find out about a commit we already know about
 // (and have cached under its pseudo-version).
 func readDiskStatByHash(path, rev string) (file string, info *RevInfo, err error) {
+	if SrcMod == "" {
+		// Do not download to current directory.
+		return "", nil, errNotCached
+	}
+
 	if !codehost.AllHex(rev) || len(rev) < 12 {
 		return "", nil, errNotCached
 	}
@@ -345,5 +351,59 @@ func writeDiskCache(file string, data []byte) error {
 	}
 	// Rename temp file onto cache file,
 	// so that the cache file is always a complete file.
-	return os.Rename(f.Name(), file)
+	if err := os.Rename(f.Name(), file); err != nil {
+		return err
+	}
+
+	if strings.HasSuffix(file, ".mod") {
+		rewriteVersionList(filepath.Dir(file))
+	}
+	return nil
+}
+
+// rewriteVersionList rewrites the version list in dir
+// after a new *.mod file has been written.
+func rewriteVersionList(dir string) {
+	if filepath.Base(dir) != "@v" {
+		base.Fatalf("go: internal error: misuse of rewriteVersionList")
+	}
+
+	// TODO(rsc): We should do some kind of directory locking here,
+	// to avoid lost updates.
+
+	infos, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	var list []string
+	for _, info := range infos {
+		// We look for *.mod files on the theory that if we can't supply
+		// the .mod file then there's no point in listing that version,
+		// since it's unusable. (We can have *.info without *.mod.)
+		// We don't require *.zip files on the theory that for code only
+		// involved in module graph construction, many *.zip files
+		// will never be requested.
+		name := info.Name()
+		if strings.HasSuffix(name, ".mod") {
+			v := strings.TrimSuffix(name, ".mod")
+			if semver.IsValid(v) && semver.Canonical(v) == v {
+				list = append(list, v)
+			}
+		}
+	}
+	SortVersions(list)
+
+	var buf bytes.Buffer
+	for _, v := range list {
+		buf.WriteString(v)
+		buf.WriteString("\n")
+	}
+	listFile := filepath.Join(dir, "list")
+	old, _ := ioutil.ReadFile(listFile)
+	if bytes.Equal(buf.Bytes(), old) {
+		return
+	}
+	// TODO: Use rename to install file,
+	// so that readers never see an incomplete file.
+	ioutil.WriteFile(listFile, buf.Bytes(), 0666)
 }

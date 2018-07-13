@@ -69,6 +69,11 @@ var (
 	Goos      = BuildContext.GOOS
 	ExeSuffix string
 	Gopath    = filepath.SplitList(BuildContext.GOPATH)
+
+	// ModulesEnabled specifies whether the go command is running
+	// in module-aware mode (as opposed to GOPATH mode).
+	// It is equal to modload.Enabled, but not all packages can import modload.
+	ModulesEnabled bool
 )
 
 func init() {
@@ -108,7 +113,7 @@ func init() {
 func objabi() (GOARM, GO386, GOMIPS, GOMIPS64 string) {
 	data, err := ioutil.ReadFile(filepath.Join(GOROOT, "src/cmd/internal/objabi/zbootstrap.go"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "vgo objabi: %v\n", err)
+		fmt.Fprintf(os.Stderr, "go objabi: %v\n", err)
 	}
 
 	find := func(key string) string {
@@ -120,7 +125,7 @@ func objabi() (GOARM, GO386, GOMIPS, GOMIPS64 string) {
 			if key == "GOMIPS64" { // new in Go 1.11
 				return ""
 			}
-			fmt.Fprintf(os.Stderr, "vgo objabi: cannot find %s\n", key)
+			fmt.Fprintf(os.Stderr, "go objabi: cannot find %s\n", key)
 			os.Exit(2)
 		}
 		line := data[i:]
@@ -134,7 +139,7 @@ func objabi() (GOARM, GO386, GOMIPS, GOMIPS64 string) {
 func compilers() (CC, CXX string) {
 	data, err := ioutil.ReadFile(filepath.Join(GOROOT, "src/cmd/go/internal/cfg/zdefaultcc.go"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "vgo compilers: %v\n", err)
+		fmt.Fprintf(os.Stderr, "go compilers: %v\n", err)
 	}
 
 	find := func(key string) string {
@@ -143,12 +148,12 @@ func compilers() (CC, CXX string) {
 		}
 		fi := bytes.Index(data, []byte("Default"+key+"(goos, goarch string)"))
 		if fi < 0 {
-			fmt.Fprintf(os.Stderr, "vgo compilers: cannot find %s\n", key)
+			fmt.Fprintf(os.Stderr, "go compilers: cannot find %s\n", key)
 			os.Exit(2)
 		}
 		i := bytes.Index(data[fi:], []byte("\treturn "))
 		if i < 0 {
-			fmt.Fprintf(os.Stderr, "vgo compilers: cannot find %s\n", key)
+			fmt.Fprintf(os.Stderr, "go compilers: cannot find %s\n", key)
 			os.Exit(2)
 		}
 		line := data[fi+i:]
@@ -164,7 +169,7 @@ func findGOROOT() string {
 	_, err := os.Stat(filepath.Join(goroot, "api/go1.10.txt"))
 	if err != nil {
 		log.SetFlags(0)
-		log.Fatalf("vgo requires Go 1.10 but VGOROOT=%s is not a Go 1.10 source tree", goroot)
+		log.Fatalf("go requires Go 1.10 but VGOROOT=%s is not a Go 1.10 source tree", goroot)
 	}
 	return goroot
 }

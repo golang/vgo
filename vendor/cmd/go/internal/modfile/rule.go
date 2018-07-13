@@ -131,11 +131,6 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 	// replace and exclude either. They don't matter, and it will work better for
 	// forward compatibility if we can depend on modules that have local changes.
 
-	// TODO: For the target module (not dependencies), maybe we should
-	// relax the semver requirement and rewrite the file with updated info
-	// after resolving any versions. That would let people type commit hashes
-	// or tags or branch names, and then vgo would fix them.
-
 	switch verb {
 	default:
 		fmt.Fprintf(errs, "%s:%d: unknown directive: %s\n", f.Syntax.Name, line.Start.Line, verb)
@@ -194,8 +189,12 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			})
 		}
 	case "replace":
-		if len(args) < 4 || len(args) > 5 || args[2] != "=>" {
-			fmt.Fprintf(errs, "%s:%d: usage: %s module/path v1.2.3 => other/module v1.4\n\t or %s module/path v1.2.3 => ../local/directory", f.Syntax.Name, line.Start.Line, verb, verb)
+		arrow := 2
+		if len(args) >= 2 && args[1] == "=>" {
+			arrow = 1
+		}
+		if len(args) < arrow+2 || len(args) > arrow+3 || args[arrow] != "=>" {
+			fmt.Fprintf(errs, "%s:%d: usage: %s module/path [v1.2.3] => other/module v1.4\n\t or %s module/path [v1.2.3] => ../local/directory", f.Syntax.Name, line.Start.Line, verb, verb)
 			return
 		}
 		s, err := parseString(&args[0])
@@ -203,28 +202,31 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			fmt.Fprintf(errs, "%s:%d: invalid quoted string: %v\n", f.Syntax.Name, line.Start.Line, err)
 			return
 		}
-		old := args[1]
-		v, err := parseVersion(s, &args[1], fix)
-		if err != nil {
-			fmt.Fprintf(errs, "%s:%d: invalid module version %v: %v\n", f.Syntax.Name, line.Start.Line, old, err)
-			return
-		}
 		v1, err := moduleMajorVersion(s)
 		if err != nil {
 			fmt.Fprintf(errs, "%s:%d: %v\n", f.Syntax.Name, line.Start.Line, err)
 			return
 		}
-		if v2 := semver.Major(v); v1 != v2 && (v1 != "v1" || v2 != "v0") {
-			fmt.Fprintf(errs, "%s:%d: invalid module: %s should be %s, not %s (%s)\n", f.Syntax.Name, line.Start.Line, s, v1, v2, v)
-			return
+		var v string
+		if arrow == 2 {
+			old := args[1]
+			v, err = parseVersion(s, &args[1], fix)
+			if err != nil {
+				fmt.Fprintf(errs, "%s:%d: invalid module version %v: %v\n", f.Syntax.Name, line.Start.Line, old, err)
+				return
+			}
+			if v2 := semver.Major(v); v1 != v2 && (v1 != "v1" || v2 != "v0") {
+				fmt.Fprintf(errs, "%s:%d: invalid module: %s should be %s, not %s (%s)\n", f.Syntax.Name, line.Start.Line, s, v1, v2, v)
+				return
+			}
 		}
-		ns, err := parseString(&args[3])
+		ns, err := parseString(&args[arrow+1])
 		if err != nil {
 			fmt.Fprintf(errs, "%s:%d: invalid quoted string: %v\n", f.Syntax.Name, line.Start.Line, err)
 			return
 		}
 		nv := ""
-		if len(args) == 4 {
+		if len(args) == arrow+2 {
 			if !IsDirectoryPath(ns) {
 				fmt.Fprintf(errs, "%s:%d: replacement module without version must be directory path (rooted or starting with ./ or ../)", f.Syntax.Name, line.Start.Line)
 				return
@@ -234,9 +236,9 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 				return
 			}
 		}
-		if len(args) == 5 {
-			old := args[4]
-			nv, err = parseVersion(ns, &args[4], fix)
+		if len(args) == arrow+3 {
+			old := args[arrow+1]
+			nv, err = parseVersion(ns, &args[arrow+2], fix)
 			if err != nil {
 				fmt.Fprintf(errs, "%s:%d: invalid module version %v: %v\n", f.Syntax.Name, line.Start.Line, old, err)
 				return
@@ -246,7 +248,6 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 				return
 			}
 		}
-		// TODO: More sanity checks about directories vs module paths.
 		f.Replace = append(f.Replace, &Replace{
 			Old:    module.Version{Path: s, Version: v},
 			New:    module.Version{Path: ns, Version: nv},
@@ -559,14 +560,18 @@ func (f *File) AddReplace(oldPath, oldVers, newPath, newVers string) error {
 	need := true
 	old := module.Version{Path: oldPath, Version: oldVers}
 	new := module.Version{Path: newPath, Version: newVers}
-	tokens := []string{"replace", AutoQuote(oldPath), oldVers, "=>", AutoQuote(newPath)}
+	tokens := []string{"replace", AutoQuote(oldPath)}
+	if oldVers != "" {
+		tokens = append(tokens, oldVers)
+	}
+	tokens = append(tokens, "=>", AutoQuote(newPath))
 	if newVers != "" {
 		tokens = append(tokens, newVers)
 	}
 
 	var hint *Line
 	for _, r := range f.Replace {
-		if r.Old == old {
+		if r.Old.Path == oldPath && (oldVers == "" || r.Old.Version == oldVers) {
 			if need {
 				// Found replacement for old; update to use new.
 				r.New = new

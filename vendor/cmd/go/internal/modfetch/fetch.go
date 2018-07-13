@@ -28,6 +28,11 @@ var downloadCache par.Cache
 // local download cache and returns the name of the directory
 // corresponding to the root of the module's file tree.
 func Download(mod module.Version) (dir string, err error) {
+	if SrcMod == "" {
+		// Do not download to current directory.
+		return "", fmt.Errorf("missing modfetch.SrcMod")
+	}
+
 	// The par.Cache here avoids duplicate work but also
 	// avoids conflicts from simultaneous calls by multiple goroutines
 	// for the same version.
@@ -44,12 +49,12 @@ func Download(mod module.Version) (dir string, err error) {
 				// Use it.
 				// This should only happen if the mod/cache directory is preinitialized
 				// or if src/mod/path was removed but not src/mod/cache/download.
-				fmt.Fprintf(os.Stderr, "vgo: extracting %s %s\n", mod.Path, mod.Version)
+				fmt.Fprintf(os.Stderr, "go: extracting %s %s\n", mod.Path, mod.Version)
 			} else {
 				if err := os.MkdirAll(filepath.Join(SrcMod, "cache/download", mod.Path, "@v"), 0777); err != nil {
 					return cached{"", err}
 				}
-				fmt.Fprintf(os.Stderr, "vgo: downloading %s %s\n", mod.Path, mod.Version)
+				fmt.Fprintf(os.Stderr, "go: downloading %s %s\n", mod.Path, mod.Version)
 				if err := downloadZip(mod, zipfile); err != nil {
 					return cached{"", err}
 				}
@@ -115,7 +120,7 @@ func downloadZip(mod module.Version, target string) error {
 	return ioutil.WriteFile(target+"hash", []byte(hash), 0666)
 }
 
-var GoSumFile string // path to go.sum; set by package vgo
+var GoSumFile string // path to go.sum; set by package modload
 
 var goSum struct {
 	mu        sync.Mutex
@@ -138,7 +143,7 @@ func initGoSum() bool {
 	goSum.m = make(map[module.Version][]string)
 	data, err := ioutil.ReadFile(GoSumFile)
 	if err != nil && !os.IsNotExist(err) {
-		base.Fatalf("vgo: %v", err)
+		base.Fatalf("go: %v", err)
 	}
 	goSum.enabled = true
 	readGoSum(GoSumFile, data)
@@ -152,6 +157,11 @@ func initGoSum() bool {
 	}
 	return true
 }
+
+// emptyGoModHash is the hash of a 1-file tree containing a 0-length go.mod.
+// A bug caused us to write these into go.sum files for non-modules.
+// We detect and remove them.
+const emptyGoModHash = "h1:G7mAYYxgmS0lVkHyy2hEOLQCFB0DlQFTMLWggykrydY="
 
 // readGoSum parses data, which is the content of file,
 // and adds it to goSum.m. The goSum lock must be held.
@@ -172,7 +182,11 @@ func readGoSum(file string, data []byte) {
 			continue
 		}
 		if len(f) != 3 {
-			base.Fatalf("vgo: malformed go.sum:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
+			base.Fatalf("go: malformed go.sum:\n%s:%d: wrong number of fields %v", file, lineno, len(f))
+		}
+		if f[2] == emptyGoModHash {
+			// Old bug; drop it.
+			continue
 		}
 		mod := module.Version{Path: f[0], Version: f[1]}
 		goSum.m[mod] = append(goSum.m[mod], f[2])
@@ -181,6 +195,11 @@ func readGoSum(file string, data []byte) {
 
 // checkSum checks the given module's checksum.
 func checkSum(mod module.Version) {
+	if SrcMod == "" {
+		// Do not use current directory.
+		return
+	}
+
 	// Do the file I/O before acquiring the go.sum lock.
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
@@ -188,11 +207,11 @@ func checkSum(mod module.Version) {
 			// This can happen if someone does rm -rf GOPATH/src/cache/download. So it goes.
 			return
 		}
-		base.Fatalf("vgo: verifying %s@%s: %v", mod.Path, mod.Version, err)
+		base.Fatalf("go: verifying %s@%s: %v", mod.Path, mod.Version, err)
 	}
 	h := strings.TrimSpace(string(data))
 	if !strings.HasPrefix(h, "h1:") {
-		base.Fatalf("vgo: verifying %s@%s: unexpected ziphash: %q", mod.Path, mod.Version, h)
+		base.Fatalf("go: verifying %s@%s: unexpected ziphash: %q", mod.Path, mod.Version, h)
 	}
 
 	checkOneSum(mod, h)
@@ -205,7 +224,7 @@ func checkGoMod(path, version string, data []byte) {
 		return ioutil.NopCloser(bytes.NewReader(data)), nil
 	})
 	if err != nil {
-		base.Fatalf("vgo: verifying %s %s go.mod: %v", path, version, err)
+		base.Fatalf("go: verifying %s %s go.mod: %v", path, version, err)
 	}
 
 	checkOneSum(module.Version{Path: path, Version: version + "/go.mod"}, h)
@@ -224,7 +243,7 @@ func checkOneSum(mod module.Version, h string) {
 			return
 		}
 		if strings.HasPrefix(vh, "h1:") {
-			base.Fatalf("vgo: verifying %s@%s: checksum mismatch\n\tdownloaded: %v\n\tgo.sum:     %v", mod.Path, mod.Version, h, vh)
+			base.Fatalf("go: verifying %s@%s: checksum mismatch\n\tdownloaded: %v\n\tgo.sum:     %v", mod.Path, mod.Version, h, vh)
 		}
 	}
 	if len(goSum.m[mod]) > 0 {
@@ -236,6 +255,11 @@ func checkOneSum(mod module.Version, h string) {
 // Sum returns the checksum for the downloaded copy of the given module,
 // if present in the download cache.
 func Sum(mod module.Version) string {
+	if SrcMod == "" {
+		// Do not use current directory.
+		return ""
+	}
+
 	data, err := ioutil.ReadFile(filepath.Join(SrcMod, "cache/download", mod.Path, "@v", mod.Version+".ziphash"))
 	if err != nil {
 		return ""
@@ -268,7 +292,7 @@ func WriteGoSum() {
 	data, _ := ioutil.ReadFile(GoSumFile)
 	if !bytes.Equal(data, buf.Bytes()) {
 		if err := ioutil.WriteFile(GoSumFile, buf.Bytes(), 0666); err != nil {
-			base.Fatalf("vgo: writing go.sum: %v", err)
+			base.Fatalf("go: writing go.sum: %v", err)
 		}
 	}
 
