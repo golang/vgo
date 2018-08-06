@@ -20,12 +20,12 @@ including recording and resolving dependencies on other modules.
 Modules replace the old GOPATH-based approach to specifying
 which source files are used in a given build.
 
-Experimental module support
+Preliminary module support
 
-Go 1.11 includes experimental support for Go modules,
+Go 1.11 includes preliminary support for Go modules,
 including a new module-aware 'go get' command.
 We intend to keep revising this support, while preserving compatibility,
-until it can be declared official (no longer experimental),
+until it can be declared official (no longer preliminary),
 and then at a later point we may remove support for work
 in GOPATH and the old 'go get' command.
 
@@ -50,7 +50,7 @@ GOPATH/src and itself contains a go.mod file or is below a directory
 containing a go.mod file.
 
 In module-aware mode, GOPATH no longer defines the meaning of imports
-during a build, but it still stores downloaded dependencies (in GOPATH/src/mod)
+during a build, but it still stores downloaded dependencies (in GOPATH/pkg/mod)
 and installed commands (in GOPATH/bin, unless GOBIN is set).
 
 Defining a module
@@ -85,12 +85,12 @@ For more about the go.mod file, see https://research.swtch.com/vgo-module.
 
 To start a new module, simply create a go.mod file in the root of the
 module's directory tree, containing only a module statement.
-The 'go mod' command can be used to do this:
+The 'go mod init' command can be used to do this:
 
-	go mod -init -module example.com/m
+	go mod init example.com/m
 
 In a project already using an existing dependency management tool like
-godep, glide, or dep, 'go mod -init' will also add require statements
+godep, glide, or dep, 'go mod init' will also add require statements
 matching the existing configuration.
 
 Once the go.mod file exists, no additional steps are required:
@@ -147,7 +147,7 @@ package from the module. On the other hand, determining that a module requiremen
 is no longer necessary and can be deleted requires a full view of
 all packages in the module, across all possible build configurations
 (architectures, operating systems, build tags, and so on).
-The 'go mod -sync' command builds that view and then
+The 'go mod tidy' command builds that view and then
 adds any missing module requirements and removes unnecessary ones.
 
 As part of maintaining the require statements in go.mod, the go command
@@ -172,6 +172,19 @@ automatically make any implied upgrades and update go.mod to reflect them.
 
 The 'go mod' command provides other functionality for use in maintaining
 and understanding modules and go.mod files. See 'go help mod'.
+
+The -mod build flag provides additional control over updating and use of go.mod.
+
+If invoked with -mod=readonly, the go command is disallowed from the implicit
+automatic updating of go.mod described above. Instead, it fails when any changes
+to go.mod are needed. This setting is most useful to check that go.mod does
+not need updates, such as in a continuous integration and testing system.
+The "go get" command remains permitted to update go.mod even with -mod=readonly,
+and the "go mod" commands do not take the -mod flag (or any other build flags).
+
+If invoked with -mod=vendor, the go command assumes that the vendor
+directory holds the correct copies of dependencies and ignores
+the dependency descriptions in go.mod.
 
 Pseudo-versions
 
@@ -337,7 +350,7 @@ The go command maintains a cache of downloaded packages and computes
 and records the cryptographic checksum of each package at download time.
 In normal operation, the go command checks these pre-computed checksums
 against the main module's go.sum file, instead of recomputing them on
-each command invocation. The 'go mod -verify' command checks that
+each command invocation. The 'go mod verify' command checks that
 the cached copies of module downloads still match both their recorded
 checksums and the entries in go.sum.
 
@@ -356,14 +369,14 @@ By default, the go command satisfies dependencies by downloading modules
 from their sources and using those downloaded copies (after verification,
 as described in the previous section). To allow interoperation with older
 versions of Go, or to ensure that all files used for a build are stored
-together in a single file tree, 'go mod -vendor' creates a directory named
+together in a single file tree, 'go mod vendor' creates a directory named
 vendor in the root directory of the main module and stores there all the
 packages from dependency modules that are needed to support builds and
 tests of packages in the main module.
 
 To build using the main module's top-level vendor directory to satisfy
 dependencies (disabling use of the usual network sources and local
-caches), use 'go build -getmode=vendor'. Note that only the main module's
+caches), use 'go build -mod=vendor'. Note that only the main module's
 top-level vendor directory is used; vendor directories in other locations
 are still ignored.
 	`,

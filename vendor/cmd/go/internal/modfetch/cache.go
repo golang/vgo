@@ -22,17 +22,17 @@ import (
 
 var QuietLookup bool // do not print about lookups
 
-var SrcMod string // $GOPATH/src/mod; set by package modload
+var PkgMod string // $GOPATH/pkg/mod; set by package modload
 
 func cacheDir(path string) (string, error) {
-	if SrcMod == "" {
-		return "", fmt.Errorf("internal error: modfetch.SrcMod not set")
+	if PkgMod == "" {
+		return "", fmt.Errorf("internal error: modfetch.PkgMod not set")
 	}
 	enc, err := module.EncodePath(path)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(SrcMod, "cache/download", enc, "/@v"), nil
+	return filepath.Join(PkgMod, "cache/download", enc, "/@v"), nil
 }
 
 func CachePath(m module.Version, suffix string) (string, error) {
@@ -46,12 +46,16 @@ func CachePath(m module.Version, suffix string) (string, error) {
 	if module.CanonicalVersion(m.Version) != m.Version {
 		return "", fmt.Errorf("non-canonical module version %q", m.Version)
 	}
-	return filepath.Join(dir, m.Version+"."+suffix), nil
+	encVer, err := module.EncodeVersion(m.Version)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, encVer+"."+suffix), nil
 }
 
 func DownloadDir(m module.Version) (string, error) {
-	if SrcMod == "" {
-		return "", fmt.Errorf("internal error: modfetch.SrcMod not set")
+	if PkgMod == "" {
+		return "", fmt.Errorf("internal error: modfetch.PkgMod not set")
 	}
 	enc, err := module.EncodePath(m.Path)
 	if err != nil {
@@ -63,7 +67,11 @@ func DownloadDir(m module.Version) (string, error) {
 	if module.CanonicalVersion(m.Version) != m.Version {
 		return "", fmt.Errorf("non-canonical module version %q", m.Version)
 	}
-	return filepath.Join(SrcMod, enc+"@"+m.Version), nil
+	encVer, err := module.EncodeVersion(m.Version)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(PkgMod, enc+"@"+encVer), nil
 }
 
 // A cachingRepo is a cache around an underlying Repo,
@@ -279,7 +287,7 @@ func readDiskStat(path, rev string) (file string, info *RevInfo, err error) {
 // just to find out about a commit we already know about
 // (and have cached under its pseudo-version).
 func readDiskStatByHash(path, rev string) (file string, info *RevInfo, err error) {
-	if SrcMod == "" {
+	if PkgMod == "" {
 		// Do not download to current directory.
 		return "", nil, errNotCached
 	}

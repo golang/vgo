@@ -22,16 +22,10 @@ diff -u -r ./go_test.go /Users/rsc/src/golang.org/x/vgo/vendor/cmd/go/go_test.go
 
  import (
  	"bytes"
-@@ -120,8 +120,8 @@
- 	}
-
- 	if canRun {
+@@ -120,2 +120,2 @@
  		testGo = filepath.Join(testTmpDir, "testgo"+exeSuffix)
 -		args := []string{"build", "-tags", "testgo", "-o", testGo}
 +		args := []string{"build", "-tags", "testgo", "-o", testGo, "../../.."}
- 		if race.Enabled {
- 			args = append(args, "-race")
- 		}
 @@ -867,7 +870,9 @@
  	tg.grepBoth("FAIL.*badtest/badvar", "test did not run everything")
  }

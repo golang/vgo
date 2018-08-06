@@ -22,7 +22,7 @@ import (
 )
 
 var CmdEnv = &base.Command{
-	UsageLine: "env [-json] [var ...]",
+	UsageLine: "go env [-json] [var ...]",
 	Short:     "print Go environment information",
 	Long: `
 Env prints Go environment information.
@@ -54,6 +54,7 @@ func MkEnv() []cfg.EnvVar {
 		{Name: "GOBIN", Value: cfg.GOBIN},
 		{Name: "GOCACHE", Value: cache.DefaultDir()},
 		{Name: "GOEXE", Value: cfg.ExeSuffix},
+		{Name: "GOFLAGS", Value: os.Getenv("GOFLAGS")},
 		{Name: "GOHOSTARCH", Value: runtime.GOARCH},
 		{Name: "GOHOSTOS", Value: runtime.GOOS},
 		{Name: "GOOS", Value: cfg.Goos},

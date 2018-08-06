@@ -377,7 +377,7 @@ See https://golang.org/doc/code.html for an example.
 GOPATH and Modules
 
 When using modules, GOPATH is no longer used for resolving imports.
-However, it is still used to store downloaded source code (in GOPATH/src/mod)
+However, it is still used to store downloaded source code (in GOPATH/pkg/mod)
 and compiled commands (in GOPATH/bin).
 
 Internal Directories
@@ -486,6 +486,11 @@ General-purpose environment variables:
 	GOCACHE
 		The directory where the go command will store cached
 		information for reuse in future builds.
+	GOFLAGS
+		A space-separated list of -flag=value settings to apply
+		to go commands by default, when the given flag is known by
+		the current command. Flags listed on the command-line
+		are applied after this list and therefore override it.
 	GOOS
 		The operating system for which to compile code.
 		Examples are linux, darwin, windows, netbsd.
@@ -501,10 +506,6 @@ General-purpose environment variables:
 	GOTMPDIR
 		The directory where the go command will write
 		temporary source files, packages, and binaries.
-	GOTOOLDIR
-		The directory where the go tools (compile, cover, doc, etc...)
-		are installed. This is printed by go env, but setting the
-		environment variable has no effect.
 
 Environment variables for use with cgo:
 
@@ -573,6 +574,20 @@ Special-purpose environment variables:
 		Defined by Git. A colon-separated list of schemes that are allowed to be used
 		with git fetch/clone. If set, any scheme not explicitly mentioned will be
 		considered insecure by 'go get'.
+
+Additional information available from 'go env' but not read from the environment:
+
+	GOEXE
+		The executable file name suffix (".exe" on Windows, "" on other systems).
+	GOHOSTARCH
+		The architecture (GOARCH) of the Go toolchain binaries.
+	GOHOSTOS
+		The operating system (GOOS) of the Go toolchain binaries.
+	GOMOD
+		The absolute path to the go.mod of the main module,
+		or the empty string if not using modules.
+	GOTOOLDIR
+		The directory where the go tools (compile, cover, doc, etc...) are installed.
 	`,
 }
 

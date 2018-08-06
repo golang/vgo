@@ -30,7 +30,6 @@ import (
 
 var (
 	cwd            string
-	enabled        = MustUseModules
 	MustUseModules = mustUseModules()
 	initialized    bool
 
@@ -41,8 +40,8 @@ var (
 
 	gopath string
 
-	CmdModInit   bool   // go mod -init flag
-	CmdModModule string // go mod -module flag
+	CmdModInit   bool   // running 'go mod init'
+	CmdModModule string // module argument for 'go mod init'
 )
 
 // ModFile returns the parsed go.mod file.
@@ -58,9 +57,7 @@ func ModFile() *modfile.File {
 }
 
 func BinDir() string {
-	if !Enabled() {
-		panic("modload.BinDir")
-	}
+	MustInit()
 	return filepath.Join(gopath, "bin")
 }
 
@@ -73,6 +70,8 @@ func mustUseModules() bool {
 	name = name[strings.LastIndex(name, `\`)+1:]
 	return strings.HasPrefix(name, "vgo")
 }
+
+var inGOPATH bool // running in GOPATH/src
 
 func Init() {
 	if initialized {
@@ -92,12 +91,6 @@ func Init() {
 		if !MustUseModules {
 			return
 		}
-	}
-
-	// If this is testgo - the test binary during cmd/go tests -
-	// then do not let it look for a go.mod unless GO111MODULE has an explicit setting or this is 'go mod -init'.
-	if base := filepath.Base(os.Args[0]); (base == "testgo" || base == "testgo.exe") && env == "" && !CmdModInit {
-		return
 	}
 
 	// Disable any prompting for passwords by Git.
@@ -133,7 +126,7 @@ func Init() {
 		base.Fatalf("go: %v", err)
 	}
 
-	inGOPATH := false
+	inGOPATH = false
 	for _, gopath := range filepath.SplitList(cfg.BuildContext.GOPATH) {
 		if gopath == "" {
 			continue
@@ -143,41 +136,26 @@ func Init() {
 			break
 		}
 	}
-	if inGOPATH && !MustUseModules && cfg.CmdName == "mod" {
-		base.Fatalf("go: modules disabled inside GOPATH/src by GO111MODULE=auto; see 'go help modules'")
+
+	if inGOPATH && !MustUseModules {
+		// No automatic enabling in GOPATH.
+		if root, _ := FindModuleRoot(cwd, "", false); root != "" {
+			cfg.GoModInGOPATH = filepath.Join(root, "go.mod")
+		}
+		return
 	}
 
 	if CmdModInit {
-		// Running 'go mod -init': go.mod will be created in current directory.
+		// Running 'go mod init': go.mod will be created in current directory.
 		ModRoot = cwd
 	} else {
-		if inGOPATH && !MustUseModules {
-			// No automatic enabling in GOPATH.
-			if root, _ := FindModuleRoot(cwd, "", false); root != "" {
-				cfg.GoModInGOPATH = filepath.Join(root, "go.mod")
-			}
+		ModRoot, _ = FindModuleRoot(cwd, "", MustUseModules)
+		if ModRoot == "" && !MustUseModules {
 			return
 		}
-		root, _ := FindModuleRoot(cwd, "", MustUseModules)
-		if root == "" {
-			// If invoked as vgo, insist on a mod file.
-			if MustUseModules {
-				base.Fatalf("go: cannot find main module root; see 'go help modules'")
-			}
-			return
-		}
-
-		ModRoot = root
-	}
-
-	if c := cache.Default(); c == nil {
-		// With modules, there are no install locations for packages
-		// other than the build cache.
-		base.Fatalf("go: cannot use modules with build cache disabled")
 	}
 
 	cfg.ModulesEnabled = true
-	enabled = true
 	load.ModBinDir = BinDir
 	load.ModLookup = Lookup
 	load.ModPackageModuleInfo = PackageModuleInfo
@@ -189,15 +167,60 @@ func Init() {
 	search.SetModRoot(ModRoot)
 }
 
+func init() {
+	load.ModInit = Init
+
+	// Set modfetch.PkgMod unconditionally, so that go clean -modcache can run even without modules enabled.
+	if list := filepath.SplitList(cfg.BuildContext.GOPATH); len(list) > 0 && list[0] != "" {
+		modfetch.PkgMod = filepath.Join(list[0], "pkg/mod")
+	}
+}
+
+// Enabled reports whether modules are (or must be) enabled.
+// If modules must be enabled but are not, Enabled returns true
+// and then the first use of module information will call die
+// (usually through InitMod and MustInit).
 func Enabled() bool {
 	if !initialized {
 		panic("go: Enabled called before Init")
 	}
-	return enabled
+	return ModRoot != "" || MustUseModules
+}
+
+// MustInit calls Init if needed and checks that
+// modules are enabled and the main module has been found.
+// If not, MustInit calls base.Fatalf with an appropriate message.
+func MustInit() {
+	if Init(); ModRoot == "" {
+		die()
+	}
+	if c := cache.Default(); c == nil {
+		// With modules, there are no install locations for packages
+		// other than the build cache.
+		base.Fatalf("go: cannot use modules with build cache disabled")
+	}
+}
+
+// Failed reports whether module loading failed.
+// If Failed returns true, then any use of module information will call die.
+func Failed() bool {
+	Init()
+	return cfg.ModulesEnabled && ModRoot == ""
+}
+
+func die() {
+	if os.Getenv("GO111MODULE") == "off" {
+		base.Fatalf("go: modules disabled by GO111MODULE=off; see 'go help modules'")
+	}
+	if inGOPATH && !MustUseModules {
+		base.Fatalf("go: modules disabled inside GOPATH/src by GO111MODULE=auto; see 'go help modules'")
+	}
+	base.Fatalf("go: cannot find main module; see 'go help modules'")
 }
 
 func InitMod() {
-	if Init(); !Enabled() || modFile != nil {
+	MustInit()
+	if modFile != nil {
 		return
 	}
 
@@ -210,23 +233,23 @@ func InitMod() {
 		base.Fatalf("$GOPATH/go.mod exists but should not")
 	}
 
-	srcV := filepath.Join(list[0], "src/v")
-	srcMod := filepath.Join(list[0], "src/mod")
-	infoV, errV := os.Stat(srcV)
-	_, errMod := os.Stat(srcMod)
-	if errV == nil && infoV.IsDir() && errMod != nil && os.IsNotExist(errMod) {
-		os.Rename(srcV, srcMod)
+	oldSrcMod := filepath.Join(list[0], "src/mod")
+	pkgMod := filepath.Join(list[0], "pkg/mod")
+	infoOld, errOld := os.Stat(oldSrcMod)
+	_, errMod := os.Stat(pkgMod)
+	if errOld == nil && infoOld.IsDir() && errMod != nil && os.IsNotExist(errMod) {
+		os.Rename(oldSrcMod, pkgMod)
 	}
 
-	modfetch.SrcMod = srcMod
+	modfetch.PkgMod = pkgMod
 	modfetch.GoSumFile = filepath.Join(ModRoot, "go.sum")
-	codehost.WorkRoot = filepath.Join(srcMod, "cache/vcs")
+	codehost.WorkRoot = filepath.Join(pkgMod, "cache/vcs")
 
 	if CmdModInit {
-		// Running go mod -init: do legacy module conversion
-		// (go.mod does not exist yet, and it's not our job to write it).
+		// Running go mod init: do legacy module conversion
 		legacyModInit()
 		modFileToBuildList()
+		WriteGoMod()
 		return
 	}
 
@@ -382,7 +405,7 @@ func FindModuleRoot(dir, limit string, legacyConfigOK bool) (root, file string) 
 // Exported only for testing.
 func FindModulePath(dir string) (string, error) {
 	if CmdModModule != "" {
-		// Running go mod -init -module=x/y/z; return x/y/z.
+		// Running go mod init x/y/z; return x/y/z.
 		return CmdModModule, nil
 	}
 
@@ -465,18 +488,46 @@ func findImportComment(file string) string {
 	return path
 }
 
+var allowWriteGoMod = true
+
+// DisallowWriteGoMod causes future calls to WriteGoMod to do nothing at all.
+func DisallowWriteGoMod() {
+	allowWriteGoMod = false
+}
+
+// AllowWriteGoMod undoes the effect of DisallowWriteGoMod:
+// future calls to WriteGoMod will update go.mod if needed.
+// Note that any past calls have been discarded, so typically
+// a call to AlowWriteGoMod should be followed by a call to WriteGoMod.
+func AllowWriteGoMod() {
+	allowWriteGoMod = true
+}
+
+// MinReqs returns a Reqs with minimal dependencies of Target,
+// as will be written to go.mod.
+func MinReqs() mvs.Reqs {
+	var direct []string
+	for _, m := range buildList[1:] {
+		if loaded.direct[m.Path] {
+			direct = append(direct, m.Path)
+		}
+	}
+	min, err := mvs.Req(Target, buildList, direct, Reqs())
+	if err != nil {
+		base.Fatalf("go: %v", err)
+	}
+	return &mvsReqs{buildList: append([]module.Version{Target}, min...)}
+}
+
 // WriteGoMod writes the current build list back to go.mod.
 func WriteGoMod() {
-	modfetch.WriteGoSum()
+	if !allowWriteGoMod {
+		return
+	}
 
 	if loaded != nil {
-		var direct []string
-		for _, m := range buildList[1:] {
-			if loaded.direct[m.Path] {
-				direct = append(direct, m.Path)
-			}
-		}
-		min, err := mvs.Req(Target, buildList, direct, Reqs())
+		reqs := MinReqs()
+		min, err := reqs.Required(Target)
 		if err != nil {
 			base.Fatalf("go: %v", err)
 		}
@@ -497,12 +548,15 @@ func WriteGoMod() {
 	if err != nil {
 		base.Fatalf("go: %v", err)
 	}
-	if bytes.Equal(old, new) {
-		return
+	if !bytes.Equal(old, new) {
+		if cfg.BuildMod == "readonly" {
+			base.Fatalf("go: updates to go.mod needed, disabled by -mod=readonly")
+		}
+		if err := ioutil.WriteFile(file, new, 0666); err != nil {
+			base.Fatalf("go: %v", err)
+		}
 	}
-	if err := ioutil.WriteFile(file, new, 0666); err != nil {
-		base.Fatalf("go: %v", err)
-	}
+	modfetch.WriteGoSum()
 }
 
 func fixVersion(path, vers string) (string, error) {

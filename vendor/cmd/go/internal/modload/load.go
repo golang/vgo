@@ -11,6 +11,7 @@ import (
 	"go/build"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -50,9 +51,6 @@ var loaded *loader
 // ImportPaths returns the set of packages matching the args (patterns),
 // adding modules to the build list as needed to satisfy new imports.
 func ImportPaths(args []string) []string {
-	if Init(); !Enabled() {
-		return search.ImportPaths(args)
-	}
 	InitMod()
 
 	cleaned := search.CleanImportPaths(args)
@@ -63,17 +61,26 @@ func ImportPaths(args []string) []string {
 		paths = nil
 		for _, pkg := range cleaned {
 			switch {
-			case build.IsLocalImport(pkg):
+			case build.IsLocalImport(pkg) || filepath.IsAbs(pkg):
 				list := []string{pkg}
 				if strings.Contains(pkg, "...") {
 					// TODO: Where is the go.mod cutoff?
 					list = warnPattern(pkg, search.AllPackagesInFS(pkg))
 				}
 				for _, pkg := range list {
-					dir := filepath.Join(cwd, pkg)
+					dir := pkg
+					if !filepath.IsAbs(dir) {
+						dir = filepath.Join(cwd, pkg)
+					} else {
+						dir = filepath.Clean(dir)
+					}
+
+					// Note: The checks for @ here are just to avoid misinterpreting
+					// the module cache directories (formerly GOPATH/src/mod/foo@v1.5.2/bar).
+					// It's not strictly necessary but helpful to keep the checks.
 					if dir == ModRoot {
 						pkg = Target.Path
-					} else if strings.HasPrefix(dir, ModRoot+string(filepath.Separator)) {
+					} else if strings.HasPrefix(dir, ModRoot+string(filepath.Separator)) && !strings.Contains(dir[len(ModRoot):], "@") {
 						suffix := filepath.ToSlash(dir[len(ModRoot):])
 						if strings.HasPrefix(suffix, "/vendor/") {
 							// TODO getmode vendor check
@@ -81,8 +88,12 @@ func ImportPaths(args []string) []string {
 						} else {
 							pkg = Target.Path + suffix
 						}
+					} else if sub := search.InDir(dir, cfg.GOROOTsrc); sub != "" && !strings.Contains(sub, "@") {
+						pkg = filepath.ToSlash(sub)
+					} else if path := pathInModuleCache(dir); path != "" {
+						pkg = path
 					} else {
-						base.Errorf("go: package %s outside module root", pkg)
+						base.Errorf("go: directory %s outside available modules", base.ShortPath(dir))
 						continue
 					}
 					roots = append(roots, pkg)
@@ -115,6 +126,25 @@ func ImportPaths(args []string) []string {
 		}
 		return roots
 	})
+
+	// A given module path may be used as itself or as a replacement for another
+	// module, but not both at the same time. Otherwise, the aliasing behavior is
+	// too subtle (see https://golang.org/issue/26607), and we don't want to
+	// commit to a specific behavior at this point.
+	firstPath := make(map[module.Version]string, len(buildList))
+	for _, mod := range buildList {
+		src := mod
+		if rep := Replacement(mod); rep.Path != "" {
+			src = rep
+		}
+		if prev, ok := firstPath[src]; !ok {
+			firstPath[src] = mod.Path
+		} else if prev != mod.Path {
+			base.Errorf("go: %s@%s used for two different module paths (%s and %s)", mod.Path, mod.Version, prev, mod.Path)
+		}
+	}
+	base.ExitIfErrors()
+
 	WriteGoMod()
 
 	// Process paths to produce final paths list.
@@ -140,6 +170,24 @@ func ImportPaths(args []string) []string {
 	return final
 }
 
+// pathInModuleCache returns the import path of the directory dir,
+// if dir is in the module cache copy of a module in our build list.
+func pathInModuleCache(dir string) string {
+	for _, m := range buildList[1:] {
+		root, err := modfetch.DownloadDir(m)
+		if err != nil {
+			continue
+		}
+		if sub := search.InDir(dir, root); sub != "" {
+			sub = filepath.ToSlash(sub)
+			if !strings.Contains(sub, "/vendor/") && !strings.HasPrefix(sub, "vendor/") && !strings.Contains(sub, "@") {
+				return path.Join(m.Path, filepath.ToSlash(sub))
+			}
+		}
+	}
+	return ""
+}
+
 // warnPattern returns list, the result of matching pattern,
 // but if list is empty then first it prints a warning about
 // the pattern not matching any packages.
@@ -153,9 +201,6 @@ func warnPattern(pattern string, list []string) []string {
 // ImportFromFiles adds modules to the build list as needed
 // to satisfy the imports in the named Go source files.
 func ImportFromFiles(gofiles []string) {
-	if Init(); !Enabled() {
-		return
-	}
 	InitMod()
 
 	imports, testImports, err := imports.ScanFiles(gofiles, imports.Tags())
@@ -179,9 +224,6 @@ func ImportFromFiles(gofiles []string) {
 // (typically in commands that care about the module but
 // no particular package).
 func LoadBuildList() []module.Version {
-	if Init(); !Enabled() {
-		base.Fatalf("go: LoadBuildList called but modules not enabled")
-	}
 	InitMod()
 	ReloadBuildList()
 	WriteGoMod()
@@ -213,9 +255,6 @@ func LoadVendor() []string {
 }
 
 func loadAll(testAll bool) []string {
-	if Init(); !Enabled() {
-		panic("go: misuse of LoadALL/LoadVendor")
-	}
 	InitMod()
 
 	loaded = newLoader()
@@ -339,7 +378,8 @@ type loader struct {
 	pkgCache *par.Cache // map from string to *loadPkg
 
 	// computed at end of iterations
-	direct map[string]bool // imported directly by main module
+	direct    map[string]bool   // imported directly by main module
+	goVersion map[string]string // go version recorded in each module
 }
 
 func newLoader() *loader {
@@ -380,7 +420,8 @@ var errMissing = errors.New("cannot find package")
 // which must call add(path) with the import path of each root package.
 func (ld *loader) load(roots func() []string) {
 	var err error
-	buildList, err = mvs.BuildList(Target, Reqs())
+	reqs := Reqs()
+	buildList, err = mvs.BuildList(Target, reqs)
 	if err != nil {
 		base.Fatalf("go: %v", err)
 	}
@@ -426,7 +467,8 @@ func (ld *loader) load(roots func() []string) {
 		}
 
 		// Recompute buildList with all our additions.
-		buildList, err = mvs.BuildList(Target, Reqs())
+		reqs = Reqs()
+		buildList, err = mvs.BuildList(Target, reqs)
 		if err != nil {
 			base.Fatalf("go: %v", err)
 		}
@@ -443,6 +485,13 @@ func (ld *loader) load(roots func() []string) {
 				}
 			}
 		}
+	}
+
+	// Add Go versions, computed during walk.
+	ld.goVersion = make(map[string]string)
+	for _, m := range buildList {
+		v, _ := reqs.(*mvsReqs).versions.Load(m)
+		ld.goVersion[m.Path], _ = v.(string)
 	}
 
 	// Mix in direct markings (really, lack of indirect markings)
@@ -494,7 +543,17 @@ func (ld *loader) doPkg(item interface{}) {
 		pkg.mod = pkg.testOf.mod
 		imports = pkg.testOf.testImports
 	} else {
-		pkg.mod, pkg.dir, pkg.err = ld.doImport(pkg.path)
+		if strings.Contains(pkg.path, "@") {
+			// Leave for error during load.
+			return
+		}
+		if build.IsLocalImport(pkg.path) {
+			// Leave for error during load.
+			// (Module mode does not allow local imports.)
+			return
+		}
+
+		pkg.mod, pkg.dir, pkg.err = Import(pkg.path)
 		if pkg.dir == "" {
 			return
 		}
@@ -524,26 +583,6 @@ func (ld *loader) doPkg(item interface{}) {
 	if pkg.test != nil {
 		ld.work.Add(pkg.test)
 	}
-}
-
-// doImport finds the directory holding source code for the given import path.
-// It returns the module containing the package (if any),
-// the directory containing the package (if any),
-// and any error encountered.
-// Not all packages have modules: the ones in the standard library do not.
-// Not all packages have directories: "unsafe" and "C" do not.
-func (ld *loader) doImport(path string) (mod module.Version, dir string, err error) {
-	if strings.Contains(path, "@") {
-		// Leave for error during load.
-		return module.Version{}, "", nil
-	}
-	if build.IsLocalImport(path) {
-		// Leave for error during load.
-		// (Module mode does not allow local imports.)
-		return module.Version{}, "", nil
-	}
-
-	return Import(path)
 }
 
 // scanDir is like imports.ScanDir but elides known magic imports from the list,
@@ -644,6 +683,7 @@ func Replacement(mod module.Version) module.Version {
 		// Happens during testing.
 		return module.Version{}
 	}
+
 	var found *modfile.Replace
 	for _, r := range modFile.Replace {
 		if r.Old.Path == mod.Path && (r.Old.Version == "" || r.Old.Version == mod.Version) {
@@ -661,6 +701,7 @@ func Replacement(mod module.Version) module.Version {
 type mvsReqs struct {
 	buildList []module.Version
 	cache     par.Cache
+	versions  sync.Map
 }
 
 // Reqs returns the current module requirement graph.
@@ -736,14 +777,24 @@ func readVendorList() {
 	})
 }
 
+func (r *mvsReqs) modFileToList(f *modfile.File) []module.Version {
+	var list []module.Version
+	for _, r := range f.Require {
+		list = append(list, r.Mod)
+	}
+	return list
+}
+
 func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 	if mod == Target {
+		if modFile.Go != nil {
+			r.versions.LoadOrStore(mod, modFile.Go.Version)
+		}
 		var list []module.Version
-		list = append(list, r.buildList[1:]...)
-		return list, nil
+		return append(list, r.buildList[1:]...), nil
 	}
 
-	if cfg.BuildGetmode == "vendor" {
+	if cfg.BuildMod == "vendor" {
 		// For every module other than the target,
 		// return the full list of modules from modules.txt.
 		readVendorList()
@@ -764,16 +815,15 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 				base.Errorf("go: parsing %s: %v", base.ShortPath(gomod), err)
 				return nil, ErrRequire
 			}
-			f, err := modfile.Parse(gomod, data, nil)
+			f, err := modfile.ParseLax(gomod, data, nil)
 			if err != nil {
 				base.Errorf("go: parsing %s: %v", base.ShortPath(gomod), err)
 				return nil, ErrRequire
 			}
-			var list []module.Version
-			for _, r := range f.Require {
-				list = append(list, r.Mod)
+			if f.Go != nil {
+				r.versions.LoadOrStore(mod, f.Go.Version)
 			}
-			return list, nil
+			return r.modFileToList(f), nil
 		}
 		mod = repl
 	}
@@ -792,7 +842,7 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		base.Errorf("go: %s@%s: %v\n", mod.Path, mod.Version, err)
 		return nil, ErrRequire
 	}
-	f, err := modfile.Parse("go.mod", data, nil)
+	f, err := modfile.ParseLax("go.mod", data, nil)
 	if err != nil {
 		base.Errorf("go: %s@%s: parsing go.mod: %v", mod.Path, mod.Version, err)
 		return nil, ErrRequire
@@ -806,12 +856,11 @@ func (r *mvsReqs) required(mod module.Version) ([]module.Version, error) {
 		base.Errorf("go: %s@%s: parsing go.mod: unexpected module path %q", mod.Path, mod.Version, mpath)
 		return nil, ErrRequire
 	}
-
-	var list []module.Version
-	for _, req := range f.Require {
-		list = append(list, req.Mod)
+	if f.Go != nil {
+		r.versions.LoadOrStore(mod, f.Go.Version)
 	}
-	return list, nil
+
+	return r.modFileToList(f), nil
 }
 
 // ErrRequire is the sentinel error returned when Require encounters problems.

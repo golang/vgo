@@ -105,6 +105,7 @@ var testGOCACHE string
 
 var testGo string
 var testTmpDir string
+var testBin string
 
 // The TestMain function creates a go command for testing purposes and
 // deletes it after the tests have been run.
@@ -133,7 +134,11 @@ func TestMain(m *testing.M) {
 	}
 
 	if canRun {
-		testGo = filepath.Join(testTmpDir, "testgo"+exeSuffix)
+		testBin = filepath.Join(testTmpDir, "testbin")
+		if err := os.Mkdir(testBin, 0777); err != nil {
+			log.Fatal(err)
+		}
+		testGo = filepath.Join(testBin, "go"+exeSuffix)
 		args := []string{"build", "-tags", "testgo", "-o", testGo, "../../.."}
 		if race.Enabled {
 			args = append(args, "-race")
@@ -219,13 +224,11 @@ func TestMain(m *testing.M) {
 	os.Unsetenv("GOBIN")
 	os.Unsetenv("GOPATH")
 	os.Unsetenv("GIT_ALLOW_PROTOCOL")
-	if home, ccacheDir := os.Getenv("HOME"), os.Getenv("CCACHE_DIR"); home != "" && ccacheDir == "" {
-		// On some systems the default C compiler is ccache.
-		// Setting HOME to a non-existent directory will break
-		// those systems. Set CCACHE_DIR to cope. Issue 17668.
-		os.Setenv("CCACHE_DIR", filepath.Join(home, ".ccache"))
-	}
 	os.Setenv("HOME", "/test-go-home-does-not-exist")
+	// On some systems the default C compiler is ccache.
+	// Setting HOME to a non-existent directory will break
+	// those systems. Disable ccache and use real compiler. Issue 17668.
+	os.Setenv("CCACHE_DISABLE", "1")
 	if os.Getenv("GOCACHE") == "" {
 		os.Setenv("GOCACHE", testGOCACHE) // because $HOME is gone
 	}
@@ -1470,12 +1473,6 @@ func TestPackageMainTestCompilerFlags(t *testing.T) {
 	tg.grepStderr(`([\\/]compile|gccgo).* (-p p1|-fgo-pkgpath=p1).*p1\.go`, "should have run compile -p p1 p1.go")
 }
 
-// The runtime version string takes one of two forms:
-// "go1.X[.Y]" for Go releases, and "devel +hash" at tip.
-// Determine whether we are in a released copy by
-// inspecting the version.
-var isGoRelease = strings.HasPrefix(runtime.Version(), "go1")
-
 // Issue 12690
 func TestPackageNotStaleWithTrailingSlash(t *testing.T) {
 	skipIfGccgo(t, "gccgo does not have GOROOT")
@@ -1764,7 +1761,7 @@ func TestGoListTest(t *testing.T) {
 	tg.run("list", "-test", "sort")
 	tg.grepStdout(`^sort.test$`, "missing test main")
 	tg.grepStdout(`^sort$`, "missing real sort")
-	tg.grepStdoutNot(`^sort \[sort.test\]$`, "unexpected test copy of sort")
+	tg.grepStdout(`^sort \[sort.test\]$`, "unexpected test copy of sort")
 	tg.grepStdoutNot(`^testing \[sort.test\]$`, "unexpected test copy of testing")
 	tg.grepStdoutNot(`^testing$`, "unexpected real copy of testing")
 
@@ -1783,7 +1780,7 @@ func TestGoListTest(t *testing.T) {
 	tg.grepStdoutNot(`^sort`, "unexpected sort")
 }
 
-func TestGoListCgo(t *testing.T) {
+func TestGoListCompiledCgo(t *testing.T) {
 	tg := testgo(t)
 	defer tg.cleanup()
 	tg.parallel()
@@ -1795,18 +1792,26 @@ func TestGoListCgo(t *testing.T) {
 		t.Skip("net does not use cgo")
 	}
 	if strings.Contains(tg.stdout.String(), tg.tempdir) {
-		t.Fatalf(".CgoFiles without -cgo unexpectedly mentioned cache %s", tg.tempdir)
+		t.Fatalf(".CgoFiles unexpectedly mentioned cache %s", tg.tempdir)
 	}
-	tg.run("list", "-cgo", "-f", `{{join .CgoFiles "\n"}}`, "net")
+	tg.run("list", "-compiled", "-f", `{{.Dir}}{{"\n"}}{{join .CompiledGoFiles "\n"}}`, "net")
 	if !strings.Contains(tg.stdout.String(), tg.tempdir) {
-		t.Fatalf(".CgoFiles with -cgo did not mention cache %s", tg.tempdir)
+		t.Fatalf(".CompiledGoFiles with -compiled did not mention cache %s", tg.tempdir)
 	}
+	dir := ""
 	for _, file := range strings.Split(tg.stdout.String(), "\n") {
 		if file == "" {
 			continue
 		}
+		if dir == "" {
+			dir = file
+			continue
+		}
+		if !strings.Contains(file, "/") && !strings.Contains(file, `\`) {
+			file = filepath.Join(dir, file)
+		}
 		if _, err := os.Stat(file); err != nil {
-			t.Fatalf("cannot find .CgoFiles result %s: %v", file, err)
+			t.Fatalf("cannot find .CompiledGoFiles result %s: %v", file, err)
 		}
 	}
 }
@@ -5552,6 +5557,21 @@ func TestTestVet(t *testing.T) {
 	// vetfail/p1.
 	tg.run("test", "-a", "vetfail/p2")
 	tg.grepStderrNot(`invalid.*constraint`, "did diagnose bad build constraint in vetxonly mode")
+}
+
+func TestTestSkipVetAfterFailedBuild(t *testing.T) {
+	tg := testgo(t)
+	defer tg.cleanup()
+	tg.parallel()
+
+	tg.tempFile("x_test.go", `package x
+		func f() {
+			return 1
+		}
+	`)
+
+	tg.runFail("test", tg.path("x_test.go"))
+	tg.grepStderrNot(`vet`, "vet should be skipped after the failed build")
 }
 
 func TestTestVetRebuild(t *testing.T) {

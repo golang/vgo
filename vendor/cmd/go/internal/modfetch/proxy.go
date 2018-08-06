@@ -25,11 +25,14 @@ var HelpGoproxy = &base.Command{
 	Short:     "module proxy protocol",
 	Long: `
 The go command by default downloads modules from version control systems
-directly, just as 'go get' always has. If the GOPROXY environment variable
-is set to the URL of a module proxy, the go command will instead fetch
-all modules from that proxy. No matter the source of the modules, downloaded
-modules must match existing entries in go.sum (see 'go help modules' for
-discussion of verification).
+directly, just as 'go get' always has. The GOPROXY environment variable allows
+further control over the download source. If GOPROXY is unset, is the empty string,
+or is the string "direct", downloads use the default direct connection to version
+control systems. Setting GOPROXY to "off" disallows downloading modules from
+any source. Otherwise, GOPROXY is expected to be the URL of a module proxy,
+in which case the go command will fetch all modules from that proxy.
+No matter the source of the modules, downloaded modules must match existing
+entries in go.sum (see 'go help modules' for discussion of verification).
 
 A Go module proxy is any web server that can respond to GET requests for
 URLs of a specified form. The requests have no query parameters, so even
@@ -74,10 +77,10 @@ archive.
 
 Even when downloading directly from version control systems,
 the go command synthesizes explicit info, mod, and zip files
-and stores them in its local cache, $GOPATH/src/mod/cache/download,
+and stores them in its local cache, $GOPATH/pkg/mod/cache/download,
 the same as if it had downloaded them directly from a proxy.
 The cache layout is the same as the proxy URL space, so
-serving $GOPATH/src/mod/cache/download at (or copying it to)
+serving $GOPATH/pkg/mod/cache/download at (or copying it to)
 https://example.com/proxy would let other users access those
 cached module versions with GOPROXY=https://example.com/proxy.
 `,
@@ -163,7 +166,11 @@ func (p *proxyRepo) latest() (*RevInfo, error) {
 
 func (p *proxyRepo) Stat(rev string) (*RevInfo, error) {
 	var data []byte
-	err := webGetBytes(p.url+"/@v/"+pathEscape(rev)+".info", &data)
+	encRev, err := module.EncodeVersion(rev)
+	if err != nil {
+		return nil, err
+	}
+	err = webGetBytes(p.url+"/@v/"+pathEscape(encRev)+".info", &data)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +198,11 @@ func (p *proxyRepo) Latest() (*RevInfo, error) {
 
 func (p *proxyRepo) GoMod(version string) ([]byte, error) {
 	var data []byte
-	err := webGetBytes(p.url+"/@v/"+pathEscape(version)+".mod", &data)
+	encVer, err := module.EncodeVersion(version)
+	if err != nil {
+		return nil, err
+	}
+	err = webGetBytes(p.url+"/@v/"+pathEscape(encVer)+".mod", &data)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +211,11 @@ func (p *proxyRepo) GoMod(version string) ([]byte, error) {
 
 func (p *proxyRepo) Zip(version string, tmpdir string) (tmpfile string, err error) {
 	var body io.ReadCloser
-	err = webGetBody(p.url+"/@v/"+pathEscape(version)+".zip", &body)
+	encVer, err := module.EncodeVersion(version)
+	if err != nil {
+		return "", err
+	}
+	err = webGetBody(p.url+"/@v/"+pathEscape(encVer)+".zip", &body)
 	if err != nil {
 		return "", err
 	}

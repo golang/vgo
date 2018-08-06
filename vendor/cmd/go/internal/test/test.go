@@ -37,7 +37,7 @@ func init() {
 	CmdTest.Run = runTest
 }
 
-const testUsage = "test [build/test flags] [packages] [build/test flags & test binary flags]"
+const testUsage = "go test [build/test flags] [packages] [build/test flags & test binary flags]"
 
 var CmdTest = &base.Command{
 	CustomFlags: true,
@@ -168,7 +168,7 @@ flags are also accessible by 'go test'.
 
 // Usage prints the usage message for 'go test -h' and exits.
 func Usage() {
-	os.Stderr.WriteString(testUsage + "\n\n" +
+	os.Stderr.WriteString("usage: " + testUsage + "\n\n" +
 		strings.TrimSpace(testFlag1) + "\n\n\t" +
 		strings.TrimSpace(testFlag2) + "\n")
 	os.Exit(2)
@@ -892,8 +892,10 @@ func builderTest(b *work.Builder, p *load.Package) (buildAction, runAction, prin
 		}
 		runAction = installAction // make sure runAction != nil even if not running test
 	}
+	var vetRunAction *work.Action
 	if testC {
 		printAction = &work.Action{Mode: "test print (nop)", Package: p, Deps: []*work.Action{runAction}} // nop
+		vetRunAction = printAction
 	} else {
 		// run test
 		c := new(runCache)
@@ -906,12 +908,7 @@ func builderTest(b *work.Builder, p *load.Package) (buildAction, runAction, prin
 			TryCache:   c.tryCache,
 			Objdir:     testDir,
 		}
-		if len(ptest.GoFiles)+len(ptest.CgoFiles) > 0 {
-			addTestVet(b, ptest, runAction, installAction)
-		}
-		if pxtest != nil {
-			addTestVet(b, pxtest, runAction, installAction)
-		}
+		vetRunAction = runAction
 		cleanAction = &work.Action{
 			Mode:       "test clean",
 			Func:       builderCleanTest,
@@ -928,6 +925,14 @@ func builderTest(b *work.Builder, p *load.Package) (buildAction, runAction, prin
 			IgnoreFail: true, // print even if test failed
 		}
 	}
+
+	if len(ptest.GoFiles)+len(ptest.CgoFiles) > 0 {
+		addTestVet(b, ptest, vetRunAction, installAction)
+	}
+	if pxtest != nil {
+		addTestVet(b, pxtest, vetRunAction, installAction)
+	}
+
 	if installAction != nil {
 		if runAction != installAction {
 			installAction.Deps = append(installAction.Deps, runAction)
