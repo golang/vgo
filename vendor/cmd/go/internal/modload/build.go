@@ -25,15 +25,21 @@ var (
 )
 
 func isStandardImportPath(path string) bool {
+	return findStandardImportPath(path) != ""
+}
+
+func findStandardImportPath(path string) string {
 	if search.IsStandardImportPath(path) {
-		if _, err := os.Stat(filepath.Join(cfg.GOROOT, "src", path)); err == nil {
-			return true
+		dir := filepath.Join(cfg.GOROOT, "src", path)
+		if _, err := os.Stat(dir); err == nil {
+			return dir
 		}
-		if _, err := os.Stat(filepath.Join(cfg.GOROOT, "src/vendor", path)); err == nil {
-			return true
+		dir = filepath.Join(cfg.GOROOT, "src/vendor", path)
+		if _, err := os.Stat(dir); err == nil {
+			return dir
 		}
 	}
-	return false
+	return ""
 }
 
 func PackageModuleInfo(pkgpath string) *modinfo.ModulePublic {
@@ -144,23 +150,25 @@ func moduleInfo(m module.Version, fromBuildList bool) *modinfo.ModulePublic {
 
 	complete(info)
 
-	if r := Replacement(m); r.Path != "" {
-		info.Replace = &modinfo.ModulePublic{
-			Path:      r.Path,
-			Version:   r.Version,
-			GoVersion: info.GoVersion,
-		}
-		if r.Version == "" {
-			if filepath.IsAbs(r.Path) {
-				info.Replace.Dir = r.Path
-			} else {
-				info.Replace.Dir = filepath.Join(ModRoot, r.Path)
+	if fromBuildList {
+		if r := Replacement(m); r.Path != "" {
+			info.Replace = &modinfo.ModulePublic{
+				Path:      r.Path,
+				Version:   r.Version,
+				GoVersion: info.GoVersion,
 			}
+			if r.Version == "" {
+				if filepath.IsAbs(r.Path) {
+					info.Replace.Dir = r.Path
+				} else {
+					info.Replace.Dir = filepath.Join(ModRoot, r.Path)
+				}
+			}
+			complete(info.Replace)
+			info.Dir = info.Replace.Dir
+			info.GoMod = filepath.Join(info.Dir, "go.mod")
+			info.Error = nil // ignore error loading original module version (it has been replaced)
 		}
-		complete(info.Replace)
-		info.Dir = info.Replace.Dir
-		info.GoMod = filepath.Join(info.Dir, "go.mod")
-		info.Error = nil // ignore error loading original module version (it has been replaced)
 	}
 
 	return info

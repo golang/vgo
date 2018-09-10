@@ -150,8 +150,20 @@ func Init() {
 		ModRoot = cwd
 	} else {
 		ModRoot, _ = FindModuleRoot(cwd, "", MustUseModules)
-		if ModRoot == "" && !MustUseModules {
-			return
+		if !MustUseModules {
+			if ModRoot == "" {
+				return
+			}
+			if search.InDir(ModRoot, os.TempDir()) == "." {
+				// If you create /tmp/go.mod for experimenting,
+				// then any tests that create work directories under /tmp
+				// will find it and get modules when they're not expecting them.
+				// It's a bit of a peculiar thing to disallow but quite mysterious
+				// when it happens. See golang.org/issue/26708.
+				ModRoot = ""
+				fmt.Fprintf(os.Stderr, "go: warning: ignoring go.mod in system temp root %v\n", os.TempDir())
+				return
+			}
 		}
 	}
 
@@ -163,6 +175,7 @@ func Init() {
 	load.ModPackageBuildInfo = PackageBuildInfo
 	load.ModInfoProg = ModInfoProg
 	load.ModImportFromFiles = ImportFromFiles
+	load.ModDirImportPath = DirImportPath
 
 	search.SetModRoot(ModRoot)
 }
@@ -521,7 +534,10 @@ func MinReqs() mvs.Reqs {
 
 // WriteGoMod writes the current build list back to go.mod.
 func WriteGoMod() {
-	if !allowWriteGoMod {
+	// If we're using -mod=vendor we basically ignored
+	// go.mod, so definitely don't try to write back our
+	// incomplete view of the world.
+	if !allowWriteGoMod || cfg.BuildMod == "vendor" {
 		return
 	}
 
