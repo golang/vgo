@@ -22,7 +22,6 @@
 // and put the prefix `x/vgo:` in the issue title.
 //
 // Thank you.
-//
 package main
 
 import Main "cmd/go"
