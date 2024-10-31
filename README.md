@@ -1,3 +1,8 @@
+# Obsolete
+
+This repository is obsolete. All features have been incorporated into
+the main Go tools. The following is of historical interest only.
+
 # Versioned Go Command (vgo)
 
 This repository holds a standalone implementation of a version-aware `go` command,
@@ -12,9 +17,6 @@ the Go 1.11 `go` command, with two changes:
 ## Download/Install
 
 Use `go get -u golang.org/x/vgo`.
-
-You can also manually
-git clone the repository to `$GOPATH/src/golang.org/x/vgo`.
 
 ## Report Issues / Send Patches
 
