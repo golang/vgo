@@ -1,4 +1,4 @@
-go 1.18
+go 1.25.0
 
 module golang.org/x/vgo
 
@@ -18,7 +18,7 @@ module golang.org/x/vgo
 require github.com/miekg/dns v1.0.0
 
 require (
-	golang.org/x/crypto v0.1.0 // indirect
-	golang.org/x/net v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
